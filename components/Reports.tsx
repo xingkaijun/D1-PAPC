@@ -1,11 +1,11 @@
 
 import React, { useMemo, useState } from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend, LabelList
 } from 'recharts';
 import { useStore } from '../store';
-import { 
+import {
   TrendingUp, CheckCircle, Search, Hash, Trash2, Printer, Camera, History, Clock, MessageSquare
 } from 'lucide-react';
 // Fix: Removed missing isWithinInterval from date-fns imports
@@ -27,9 +27,9 @@ const PageHeader: React.FC<{ projectName: string }> = ({ projectName }) => (
   <div className="border-b-2 border-slate-900 pb-5 mb-8 flex justify-between items-end shrink-0">
     <div className="flex items-center gap-5">
       <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-100 overflow-hidden shrink-0">
-        <img 
-          src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png" 
-          alt="Pacific Gas Logo" 
+        <img
+          src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
+          alt="Pacific Gas Logo"
           className="h-10 w-auto object-contain"
         />
       </div>
@@ -40,8 +40,8 @@ const PageHeader: React.FC<{ projectName: string }> = ({ projectName }) => (
       </div>
     </div>
     <div className="text-right">
-       <div className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Report Reference</div>
-       <div className="text-[10px] font-black text-slate-900">{format(new Date(), 'yyyyMMdd-HHmm')}</div>
+      <div className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Report Reference</div>
+      <div className="text-[10px] font-black text-slate-900">{format(new Date(), 'yyyyMMdd-HHmm')}</div>
     </div>
   </div>
 );
@@ -60,7 +60,7 @@ const PageFooter: React.FC<{ pageNumber: number, totalPages: number, projectName
 const ReportPage: React.FC<{ children: React.ReactNode, pageNumber: number, totalPages: number, projectName: string }> = ({ children, pageNumber, totalPages, projectName }) => (
   <div className="mx-auto my-8 bg-white w-[210mm] h-[297mm] shadow-[0_0_50px_-12px_rgba(0,0,0,0.12)] border border-slate-200 p-[15mm] flex flex-col relative box-border break-after-page print:m-0 print:border-none print:shadow-none mb-12 shrink-0">
     <PageHeader projectName={projectName} />
-    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0 print:overflow-visible print:h-auto print:flex-none">
       {children}
     </div>
     <PageFooter pageNumber={pageNumber} totalPages={totalPages} projectName={projectName} />
@@ -135,11 +135,11 @@ export const Reports: React.FC = () => {
     const start = new Date();
     start.setMonth(start.getMonth() - 2);
     const weeks = eachWeekOfInterval({ start, end });
-    
+
     return weeks.map(weekStart => {
       const weekEnd = endOfWeek(weekStart);
       const interval = { start: weekStart, end: weekEnd };
-      let criticalActivity = 0; 
+      let criticalActivity = 0;
       let approvalsThisWeek = 0;
       let reviewStartsThisWeek = 0;
 
@@ -191,7 +191,7 @@ export const Reports: React.FC = () => {
         };
       });
       const latestDiscStat = latestSnapshot?.stats.find(ds => ds.discipline.trim().toLowerCase() === disc.trim().toLowerCase());
-      return { 
+      return {
         discipline: disc, trendData,
         latest: latestDiscStat ? {
           approved: latestDiscStat.approved,
@@ -209,36 +209,36 @@ export const Reports: React.FC = () => {
   const totalPages = 2 + Math.ceil(historicalTrends.length / 2);
 
   return (
-    <div className="bg-slate-100 min-h-full overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 pb-20">
+    <div className="bg-slate-100 min-h-full overflow-y-auto print:overflow-visible print:min-h-0 print:h-auto scrollbar-thin scrollbar-thumb-slate-300 pb-20">
       {/* Floating Action Header (Screen only) */}
       <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md px-6 py-3 border-b border-slate-200 flex items-center justify-between no-print shadow-sm">
-         <div className="flex items-center gap-4">
-           <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Reports Intelligence</h2>
-           <div className="h-4 w-px bg-slate-200" />
-           <p className="text-[10px] font-bold text-slate-500 uppercase">{project.name}</p>
-         </div>
-         <div className="flex gap-2">
-           <button 
-             onClick={() => setShowSnapshotList(!showSnapshotList)}
-             className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${showSnapshotList ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
-           >
-             <History size={12}/> {showSnapshotList ? 'Hide Snapshots' : 'Show Snapshots'}
-           </button>
-           <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"><Printer size={12}/> Export PDF</button>
-           <button onClick={() => takeSnapshot(activeProjectId!)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md shadow-teal-500/20"><Camera size={12}/> Snapshot</button>
-         </div>
+        <div className="flex items-center gap-4">
+          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest">Reports Intelligence</h2>
+          <div className="h-4 w-px bg-slate-200" />
+          <p className="text-[10px] font-bold text-slate-500 uppercase">{project.name}</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowSnapshotList(!showSnapshotList)}
+            className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${showSnapshotList ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+          >
+            <History size={12} /> {showSnapshotList ? 'Hide Snapshots' : 'Show Snapshots'}
+          </button>
+          <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"><Printer size={12} /> Export PDF</button>
+          <button onClick={() => takeSnapshot(activeProjectId!)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md shadow-teal-500/20"><Camera size={12} /> Snapshot</button>
+        </div>
       </div>
 
       {/* --- PAGE 1: EXECUTIVE SUMMARY --- */}
       <ReportPage pageNumber={1} totalPages={totalPages} projectName={project.name}>
         <div className="flex flex-col gap-10">
           <div className="grid grid-cols-3 gap-4 shrink-0">
-            <StatCard label="Total Units" value={stats.total} icon={<Hash size={12}/>} color="blue" />
-            <StatCard label="In-Review" value={stats.reviewing} icon={<Search size={12}/>} color="amber" />
-            <StatCard label="Approved" value={stats.approved} icon={<CheckCircle size={12}/>} color="emerald" />
-            <StatCard label="Comments Flow" value={`${stats.openComments}/${stats.totalComments}`} icon={<MessageSquare size={12}/>} color="slate" />
-            <StatCard label="Progress" value={`${stats.progressPercent}%`} icon={<TrendingUp size={12}/>} color="indigo" />
-            <StatCard label="Latest Pulse" value={snapshots.length > 0 ? format(new Date(snapshots[snapshots.length-1].timestamp), 'MM-dd') : 'N/A'} icon={<Clock size={12}/>} color="cyan" />
+            <StatCard label="Total Units" value={stats.total} icon={<Hash size={12} />} color="blue" />
+            <StatCard label="In-Review" value={stats.reviewing} icon={<Search size={12} />} color="amber" />
+            <StatCard label="Approved" value={stats.approved} icon={<CheckCircle size={12} />} color="emerald" />
+            <StatCard label="Comments Flow" value={`${stats.openComments}/${stats.totalComments}`} icon={<MessageSquare size={12} />} color="slate" />
+            <StatCard label="Progress" value={`${stats.progressPercent}%`} icon={<TrendingUp size={12} />} color="indigo" />
+            <StatCard label="Latest Pulse" value={snapshots.length > 0 ? format(new Date(snapshots[snapshots.length - 1].timestamp), 'MM-dd') : 'N/A'} icon={<Clock size={12} />} color="cyan" />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -255,8 +255,8 @@ export const Reports: React.FC = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={weeklyData} margin={{ top: 30, right: 10, left: -30, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{fontSize: 8, fontWeight: 900, fill: '#94a3b8'}} />
-                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 8, fill: '#94a3b8'}} />
+                  <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#94a3b8' }} />
                   <Bar dataKey="Starts" fill="#f59e0b" radius={[2, 2, 0, 0]}>
                     <LabelList dataKey="Starts" position="top" style={{ fill: '#f59e0b', fontSize: 9, fontWeight: 900 }} />
                   </Bar>
@@ -278,7 +278,7 @@ export const Reports: React.FC = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={disciplineMainData} layout="vertical" margin={{ top: 20, right: 50, left: 10, bottom: 0 }}>
                   <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{fontSize: 8, fontWeight: 900, fill: '#64748b'}} />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }} />
                   <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
                   <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 2, 2, 0]} barSize={12}>
@@ -331,10 +331,10 @@ export const Reports: React.FC = () => {
                   <div className="h-24 w-24 shrink-0 bg-white rounded-xl border border-slate-100 flex items-center justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie 
-                          data={pieData} 
-                          cx="50%" cy="50%" 
-                          innerRadius={22} outerRadius={32} 
+                        <Pie
+                          data={pieData}
+                          cx="50%" cy="50%"
+                          innerRadius={22} outerRadius={32}
                           paddingAngle={2} dataKey="value" stroke="none"
                           label={({ value }) => value}
                           labelLine={false}
@@ -351,18 +351,18 @@ export const Reports: React.FC = () => {
 
           {showSnapshotList && snapshots.length > 0 && (
             <div className="mt-4 no-print shrink-0">
-               <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 border-l-2 border-indigo-400 pl-2">Capture Registry</div>
-               <div className="grid grid-cols-4 gap-2">
-                  {snapshots.slice().reverse().map((s) => (
-                    <div key={s.id} className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-[8px] font-black text-slate-700 uppercase leading-none">{format(new Date(s.timestamp), 'MM-dd')}</span>
-                        <span className="text-[7px] font-mono text-slate-300 mt-0.5">{format(new Date(s.timestamp), 'HH:mm')}</span>
-                      </div>
-                      <button onClick={() => window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id)} className="p-1 text-slate-200 hover:text-red-500 transition-all"><Trash2 size={10}/></button>
+              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 border-l-2 border-indigo-400 pl-2">Capture Registry</div>
+              <div className="grid grid-cols-4 gap-2">
+                {snapshots.slice().reverse().map((s) => (
+                  <div key={s.id} className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-slate-700 uppercase leading-none">{format(new Date(s.timestamp), 'MM-dd')}</span>
+                      <span className="text-[7px] font-mono text-slate-300 mt-0.5">{format(new Date(s.timestamp), 'HH:mm')}</span>
                     </div>
-                  ))}
-               </div>
+                    <button onClick={() => window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id)} className="p-1 text-slate-200 hover:text-red-500 transition-all"><Trash2 size={10} /></button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -370,20 +370,20 @@ export const Reports: React.FC = () => {
 
       {/* --- PAGE 3+: TREND ANALYSIS --- */}
       {Array.from({ length: Math.ceil(historicalTrends.length / 2) }).map((_, pageIdx) => (
-        <ReportPage 
-          key={pageIdx} 
-          pageNumber={3 + pageIdx} 
-          totalPages={totalPages} 
+        <ReportPage
+          key={pageIdx}
+          pageNumber={3 + pageIdx}
+          totalPages={totalPages}
           projectName={project.name}
         >
           <div className="flex flex-col gap-10">
             <div className="flex items-center justify-between border-l-4 border-indigo-600 pl-4">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Progress Trends</h3>
               <div className="flex gap-4">
-                 <LegendItem color="bg-emerald-500" label="Approved" />
-                 <LegendItem color="bg-amber-500" label="Reviewing" />
-                 <LegendItem color="bg-blue-500" label="Waiting" />
-                 <LegendItem color="bg-red-500" label="Open Cmts" />
+                <LegendItem color="bg-emerald-500" label="Approved" />
+                <LegendItem color="bg-amber-500" label="Reviewing" />
+                <LegendItem color="bg-blue-500" label="Waiting" />
+                <LegendItem color="bg-red-500" label="Open Cmts" />
               </div>
             </div>
             <div className="flex flex-col gap-10">
@@ -407,8 +407,8 @@ export const Reports: React.FC = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={trend.trendData} margin={{ top: 10, right: 10, left: -30, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fontSize: 8, fontWeight: 900, fill: '#94a3b8'}} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fontSize: 8, fontWeight: 900, fill: '#94a3b8'}} />
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
                         <Area type="monotone" dataKey="approvedCount" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
                         <Area type="monotone" dataKey="reviewingCount" stroke="#f59e0b" strokeWidth={2} fill="#f59e0b" fillOpacity={0.1} />
                         <Area type="monotone" dataKey="waitingReplyCount" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
