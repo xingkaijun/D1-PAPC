@@ -375,14 +375,14 @@ export const useStore = create<AppState>()(
         const { webdavUrl, webdavUser, webdavPass, pushPassword } = data.settings;
 
         // Prioritize Environment Variables
-        const targetUrl = (process.env.WEBDAV_URL && process.env.WEBDAV_URL.trim() !== '') ? process.env.WEBDAV_URL : webdavUrl;
-        const targetUser = (process.env.WEBDAV_USER && process.env.WEBDAV_USER.trim() !== '') ? process.env.WEBDAV_USER : webdavUser;
-        const targetPass = (process.env.WEBDAV_PASSWORD && process.env.WEBDAV_PASSWORD.trim() !== '') ? process.env.WEBDAV_PASSWORD : webdavPass;
+        const targetUrl = (import.meta.env.VITE_WEBDAV_URL && import.meta.env.VITE_WEBDAV_URL.trim() !== '') ? import.meta.env.VITE_WEBDAV_URL : webdavUrl;
+        const targetUser = (import.meta.env.VITE_WEBDAV_USER && import.meta.env.VITE_WEBDAV_USER.trim() !== '') ? import.meta.env.VITE_WEBDAV_USER : webdavUser;
+        const targetPass = (import.meta.env.VITE_WEBDAV_PASSWORD && import.meta.env.VITE_WEBDAV_PASSWORD.trim() !== '') ? import.meta.env.VITE_WEBDAV_PASSWORD : webdavPass;
 
         const project = data.projects.find(p => p.id === activeProjectId);
 
 
-        const envPass = process.env.PUSH_PASSWORD;
+        const envPass = import.meta.env.VITE_PUSH_PASSWORD;
         const targetPushPass = (envPass && envPass.trim() !== '') ? envPass : pushPassword;
         if (targetPushPass && targetPushPass.trim() !== '' && password !== targetPushPass) {
           set({ error: 'AUTHENTICATION_FAILED' });
@@ -423,9 +423,9 @@ export const useStore = create<AppState>()(
         const { data, activeProjectId } = get();
         const { webdavUrl, webdavUser, webdavPass } = data.settings;
 
-        const targetUrl = (process.env.WEBDAV_URL && process.env.WEBDAV_URL.trim() !== '') ? process.env.WEBDAV_URL : webdavUrl;
-        const targetUser = (process.env.WEBDAV_USER && process.env.WEBDAV_USER.trim() !== '') ? process.env.WEBDAV_USER : webdavUser;
-        const targetPass = (process.env.WEBDAV_PASSWORD && process.env.WEBDAV_PASSWORD.trim() !== '') ? process.env.WEBDAV_PASSWORD : webdavPass;
+        const targetUrl = (import.meta.env.VITE_WEBDAV_URL && import.meta.env.VITE_WEBDAV_URL.trim() !== '') ? import.meta.env.VITE_WEBDAV_URL : webdavUrl;
+        const targetUser = (import.meta.env.VITE_WEBDAV_USER && import.meta.env.VITE_WEBDAV_USER.trim() !== '') ? import.meta.env.VITE_WEBDAV_USER : webdavUser;
+        const targetPass = (import.meta.env.VITE_WEBDAV_PASSWORD && import.meta.env.VITE_WEBDAV_PASSWORD.trim() !== '') ? import.meta.env.VITE_WEBDAV_PASSWORD : webdavPass;
 
         const project = data.projects.find(p => p.id === activeProjectId);
 
@@ -460,9 +460,9 @@ export const useStore = create<AppState>()(
         const { data } = get();
         const { webdavUrl, webdavUser, webdavPass } = data.settings;
 
-        const targetUrl = (process.env.WEBDAV_URL && process.env.WEBDAV_URL.trim() !== '') ? process.env.WEBDAV_URL : webdavUrl;
-        const targetUser = (process.env.WEBDAV_USER && process.env.WEBDAV_USER.trim() !== '') ? process.env.WEBDAV_USER : webdavUser;
-        const targetPass = (process.env.WEBDAV_PASSWORD && process.env.WEBDAV_PASSWORD.trim() !== '') ? process.env.WEBDAV_PASSWORD : webdavPass;
+        const targetUrl = (import.meta.env.VITE_WEBDAV_URL && import.meta.env.VITE_WEBDAV_URL.trim() !== '') ? import.meta.env.VITE_WEBDAV_URL : webdavUrl;
+        const targetUser = (import.meta.env.VITE_WEBDAV_USER && import.meta.env.VITE_WEBDAV_USER.trim() !== '') ? import.meta.env.VITE_WEBDAV_USER : webdavUser;
+        const targetPass = (import.meta.env.VITE_WEBDAV_PASSWORD && import.meta.env.VITE_WEBDAV_PASSWORD.trim() !== '') ? import.meta.env.VITE_WEBDAV_PASSWORD : webdavPass;
 
         if (!targetUrl) return;
 
