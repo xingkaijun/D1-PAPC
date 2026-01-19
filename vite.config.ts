@@ -13,10 +13,11 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.WEBDAV_URL': JSON.stringify(env.WEBDAV_URL),
-      'process.env.WEBDAV_USER': JSON.stringify(env.WEBDAV_USER),
-      'process.env.WEBDAV_PASSWORD': JSON.stringify(env.WEBDAV_PASSWORD),
-      'process.env.PUSH_PASSWORD': JSON.stringify(env.PUSH_PASSWORD)
+      // Support both VITE_ prefixed (local) and non-prefixed (Vercel) env vars
+      'import.meta.env.VITE_WEBDAV_URL': JSON.stringify(env.VITE_WEBDAV_URL || env.WEBDAV_URL),
+      'import.meta.env.VITE_WEBDAV_USER': JSON.stringify(env.VITE_WEBDAV_USER || env.WEBDAV_USER),
+      'import.meta.env.VITE_WEBDAV_PASSWORD': JSON.stringify(env.VITE_WEBDAV_PASSWORD || env.WEBDAV_PASSWORD),
+      'import.meta.env.VITE_PUSH_PASSWORD': JSON.stringify(env.VITE_PUSH_PASSWORD || env.PUSH_PASSWORD)
     },
     resolve: {
       alias: {
