@@ -6,9 +6,9 @@ import { DrawingList } from './components/DrawingList';
 import { Settings } from './components/Settings';
 import { CommandBar } from './components/CommandBar';
 import { Manual } from './components/Manual';
-import { 
-  FileStack, 
-  Settings as SettingsIcon, 
+import {
+  FileStack,
+  Settings as SettingsIcon,
   PlusCircle,
   ChevronDown,
   Layers,
@@ -22,9 +22,38 @@ import {
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'settings' | 'manual'>('drawings');
-  const { data, activeProjectId, setActiveProject, addProject, isLoading } = useStore();
-  
+  const { data, activeProjectId, setActiveProject, addProject, isLoading, fetchAllProjectsFromWebDAV } = useStore();
+
   const currentProject = data.projects.find(p => p.id === activeProjectId);
+
+  // Helper function to check WebDAV configuration (considers both env vars and store settings)
+  const getWebDAVUrl = () => {
+    const envUrl = import.meta.env.VITE_WEBDAV_URL;
+    return (envUrl && envUrl.trim() !== '') ? envUrl : data.settings.webdavUrl;
+  };
+
+  const isWebDAVConfigured = !!getWebDAVUrl();
+
+  // Auto-scan WebDAV projects on app startup
+  useEffect(() => {
+    const autoScanProjects = async () => {
+      // Only scan if WebDAV is configured
+      if (!isWebDAVConfigured) return;
+
+      // Skip if projects already exist (avoid redundant scans)
+      if (data.projects.length > 0) return;
+
+      try {
+        await fetchAllProjectsFromWebDAV();
+        console.log('Auto-scan completed: Projects loaded from WebDAV');
+      } catch (error) {
+        console.error('Auto-scan failed:', error);
+        // Fail silently - user can still manually scan via Settings
+      }
+    };
+
+    autoScanProjects();
+  }, []); // Only run once on component mount
 
   const handleAddProject = () => {
     const name = prompt('Enter Hull Number or Project Name (e.g. PG-VLEC-H2684):');
@@ -40,9 +69,9 @@ const App: React.FC = () => {
           <div className="flex items-center space-x-4 group cursor-pointer" onClick={() => setActiveTab('drawings')}>
             <div className="relative">
               <div className="bg-white p-1 rounded-xl shadow-md border border-slate-100 transition-transform group-hover:scale-105 active:scale-95 overflow-hidden">
-                <img 
-                  src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png" 
-                  alt="Pacific Gas Logo" 
+                <img
+                  src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
+                  alt="Pacific Gas Logo"
                   className="h-8 w-auto object-contain"
                 />
               </div>
@@ -55,31 +84,31 @@ const App: React.FC = () => {
               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Technical Intelligence System</span>
             </div>
           </div>
-          
+
           {/* Main Navigation Tabs */}
           <nav className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/50 space-x-1">
-            <button 
+            <button
               onClick={() => setActiveTab('drawings')}
               className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
             >
               <FileStack size={14} strokeWidth={2.5} />
               <span>Inventory</span>
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('reports')}
               className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
             >
               <LayoutDashboard size={14} strokeWidth={2.5} />
               <span>Intelligence</span>
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('settings')}
               className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
             >
               <SettingsIcon size={14} strokeWidth={2.5} />
               <span>Config</span>
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('manual')}
               className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'manual' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
             >
@@ -96,19 +125,19 @@ const App: React.FC = () => {
             <button className="flex items-center space-x-4 pl-4 pr-3 py-2 bg-slate-900 rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98]">
               <div className="text-left min-w-[120px]">
                 <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1 flex items-center gap-1.5">
-                   {data.settings.webdavUrl ? <Cloud size={10} className="text-emerald-400" /> : <CloudOff size={10} className="text-slate-600" />}
-                   Cloud Registry
+                  {isWebDAVConfigured ? <Cloud size={10} className="text-emerald-400" /> : <CloudOff size={10} className="text-slate-600" />}
+                  Cloud Registry
                 </div>
                 <div className="text-[12px] font-[1000] text-white truncate max-w-[140px] tracking-tight">{currentProject?.name || 'SELECT SHIP'}</div>
               </div>
               <ChevronDown size={14} className="text-slate-500" />
             </button>
-            
+
             <div className="absolute right-0 top-full mt-3 w-64 bg-white border border-slate-200 rounded-3xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] p-3 animate-in fade-in slide-in-from-top-2">
               <div className="text-[8px] font-black text-slate-400 uppercase px-4 py-2 tracking-widest border-b border-slate-50 mb-2">Fleet Inventory</div>
               <div className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-100 px-1">
                 {data.projects.map(p => (
-                  <button 
+                  <button
                     key={p.id}
                     onClick={() => setActiveProject(p.id)}
                     className={`w-full text-left px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-tight flex items-center justify-between mb-1 transition-all ${activeProjectId === p.id ? 'bg-teal-50 text-teal-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -120,7 +149,7 @@ const App: React.FC = () => {
                 {data.projects.length === 0 && <div className="py-6 text-center text-[8px] font-black text-slate-300 uppercase italic">No Projects Found</div>}
               </div>
               <div className="h-px bg-slate-100 my-2"></div>
-              <button 
+              <button
                 onClick={handleAddProject}
                 className="w-full text-left px-4 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest text-teal-600 hover:bg-teal-50 flex items-center space-x-3 transition-all active:scale-95"
               >
@@ -136,7 +165,7 @@ const App: React.FC = () => {
       <main className="flex-1 flex flex-col overflow-hidden px-6 py-4">
         <div className="max-w-[1800px] mx-auto w-full flex-1 flex flex-col gap-4 overflow-hidden">
           {activeTab === 'drawings' && <CommandBar />}
-          
+
           <div className="flex-1 bg-white rounded-[2rem] border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden flex flex-col">
             {activeTab === 'drawings' && <DrawingList />}
             {activeTab === 'reports' && <Reports />}
@@ -158,17 +187,17 @@ const App: React.FC = () => {
             <span>Entities Logged: {currentProject?.drawings.length || 0}</span>
           </div>
           <div className="text-slate-400 font-bold tracking-widest uppercase opacity-80 flex items-center gap-2">
-             <div className="w-1 h-1 bg-teal-500 rounded-full" />
-             Developped by Kevin @ Newbuilding
+            <div className="w-1 h-1 bg-teal-500 rounded-full" />
+            Developped by Kevin @ Newbuilding
           </div>
         </div>
-        
+
         <div className="flex items-center gap-8 mt-2 md:mt-0">
           <div className="flex items-center gap-3">
-             <div className={`w-2 h-2 rounded-full transition-all duration-1000 ${data.settings.webdavUrl ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-slate-300'}`} />
-             <span className={data.settings.webdavUrl ? 'text-emerald-600 font-black' : 'text-slate-400'}>
-               Cloud Service: {data.settings.webdavUrl ? 'WEBDAV CONNECTED' : 'OFFLINE'}
-             </span>
+            <div className={`w-2 h-2 rounded-full transition-all duration-1000 ${isWebDAVConfigured ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-slate-300'}`} />
+            <span className={isWebDAVConfigured ? 'text-emerald-600 font-black' : 'text-slate-400'}>
+              Cloud Service: {isWebDAVConfigured ? 'WEBDAV CONNECTED' : 'OFFLINE'}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 text-slate-300 group">
             <Code size={12} className="group-hover:text-teal-500 transition-colors" />

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
-import { 
-  Database, Users, Trash2, 
+import {
+  Database, Users, Trash2,
   Plus, UserCheck, RefreshCw, Send, Download, Shield, Info, Lock, X, Eye, EyeOff, AlertCircle,
   Clock, CalendarDays, Save, Upload, Link as LinkIcon, CheckCircle, Activity, ShieldCheck, HeartPulse
 } from 'lucide-react';
@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 export const Settings: React.FC = () => {
   const { data, setSettings, syncWithWebDAV, loadFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const settings = data?.settings || {
     reviewers: [],
     disciplineDefaults: {},
@@ -25,7 +25,7 @@ export const Settings: React.FC = () => {
   };
 
   const project = data.projects.find(p => p.id === activeProjectId);
-  
+
   const activeDisciplines = React.useMemo(() => {
     if (!project) return [];
     return Array.from(new Set(project.drawings.map(d => d.discipline))).filter(Boolean).sort();
@@ -37,7 +37,10 @@ export const Settings: React.FC = () => {
   const [pushPass, setPushPass] = useState(settings.pushPassword || '');
   const [newReviewer, setNewReviewer] = useState('');
   const [newHoliday, setNewHoliday] = useState('');
-  
+
+  // Test connection result state
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // --- Verification Modal State ---
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verificationInput, setVerificationInput] = useState('');
@@ -53,12 +56,12 @@ export const Settings: React.FC = () => {
   }, [error]);
 
   const handleSaveWebDAV = async () => {
-    setSettings({ 
+    setSettings({
       webdavUrl: webdavUrl,
       webdavUser: webdavUser,
       webdavPass: webdavPass
     });
-    
+
     if (webdavUrl && webdavUser && webdavPass) {
       try {
         await fetchAllProjectsFromWebDAV();
@@ -72,12 +75,25 @@ export const Settings: React.FC = () => {
   };
 
   const handleTestWebDAV = async () => {
-    const result = await testWebDAVConnection(webdavUrl, webdavUser, webdavPass);
-    if (result.success) {
-      alert(result.message);
-    } else {
-      alert(`Test Failed: ${result.message}`);
+    // Use environment variables if input fields are empty
+    const envUrl = import.meta.env.VITE_WEBDAV_URL;
+    const envUser = import.meta.env.VITE_WEBDAV_USER;
+    const envPass = import.meta.env.VITE_WEBDAV_PASSWORD;
+
+    const testUrl = webdavUrl || envUrl;
+    const testUser = webdavUser || envUser;
+    const testPass = webdavPass || envPass;
+
+    if (!testUrl) {
+      setTestResult({ success: false, message: 'Server URL is required' });
+      return;
     }
+
+    const result = await testWebDAVConnection(testUrl, testUser, testPass);
+    setTestResult(result);
+
+    // Auto-clear after 5 seconds
+    setTimeout(() => setTestResult(null), 5000);
   };
 
   const handleSavePushPassword = () => {
@@ -126,7 +142,7 @@ export const Settings: React.FC = () => {
     const timestamp = format(new Date(), 'yyyyMMddHHmm');
     const hullName = project.name.replace(/[^a-z0-9]/gi, '_');
     const filename = `PA_${hullName}_${timestamp}.json`;
-    
+
     const projectData = JSON.stringify(project, null, 2);
     const blob = new Blob([projectData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -180,7 +196,7 @@ export const Settings: React.FC = () => {
     <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200 animate-in fade-in slide-in-from-bottom-2 duration-300 p-6">
       <div className="max-w-7xl mx-auto space-y-6 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          
+
           {/* WebDAV & Local Persistence */}
           <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:border-teal-400 transition-colors">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
@@ -192,18 +208,18 @@ export const Settings: React.FC = () => {
                 <label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1 tracking-widest flex items-center gap-1">
                   <LinkIcon size={10} /> Server URL
                 </label>
-                <input 
+                <input
                   type="text" value={webdavUrl} onChange={(e) => setWebdavUrl(e.target.value)}
                   placeholder="https://your-webdav-server.com/dav/"
                   className="w-full p-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] focus:bg-white transition-all"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <input 
+                  <input
                     type="text" value={webdavUser} onChange={(e) => setWebdavUser(e.target.value)}
                     placeholder="Username"
                     className="p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] focus:bg-white transition-all"
                   />
-                  <input 
+                  <input
                     type="password" value={webdavPass} onChange={(e) => setWebdavPass(e.target.value)}
                     placeholder="Password"
                     className="p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] focus:bg-white transition-all"
@@ -218,14 +234,36 @@ export const Settings: React.FC = () => {
                     <RefreshCw className={isLoading ? "animate-spin" : ""} size={10} /> Test Connection
                   </button>
                 </div>
+
+                {/* Test Result Display */}
+                {testResult && (
+                  <div className={`mt-2 p-3 rounded-xl border animate-in fade-in slide-in-from-top-1 ${testResult.success
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : 'bg-red-50 border-red-200 text-red-700'
+                    }`}>
+                    <div className="flex items-center gap-2">
+                      {testResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
+                      <span className="text-[9px] font-black uppercase tracking-wide">{testResult.message}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Environment Variable Hint */}
+                {!webdavUrl && import.meta.env.VITE_WEBDAV_URL && (
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-[8px] font-bold text-blue-600 uppercase tracking-tight flex items-center gap-1.5">
+                      <Info size={10} /> Using env: {import.meta.env.VITE_WEBDAV_URL}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1 tracking-widest flex items-center gap-1.5">
-                  <Shield size={10} className="text-teal-500"/> Auth Password
+                  <Shield size={10} className="text-teal-500" /> Auth Password
                 </label>
                 <div className="flex gap-1.5">
-                  <input 
+                  <input
                     type="password" value={pushPass} onChange={(e) => setPushPass(e.target.value)}
                     placeholder="Security Key"
                     className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-mono text-[9px] focus:bg-white transition-all"
@@ -236,18 +274,18 @@ export const Settings: React.FC = () => {
 
               <div className="pt-2 space-y-3">
                 <div className="text-[9px] font-black uppercase text-slate-400 ml-1">Hull: <span className="text-teal-600">{project?.name || 'Unset'}</span></div>
-                
+
                 <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={openPushModal} 
-                    disabled={isLoading || !project} 
+                  <button
+                    onClick={openPushModal}
+                    disabled={isLoading || !project}
                     className="p-3 bg-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-teal-500/10"
                   >
                     <Send size={12} /> WebDAV Sync
                   </button>
-                  <button 
-                    onClick={loadFromWebDAV} 
-                    disabled={isLoading || !project} 
+                  <button
+                    onClick={loadFromWebDAV}
+                    disabled={isLoading || !project}
                     className="p-3 bg-cyan-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-cyan-500/10"
                   >
                     <Download size={12} /> WebDAV Fetch
@@ -257,25 +295,25 @@ export const Settings: React.FC = () => {
                 <div className="h-px bg-slate-100 my-1" />
 
                 <div className="grid grid-cols-2 gap-2">
-                  <button 
+                  <button
                     onClick={handleLocalBackup}
                     disabled={!project}
                     className="p-3 bg-white border border-slate-900 text-slate-900 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <Save size={12} /> Local Backup
                   </button>
-                  <button 
+                  <button
                     onClick={() => fileInputRef.current?.click()}
                     className="p-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <Upload size={12} /> Local Restore
                   </button>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleLocalRestore} 
-                    accept=".json" 
-                    className="hidden" 
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleLocalRestore}
+                    accept=".json"
+                    className="hidden"
                   />
                 </div>
               </div>
@@ -290,18 +328,18 @@ export const Settings: React.FC = () => {
             </div>
             <div className="p-5 flex-1 space-y-4">
               <div className="flex gap-1.5">
-                <input 
+                <input
                   type="text" value={newReviewer} onChange={(e) => setNewReviewer(e.target.value)}
                   placeholder="New Reviewer Name"
                   className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none focus:bg-white transition-all uppercase"
                 />
-                <button onClick={() => addItem('reviewers', newReviewer, setNewReviewer)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16}/></button>
+                <button onClick={() => addItem('reviewers', newReviewer, setNewReviewer)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16} /></button>
               </div>
               <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
                 {(settings.reviewers || []).map(r => (
                   <div key={r} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl group hover:border-teal-400 transition-all">
                     <span className="text-[10px] font-black text-slate-700 uppercase">{r}</span>
-                    <button onClick={() => removeItem('reviewers', r)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12}/></button>
+                    <button onClick={() => removeItem('reviewers', r)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                   </div>
                 ))}
               </div>
@@ -315,24 +353,24 @@ export const Settings: React.FC = () => {
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Default Leads</h2>
             </div>
             <div className="p-5 flex-1 space-y-3">
-               <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
-                 {activeDisciplines.map(d => (
-                   <div key={d} className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50/50 border border-slate-100">
-                     <span className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-widest">{d}</span>
-                     <select 
-                       value={(settings.disciplineDefaults || {})[d] || ''}
-                       onChange={(e) => updateDisciplineDefault(d, e.target.value)}
-                       className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black outline-none uppercase tracking-tight"
-                     >
-                       <option value="">No Default</option>
-                       {(settings.reviewers || []).map(r => <option key={r} value={r}>{r}</option>)}
-                     </select>
-                   </div>
-                 ))}
-                 {activeDisciplines.length === 0 && (
-                   <div className="text-center py-10 opacity-30 text-[9px] font-black uppercase tracking-widest">No Disciplines</div>
-                 )}
-               </div>
+              <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
+                {activeDisciplines.map(d => (
+                  <div key={d} className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50/50 border border-slate-100">
+                    <span className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-widest">{d}</span>
+                    <select
+                      value={(settings.disciplineDefaults || {})[d] || ''}
+                      onChange={(e) => updateDisciplineDefault(d, e.target.value)}
+                      className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black outline-none uppercase tracking-tight"
+                    >
+                      <option value="">No Default</option>
+                      {(settings.reviewers || []).map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+                ))}
+                {activeDisciplines.length === 0 && (
+                  <div className="text-center py-10 opacity-30 text-[9px] font-black uppercase tracking-widest">No Disciplines</div>
+                )}
+              </div>
             </div>
           </section>
 
@@ -345,28 +383,28 @@ export const Settings: React.FC = () => {
             <div className="p-6 flex-1 space-y-6">
               <div className="space-y-4">
                 <div>
-                   <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Round A Cycle (Working Days)</label>
-                   <div className="flex items-center gap-4">
-                     <input 
-                       type="range" min="1" max="30" step="1" 
-                       value={settings.roundACycle}
-                       onChange={(e) => setSettings({ roundACycle: parseInt(e.target.value) })}
-                       className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                     />
-                     <span className="text-lg font-[1000] text-amber-600 w-10">{settings.roundACycle}</span>
-                   </div>
+                  <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Round A Cycle (Working Days)</label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range" min="1" max="30" step="1"
+                      value={settings.roundACycle}
+                      onChange={(e) => setSettings({ roundACycle: parseInt(e.target.value) })}
+                      className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                    <span className="text-lg font-[1000] text-amber-600 w-10">{settings.roundACycle}</span>
+                  </div>
                 </div>
                 <div>
-                   <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Subsequent Rounds Cycle</label>
-                   <div className="flex items-center gap-4">
-                     <input 
-                       type="range" min="1" max="21" step="1" 
-                       value={settings.otherRoundsCycle}
-                       onChange={(e) => setSettings({ otherRoundsCycle: parseInt(e.target.value) })}
-                       className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
-                     />
-                     <span className="text-lg font-[1000] text-amber-600 w-10">{settings.otherRoundsCycle}</span>
-                   </div>
+                  <label className="text-[9px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Subsequent Rounds Cycle</label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range" min="1" max="21" step="1"
+                      value={settings.otherRoundsCycle}
+                      onChange={(e) => setSettings({ otherRoundsCycle: parseInt(e.target.value) })}
+                      className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                    <span className="text-lg font-[1000] text-amber-600 w-10">{settings.otherRoundsCycle}</span>
+                  </div>
                 </div>
               </div>
               <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
@@ -385,22 +423,22 @@ export const Settings: React.FC = () => {
             </div>
             <div className="p-5 flex-1 space-y-4">
               <div className="flex gap-1.5">
-                <input 
+                <input
                   type="date" value={newHoliday} onChange={(e) => setNewHoliday(e.target.value)}
                   className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none focus:bg-white transition-all uppercase"
                 />
-                <button onClick={() => addItem('holidays', newHoliday, setNewHoliday)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16}/></button>
+                <button onClick={() => addItem('holidays', newHoliday, setNewHoliday)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16} /></button>
               </div>
               <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
                 {(settings.holidays || []).sort().map(h => (
                   <div key={h} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl group hover:border-red-400 transition-all">
                     <span className="text-[10px] font-black text-slate-700">{format(new Date(h), 'yyyy-MM-dd')}</span>
-                    <button onClick={() => removeItem('holidays', h)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12}/></button>
+                    <button onClick={() => removeItem('holidays', h)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                   </div>
                 ))}
                 {settings.holidays.length === 0 && (
-                   <div className="text-center py-10 opacity-30 text-[9px] font-black uppercase tracking-widest">No Holidays Logged</div>
-                 )}
+                  <div className="text-center py-10 opacity-30 text-[9px] font-black uppercase tracking-widest">No Holidays Logged</div>
+                )}
               </div>
             </div>
           </section>
@@ -413,19 +451,19 @@ export const Settings: React.FC = () => {
             </div>
             <div className="p-6 flex-1 space-y-4">
               <div className="flex flex-col gap-3">
-                 <HealthItem label="Team Roster" active={healthStats.roster} subText={`${settings.reviewers.length} Reviewers Loaded`} />
-                 <HealthItem label="Discipline Defaults" active={healthStats.coverage} subText={healthStats.coverage ? 'Full Assignment Coverage' : 'Missing Default Leads'} />
-                 <HealthItem label="WebDAV Registry" active={healthStats.cloud} subText={healthStats.cloud ? 'Cloud Services Active' : 'Offline Persistence Only'} />
-                 <HealthItem label="Holiday Policy" active={healthStats.holidays} subText={healthStats.holidays ? `${settings.holidays.length} Dates Configured` : 'Using Standard Calendar'} />
+                <HealthItem label="Team Roster" active={healthStats.roster} subText={`${settings.reviewers.length} Reviewers Loaded`} />
+                <HealthItem label="Discipline Defaults" active={healthStats.coverage} subText={healthStats.coverage ? 'Full Assignment Coverage' : 'Missing Default Leads'} />
+                <HealthItem label="WebDAV Registry" active={healthStats.cloud} subText={healthStats.cloud ? 'Cloud Services Active' : 'Offline Persistence Only'} />
+                <HealthItem label="Holiday Policy" active={healthStats.holidays} subText={healthStats.holidays ? `${settings.holidays.length} Dates Configured` : 'Using Standard Calendar'} />
               </div>
 
               <div className="mt-4 pt-4 border-t border-slate-100">
-                 <div className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Config Integrity Score</div>
-                 <div className="flex gap-1.5">
-                    {[1, 2, 3, 4].map(i => (
-                      <div key={i} className={`flex-1 h-2 rounded-full transition-all duration-1000 ${i <= healthStats.score + (healthStats.holidays ? 1 : 0) ? 'bg-indigo-500 shadow-lg shadow-indigo-500/20' : 'bg-slate-100'}`} />
-                    ))}
-                 </div>
+                <div className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Config Integrity Score</div>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className={`flex-1 h-2 rounded-full transition-all duration-1000 ${i <= healthStats.score + (healthStats.holidays ? 1 : 0) ? 'bg-indigo-500 shadow-lg shadow-indigo-500/20' : 'bg-slate-100'}`} />
+                  ))}
+                </div>
               </div>
             </div>
           </section>
@@ -437,10 +475,10 @@ export const Settings: React.FC = () => {
       {showVerifyModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
           <div className={`bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden flex flex-col p-8 transition-transform duration-100 ${shaking ? 'animate-shake' : ''}`}>
-            
+
             <div className="flex items-center justify-between mb-10">
               <div className="w-14 h-14 bg-teal-50 rounded-[1.25rem] flex items-center justify-center text-teal-600 shadow-sm border border-teal-100">
-                 <Lock size={28} strokeWidth={2.5} />
+                <Lock size={28} strokeWidth={2.5} />
               </div>
               <button onClick={() => setShowVerifyModal(false)} className="p-2 text-slate-300 hover:text-slate-600 transition-colors rounded-full hover:bg-slate-50">
                 <X size={28} />
@@ -453,43 +491,43 @@ export const Settings: React.FC = () => {
             </div>
 
             <div className="space-y-6">
-               <div className="relative">
-                 <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block ml-1 tracking-[0.25em]">Master Access Key</label>
-                 <div className="relative">
-                    <input 
-                      autoFocus
-                      type={showPass ? "text" : "password"}
-                      value={verificationInput}
-                      onChange={(e) => setVerificationInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleExecutePush()}
-                      placeholder="••••••••"
-                      className={`w-full p-5 pr-14 bg-slate-50 border-2 rounded-[1.5rem] outline-none text-xl font-bold tracking-widest transition-all ${error === 'AUTHENTICATION_FAILED' ? 'border-red-200 bg-red-50 text-red-600' : 'border-slate-100 focus:border-teal-500 focus:bg-white'}`}
-                    />
-                    <button 
-                      onClick={() => setShowPass(!showPass)}
-                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-teal-600 transition-colors"
-                    >
-                      {showPass ? <EyeOff size={22} /> : <Eye size={22} />}
-                    </button>
-                 </div>
-               </div>
-               {error === 'AUTHENTICATION_FAILED' && (
-                 <div className="flex items-center gap-3 text-red-600 p-5 bg-red-100/50 rounded-2xl border border-red-100 animate-in slide-in-from-top-2">
-                   <AlertCircle size={18} className="shrink-0" />
-                   <span className="text-[10px] font-black uppercase tracking-widest leading-none">Security Access Denied</span>
-                 </div>
-               )}
+              <div className="relative">
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block ml-1 tracking-[0.25em]">Master Access Key</label>
+                <div className="relative">
+                  <input
+                    autoFocus
+                    type={showPass ? "text" : "password"}
+                    value={verificationInput}
+                    onChange={(e) => setVerificationInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleExecutePush()}
+                    placeholder="••••••••"
+                    className={`w-full p-5 pr-14 bg-slate-50 border-2 rounded-[1.5rem] outline-none text-xl font-bold tracking-widest transition-all ${error === 'AUTHENTICATION_FAILED' ? 'border-red-200 bg-red-50 text-red-600' : 'border-slate-100 focus:border-teal-500 focus:bg-white'}`}
+                  />
+                  <button
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-teal-600 transition-colors"
+                  >
+                    {showPass ? <EyeOff size={22} /> : <Eye size={22} />}
+                  </button>
+                </div>
+              </div>
+              {error === 'AUTHENTICATION_FAILED' && (
+                <div className="flex items-center gap-3 text-red-600 p-5 bg-red-100/50 rounded-2xl border border-red-100 animate-in slide-in-from-top-2">
+                  <AlertCircle size={18} className="shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-widest leading-none">Security Access Denied</span>
+                </div>
+              )}
             </div>
 
             <div className="mt-12 flex flex-col gap-4">
-               <button 
-                 onClick={handleExecutePush}
-                 disabled={isLoading || verificationInput.trim() === ''}
-                 className="w-full py-5 bg-teal-600 text-white rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.3em] shadow-xl shadow-teal-500/20 hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-4"
-               >
-                 {isLoading ? <RefreshCw className="animate-spin" size={20} /> : <Shield size={20} />}
-                 {isLoading ? 'Processing...' : 'Authorize Sync'}
-               </button>
+              <button
+                onClick={handleExecutePush}
+                disabled={isLoading || verificationInput.trim() === ''}
+                className="w-full py-5 bg-teal-600 text-white rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.3em] shadow-xl shadow-teal-500/20 hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-4"
+              >
+                {isLoading ? <RefreshCw className="animate-spin" size={20} /> : <Shield size={20} />}
+                {isLoading ? 'Processing...' : 'Authorize Sync'}
+              </button>
             </div>
           </div>
         </div>
@@ -511,12 +549,12 @@ export const Settings: React.FC = () => {
 
 const HealthItem = ({ label, active, subText }: { label: string, active: boolean, subText: string }) => (
   <div className="flex items-center gap-4 group">
-     <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all ${active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
-        {active ? <CheckCircle size={16} /> : <Activity size={16} />}
-     </div>
-     <div className="flex flex-col">
-        <span className={`text-[10px] font-black uppercase tracking-widest ${active ? 'text-slate-900' : 'text-slate-400'}`}>{label}</span>
-        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{subText}</span>
-     </div>
+    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all ${active ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
+      {active ? <CheckCircle size={16} /> : <Activity size={16} />}
+    </div>
+    <div className="flex flex-col">
+      <span className={`text-[10px] font-black uppercase tracking-widest ${active ? 'text-slate-900' : 'text-slate-400'}`}>{label}</span>
+      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{subText}</span>
+    </div>
   </div>
 );

@@ -13,18 +13,8 @@
         margin: 0;
       }
       
-      /* Reset constraints for all containers during print to allow natural page flow */
-      html, body, #root, [class*="h-screen"], main, div {
-        height: auto !important;
-        overflow: visible !important;
-        display: block !important;
-        position: static !important;
-      }
-
-      /* Cancel all rounded corners for a professional document look */
-      * {
-        border-radius: 0 !important;
-      }
+      
+      /*  Keep existing layout - removed forced reflow rules */
 
       .no-print {
         display: none !important;
@@ -42,16 +32,10 @@
         print-color-adjust: exact;
       }
 
-      /* Force page breaks after specific report page blocks */
+      /* Respect existing page layout from Reports component */
       .break-after-page {
         page-break-after: always !important;
         break-after: page !important;
-        display: block !important;
-        margin: 0 !important;
-        padding: 15mm !important;
-        width: 210mm !important;
-        height: 297mm !important;
-        box-sizing: border-box !important;
       }
 
       /* Tables should behave well within pages */
@@ -70,16 +54,7 @@
         display: table-header-group;
       }
 
-      /* Ensure shadow and borders are clean for print */
-      .shadow-2xl, .shadow-sm, .shadow-md, .shadow-xl {
-        box-shadow: none !important;
-        border: 1px solid #000 !important;
-      }
-      
-      /* Adjust borders for print clarity */
-      .border, .border-slate-100, .border-slate-200, .border-slate-900 {
-        border: 0.5pt solid #000 !important;
-      }
+
     }
 
     /* Screen-only visual improvements for Intelligence pages */
