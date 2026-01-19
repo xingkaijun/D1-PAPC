@@ -12,7 +12,11 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.WEBDAV_URL': JSON.stringify(env.WEBDAV_URL),
+      'process.env.WEBDAV_USER': JSON.stringify(env.WEBDAV_USER),
+      'process.env.WEBDAV_PASSWORD': JSON.stringify(env.WEBDAV_PASSWORD),
+      'process.env.PUSH_PASSWORD': JSON.stringify(env.PUSH_PASSWORD)
     },
     resolve: {
       alias: {
