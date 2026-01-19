@@ -1,0 +1,115 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plan Approval Platform</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+      
+      /* Reset constraints for all containers during print to allow natural page flow */
+      html, body, #root, [class*="h-screen"], main, div {
+        height: auto !important;
+        overflow: visible !important;
+        display: block !important;
+        position: static !important;
+      }
+
+      /* Cancel all rounded corners for a professional document look */
+      * {
+        border-radius: 0 !important;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+
+      .print-only {
+        display: block !important;
+        width: 100% !important;
+        position: relative !important;
+      }
+
+      body {
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* Force page breaks after specific report page blocks */
+      .break-after-page {
+        page-break-after: always !important;
+        break-after: page !important;
+        display: block !important;
+        margin: 0 !important;
+        padding: 15mm !important;
+        width: 210mm !important;
+        height: 297mm !important;
+        box-sizing: border-box !important;
+      }
+
+      /* Tables should behave well within pages */
+      table {
+        page-break-inside: auto;
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+
+      /* Ensure shadow and borders are clean for print */
+      .shadow-2xl, .shadow-sm, .shadow-md, .shadow-xl {
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+      }
+      
+      /* Adjust borders for print clarity */
+      .border, .border-slate-100, .border-slate-200, .border-slate-900 {
+        border: 0.5pt solid #000 !important;
+      }
+    }
+
+    /* Screen-only visual improvements for Intelligence pages */
+    .print-only {
+      display: none;
+    }
+
+    /* Scrollbar behavior for screen */
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "zustand/": "https://esm.sh/zustand@^5.0.10/",
+    "zustand": "https://esm.sh/zustand@^5.0.10",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "date-fns": "https://esm.sh/date-fns@^4.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-[#F8FAFC] text-slate-900 font-sans antialiased">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
