@@ -6,103 +6,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Plan Approval Platform</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  @media print {
-  @page {
-  size: A4 portrait;
-  margin: 0;
-  }
+  <style>
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
 
-  /* Critical: Remove all scrollbars and overflow restrictions */
-  html, body {
-  overflow: visible !important;
-  height: auto !important;
-  width: 100% !important;
-  }
+      /* Critical: Remove all scrollbars and overflow restrictions */
+      html,
+      body {
+        overflow: visible !important;
+        height: auto !important;
+        width: 100% !important;
+      }
 
-  /* Force main container to show all content */
-  .bg-slate-100,
-  .min-h-full,
-  .overflow-y-auto,
-  .overflow-auto {
-  overflow: visible !important;
-  height: auto !important;
-  min-height: 0 !important;
-  }
+      /* Force main container to show all content */
+      .bg-slate-100,
+      .min-h-full,
+      .overflow-y-auto,
+      .overflow-auto {
+        overflow: visible !important;
+        height: auto !important;
+        min-height: 0 !important;
+      }
 
-  /* Allow content areas to expand */
-  .flex-1 {
-  flex: none !important;
-  height: auto !important;
-  min-height: 0 !important;
-  }
+      /* Allow content areas to expand */
+      .flex-1 {
+        flex: none !important;
+        height: auto !important;
+        min-height: 0 !important;
+      }
 
-  /* Remove overflow-hidden that truncates content */
-  .overflow-hidden {
-  overflow: visible !important;
-  }
+      /* Remove overflow-hidden that truncates content */
+      .overflow-hidden {
+        overflow: visible !important;
+      }
 
-  /* Hide screen-only elements */
-  .no-print {
-  display: none !important;
-  }
+      /* Hide screen-only elements */
+      .no-print {
+        display: none !important;
+      }
 
-  .print-only {
-  display: block !important;
-  width: 100% !important;
-  position: relative !important;
-  }
+      .print-only {
+        display: block !important;
+        width: 100% !important;
+        position: relative !important;
+      }
 
-  body {
-  background: white !important;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-  }
+      body {
+        background: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
 
-  /* Ensure each report page breaks properly */
-  .break-after-page {
-  page-break-after: always !important;
-  break-after: page !important;
-  page-break-inside: avoid !important;
-  }
+      /* Ensure each report page breaks properly */
+      .break-after-page {
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+      }
 
-  /* Tables should behave well within pages */
-  table {
-  page-break-inside: auto;
-  width: 100% !important;
-  border-collapse: collapse !important;
-  }
+      /* Tables should behave well within pages */
+      table {
+        page-break-inside: auto;
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
 
-  tr {
-  page-break-inside: avoid;
-  page-break-after: auto;
-  }
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
 
-  thead {
-  display: table-header-group;
-  }
+      thead {
+        display: table-header-group;
+      }
 
-  /* Ensure SVG charts are visible */
-  svg {
-  overflow: visible !important;
-  }
+      /* Ensure SVG charts are visible */
+      svg {
+        overflow: visible !important;
+      }
 
-  /* Remove shadows to save ink */
-  .shadow-2xl, .shadow-xl, .shadow-lg,
-  .shadow-md, .shadow-sm, .shadow {
-  box-shadow: none !important;
-  }
-  }
+      /* Remove shadows to save ink */
+      .shadow-2xl,
+      .shadow-xl,
+      .shadow-lg,
+      .shadow-md,
+      .shadow-sm,
+      .shadow {
+        box-shadow: none !important;
+      }
+    }
 
 
-  /* Screen-only visual improvements for Intelligence pages */
-  .print-only {
-  display: none;
-  }
+    /* Screen-only visual improvements for Intelligence pages */
+    .print-only {
+      display: none;
+    }
 
-  /* Scrollbar behavior for screen */
-  .scrollbar-none::-webkit-scrollbar {
-  display: none;
-  }
+    /* Scrollbar behavior for screen */
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
   </style>
   <script type="importmap">
 {
