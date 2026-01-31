@@ -5,6 +5,7 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, Legend, LabelList
 } from 'recharts';
 import { useStore } from '../store';
+import { Drawing } from '../types';
 import {
   TrendingUp, CheckCircle, Search, Hash, Trash2, Printer, Camera, History, Clock, MessageSquare
 } from 'lucide-react';
@@ -215,22 +216,123 @@ export const Reports: React.FC = () => {
     return drawings
       .filter(d => d.status !== 'Pending' && d.status !== 'Approved')
       .filter(d => {
-        const lastUpdate = d.statusHistory && d.statusHistory.length > 0
-          ? new Date(d.statusHistory[d.statusHistory.length - 1].createdAt)
-          : new Date(d.logs[0]?.receivedDate || now);
+        // Safe date extraction with fallback
+        let lastUpdate = now;
+        if (d.statusHistory && d.statusHistory.length > 0) {
+          lastUpdate = new Date(d.statusHistory[d.statusHistory.length - 1].createdAt);
+        } else if (d.logs && d.logs.length > 0 && d.logs[0].receivedDate) {
+          lastUpdate = new Date(d.logs[0].receivedDate);
+        }
+
         const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
         return daysSince > 14;
       })
       .sort((a, b) => {
-        const aDate = a.statusHistory && a.statusHistory.length > 0
-          ? new Date(a.statusHistory[a.statusHistory.length - 1].createdAt)
-          : new Date(a.logs[0]?.receivedDate || now);
-        const bDate = b.statusHistory && b.statusHistory.length > 0
-          ? new Date(b.statusHistory[b.statusHistory.length - 1].createdAt)
-          : new Date(b.logs[0]?.receivedDate || now);
+        const getLastUpdate = (drawing: typeof drawings[0]) => {
+          if (drawing.statusHistory && drawing.statusHistory.length > 0) {
+            return new Date(drawing.statusHistory[drawing.statusHistory.length - 1].createdAt);
+          } else if (drawing.logs && drawing.logs.length > 0 && drawing.logs[0].receivedDate) {
+            return new Date(drawing.logs[0].receivedDate);
+          }
+          return now;
+        };
+
+        const aDate = getLastUpdate(a);
+        const bDate = getLastUpdate(b);
         return aDate.getTime() - bDate.getTime();
       });
   }, [drawings]);
+
+  // Helper function to safely extract last update date from a drawing
+  const getDrawingLastUpdate = (drawing: Drawing): Date => {
+    const now = new Date();
+    if (drawing.statusHistory && drawing.statusHistory.length > 0) {
+      return new Date(drawing.statusHistory[drawing.statusHistory.length - 1].createdAt);
+    }
+    if (drawing.logs && drawing.logs.length > 0) {
+      const log = drawing.logs[0];
+      if (log && log.receivedDate) {
+        return new Date(log.receivedDate);
+      }
+    }
+    return now;
+  };
+
+  // Inject print-specific styles
+  React.useEffect(() => {
+    const styleId = 'reports-print-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+          
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          .no-print {
+            display: none !important;
+          }
+          
+          /* Force exact dimensions */
+          .w-\\[210mm\\] {
+            width: 210mm !important;
+            min-width: 210mm !important;
+            max-width: 210mm !important;
+          }
+          
+          .h-\\[297mm\\] {
+            height: 297mm !important;
+            min-height: 297mm !important;
+            max-height: 297mm !important;
+          }
+          
+          /* Ensure grid layouts stay intact */
+          .grid {
+            display: grid !important;
+          }
+          
+          .grid-cols-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          
+          .grid-cols-3 {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+          
+          /* Prevent page breaks inside cards */
+          .break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          
+          /* Force page breaks after pages */
+          .break-after-page {
+            break-after: page !important;
+            page-break-after: always !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    return () => {
+      const style = document.getElementById(styleId);
+      if (style) style.remove();
+    };
+  }, []);
 
   return (
     <div className="bg-slate-100 min-h-full overflow-y-auto print:overflow-visible print:min-h-0 print:h-auto scrollbar-thin scrollbar-thumb-slate-300 pb-20">
@@ -446,9 +548,7 @@ export const Reports: React.FC = () => {
                   <div className="grid grid-cols-2 gap-2">
                     {staleDrawings.map(d => {
                       const now = new Date();
-                      const lastUpdate = d.statusHistory && d.statusHistory.length > 0
-                        ? new Date(d.statusHistory[d.statusHistory.length - 1].createdAt)
-                        : new Date(d.logs[0]?.receivedDate || now);
+                      const lastUpdate = getDrawingLastUpdate(d);
                       const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
                       return (
                         <div key={d.id} className="flex items-center justify-between p-2 bg-white border border-red-100 rounded-lg hover:bg-red-50 transition-all">
@@ -551,7 +651,7 @@ export const Reports: React.FC = () => {
                 {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={`bg-[${HEALTH_COLORS[i]}]`} label={l} />)}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 shrink-0">
+            <div className="flex flex-wrap gap-4 shrink-0">
               {derivedDisciplines.slice(healthPageIdx * 8, healthPageIdx * 8 + 8).map(disc => {
                 const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
                 const pieData = [
@@ -561,7 +661,7 @@ export const Reports: React.FC = () => {
                   { name: 'Pending', value: discDrawings.filter(d => d.status === 'Pending').length },
                 ].filter(p => p.value > 0);
                 return (
-                  <div key={disc} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm group break-inside-avoid">
+                  <div key={disc} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm group break-inside-avoid" style={{ width: 'calc((100% - 1rem) / 2)' }}>
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] font-[1000] text-slate-900 uppercase mb-2 tracking-widest border-b border-slate-200 pb-2 truncate">{disc}</div>
                       <div className="space-y-1">
