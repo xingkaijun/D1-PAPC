@@ -39,6 +39,7 @@ interface AppState {
 
   syncWithWebDAV: (password: string) => Promise<boolean>;
   saveSettingsToWebDAV: () => Promise<boolean>;
+  fetchGlobalSettingsFromWebDAV: () => Promise<void>;
   loadFromWebDAV: () => Promise<void>;
   fetchAllProjectsFromWebDAV: () => Promise<void>;
   testWebDAVConnection: (url: string, user: string, pass: string) => Promise<{ success: boolean; message: string }>;

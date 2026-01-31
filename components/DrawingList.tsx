@@ -318,21 +318,74 @@ export const DrawingList: React.FC = () => {
         onPageChange={setCurrentPage}
       />
 
-      {/* Printable Section (Hidden in Screen View) */}
-      <div className="print-only w-full p-[15mm] bg-white text-black hidden">
-        {/* Note: In Print mode, we probably want to print proper pages or all rows. 
-            Standard practice is to print what is visible or a specific print view. 
-            For now, we keep the existing full render hidden unless printing, but pagination hides rows. 
-            Ideally, we should offer a 'Load All for Print' or print a separate view. 
-            Given the requirement, we will stick to paginated view on screen, but print view 
-            will need a different strategy if we want to print ALL drawings.
-            Let's assume user wants to print the current filtered view. 
-            For simplicity and performance, we'll iterate `filteredDrawings` here for Print Only.
-        */}
-        <div className="flex justify-between items-end border-b-2 border-black pb-5 mb-8">
-          {/* Header Content... same as before */}
+      {/* Printable Section (Hidden in Screen View, Visible in Print) */}
+      <div className="hidden print:block absolute top-0 left-0 w-full bg-white z-[9999] p-[10mm] text-black">
+        {/* Print Header - Use table-header-group behavior trick or just static header */}
+        <div className="flex justify-between items-end border-b-2 border-black pb-4 mb-4">
+          <div className="flex items-center gap-4">
+            <img
+              src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
+              alt="Logo"
+              className="h-12 object-contain grayscale"
+            />
+            <div>
+              <h1 className="text-2xl font-bold uppercase tracking-tighter">Plan Approval Status</h1>
+              <p className="text-xs font-bold uppercase tracking-[0.3em] text-gray-600">Technical Intelligence System</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <h2 className="text-xl font-black uppercase tracking-widest">{project.name}</h2>
+            <div className="text-[10px] font-bold uppercase tracking-wider mt-1">
+              Generated: {new Date().toLocaleDateString()}
+            </div>
+          </div>
         </div>
-        {/* Print Table Body Iterating filteredDrawings (ALL filtered items, not just paginated) */}
+
+        {/* Print Table - Flattened (No Pagination) */}
+        <table className="w-full text-left border-collapse text-[9px]">
+          <thead>
+            <tr className="border-b-2 border-black uppercase font-bold tracking-wider">
+              <th className="py-2 w-16">ID</th>
+              <th className="py-2 w-24">Code</th>
+              <th className="py-2 w-10">Ver</th>
+              <th className="py-2 w-10">Rd</th>
+              <th className="py-2 w-28">Discipline</th>
+              <th className="py-2">Title</th>
+              <th className="py-2 w-20">Deadline</th>
+              <th className="py-2 w-24">Assignees</th>
+              <th className="py-2 w-20">Status</th>
+              <th className="py-2 w-10 text-center">Cmt</th>
+              <th className="py-2 w-10 text-center">Opn</th>
+            </tr>
+          </thead>
+          <tbody className="">
+            {filteredDrawings.map((drawing, idx) => (
+              <tr key={drawing.id} className={`border-b border-gray-200 break-inside-avoid ${idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                <td className="py-1.5 px-1 font-mono">{drawing.customId}</td>
+                <td className="py-1.5 px-1 font-mono">{drawing.drawingNo}</td>
+                <td className="py-1.5 px-1">{drawing.version || 0}</td>
+                <td className="py-1.5 px-1 font-bold">{drawing.currentRound}</td>
+                <td className="py-1.5 px-1 truncate max-w-[100px]">{drawing.discipline}</td>
+                <td className="py-1.5 px-1 font-medium truncate max-w-[200px]">{drawing.title}</td>
+                <td className="py-1.5 px-1 text-gray-600">{drawing.reviewDeadline ? new Date(drawing.reviewDeadline).toLocaleDateString() : '-'}</td>
+                <td className="py-1.5 px-1 truncate max-w-[100px]">{drawing.assignees.join(', ')}</td>
+                <td className="py-1.5 px-1 font-bold">
+                  <span className={`${drawing.status === 'Approved' ? 'text-black' : drawing.status === 'Overdue' ? 'text-black font-extrabold underline' : 'text-gray-700'}`}>
+                    {drawing.status}
+                  </span>
+                </td>
+                <td className="py-1.5 px-1 text-center font-bold">{drawing.manualCommentsCount}</td>
+                <td className="py-1.5 px-1 text-center font-bold text-gray-800">{drawing.manualOpenCommentsCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Print Footer */}
+        <div className="mt-8 pt-4 border-t border-black flex justify-between text-[8px] uppercase font-bold text-gray-500">
+          <div>Pacific Gas Pte. Ltd.</div>
+          <div>Page <span className="page-number"></span></div>
+        </div>
       </div>
 
       {showImportModal && (

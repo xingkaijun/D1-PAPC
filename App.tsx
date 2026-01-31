@@ -22,7 +22,7 @@ import {
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'settings' | 'manual'>('drawings');
-  const { data, activeProjectId, setActiveProject, addProject, isLoading, fetchAllProjectsFromWebDAV } = useStore();
+  const { data, activeProjectId, setActiveProject, addProject, isLoading, fetchAllProjectsFromWebDAV, fetchGlobalSettingsFromWebDAV } = useStore();
 
   const currentProject = data.projects.find(p => p.id === activeProjectId);
 
@@ -37,18 +37,56 @@ const App: React.FC = () => {
   // Auto-scan WebDAV projects on app startup
   useEffect(() => {
     const autoScanProjects = async () => {
-      // Only scan if WebDAV is configured
-      if (!isWebDAVConfigured) return;
-
-      // Skip if projects already exist (avoid redundant scans)
-      if (data.projects.length > 0) return;
+      // Always show loading state on initial app load
+      const startTime = Date.now();
+      useStore.setState({ isLoading: true });
 
       try {
-        await fetchAllProjectsFromWebDAV();
-        console.log('Auto-scan completed: Projects loaded from WebDAV');
-      } catch (error) {
-        console.error('Auto-scan failed:', error);
-        // Fail silently - user can still manually scan via Settings
+        // Only scan if WebDAV is configured
+        if (!isWebDAVConfigured) {
+          // Wait at least 300ms to show loading state
+          const elapsed = Date.now() - startTime;
+          if (elapsed < 300) {
+            await new Promise(resolve => setTimeout(resolve, 300 - elapsed));
+          }
+          useStore.setState({ isLoading: false });
+          return;
+        }
+
+        // Always try to fetch global settings (Roster, Leads, etc.)
+        try {
+          await data.settings.webdavUrl && useStore.getState().fetchGlobalSettingsFromWebDAV();
+        } catch (err) {
+          console.warn("Failed to auto-fetch settings", err);
+        }
+
+        // Skip if projects already exist (avoid redundant scans/overwrites)
+        if (data.projects.length > 0) {
+          console.log('Projects already loaded from cache');
+          // Wait at least 500ms to show loading state
+          const elapsed = Date.now() - startTime;
+          if (elapsed < 500) {
+            await new Promise(resolve => setTimeout(resolve, 500 - elapsed));
+          }
+          useStore.setState({ isLoading: false });
+          return;
+        }
+
+        try {
+          await fetchAllProjectsFromWebDAV();
+          console.log('Auto-scan completed: Projects loaded from WebDAV');
+        } catch (error) {
+          console.error('Auto-scan failed:', error);
+          // Fail silently - user can still manually scan via Settings
+        }
+
+        // Ensure minimum loading time
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 500) {
+          await new Promise(resolve => setTimeout(resolve, 500 - elapsed));
+        }
+      } finally {
+        useStore.setState({ isLoading: false });
       }
     };
 
@@ -62,6 +100,41 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col bg-[#F8FAFC] text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans overflow-hidden">
+      {/* Full Screen Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/20 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl border-2 border-teal-200 shadow-2xl p-8 max-w-md mx-4">
+            <div className="flex flex-col items-center gap-4">
+              {/* Spinner */}
+              <div className="relative w-16 h-16">
+                <div className="absolute inset-0 border-4 border-teal-100 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
+                <Cloud className="absolute inset-0 m-auto text-teal-600 animate-pulse" size={28} />
+              </div>
+
+              {/* Loading Text */}
+              <div className="text-center">
+                <h3 className="text-lg font-[1000] text-slate-900 uppercase tracking-wider mb-2">
+                  Syncing Data
+                </h3>
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">
+                  Loading from WebDAV Server
+                </p>
+              </div>
+
+              {/* Progress Indicator */}
+              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-teal-500 to-teal-600 rounded-full animate-pulse w-full"></div>
+              </div>
+
+              <p className="text-xs text-slate-400 text-center mt-2">
+                Please wait while we sync your projects and settings...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Header */}
       <header className="bg-white/80 backdrop-blur-2xl border-b border-slate-200/60 px-6 py-4 flex items-center justify-between sticky top-0 z-[60] no-print shrink-0 shadow-sm">
         <div className="flex items-center space-x-10">

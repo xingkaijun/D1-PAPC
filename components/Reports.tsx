@@ -105,7 +105,6 @@ const StatCard: React.FC<{ label: string, value: string | number, icon: React.Re
 
 export const Reports: React.FC = () => {
   const { activeProjectId, data, takeSnapshot, deleteSnapshot } = useStore();
-  const [showSnapshotList, setShowSnapshotList] = useState(true);
   const project = data.projects.find(p => p.id === activeProjectId);
 
   if (!project) return <div className="p-20 text-center text-slate-400 font-black uppercase tracking-widest">Select a project to view reports.</div>;
@@ -205,8 +204,33 @@ export const Reports: React.FC = () => {
     });
   }, [snapshots, derivedDisciplines]);
 
-  // Calculate pages: 1 (Exec) + 1 (Health) + N (Trends, 2 per page)
-  const totalPages = 2 + Math.ceil(historicalTrends.length / 2);
+  // Calculate pages: 1 (Dashboard) + 1 (Exec) + N (Health, 8 disciplines/page) + M (Trends, 2/page)
+  const healthPages = Math.ceil(derivedDisciplines.length / 8);
+  const trendPages = Math.ceil(historicalTrends.length / 2);
+  const totalPages = 1 + 1 + healthPages + trendPages;
+
+  // Stale drawings calculation
+  const staleDrawings = useMemo(() => {
+    const now = new Date();
+    return drawings
+      .filter(d => d.status !== 'Pending' && d.status !== 'Approved')
+      .filter(d => {
+        const lastUpdate = d.statusHistory && d.statusHistory.length > 0
+          ? new Date(d.statusHistory[d.statusHistory.length - 1].createdAt)
+          : new Date(d.logs[0]?.receivedDate || now);
+        const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+        return daysSince > 14;
+      })
+      .sort((a, b) => {
+        const aDate = a.statusHistory && a.statusHistory.length > 0
+          ? new Date(a.statusHistory[a.statusHistory.length - 1].createdAt)
+          : new Date(a.logs[0]?.receivedDate || now);
+        const bDate = b.statusHistory && b.statusHistory.length > 0
+          ? new Date(b.statusHistory[b.statusHistory.length - 1].createdAt)
+          : new Date(b.logs[0]?.receivedDate || now);
+        return aDate.getTime() - bDate.getTime();
+      });
+  }, [drawings]);
 
   return (
     <div className="bg-slate-100 min-h-full overflow-y-auto print:overflow-visible print:min-h-0 print:h-auto scrollbar-thin scrollbar-thumb-slate-300 pb-20">
@@ -218,19 +242,242 @@ export const Reports: React.FC = () => {
           <p className="text-[10px] font-bold text-slate-500 uppercase">{project.name}</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowSnapshotList(!showSnapshotList)}
-            className={`flex items-center gap-2 px-4 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${showSnapshotList ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
-          >
-            <History size={12} /> {showSnapshotList ? 'Hide Snapshots' : 'Show Snapshots'}
-          </button>
           <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"><Printer size={12} /> Export PDF</button>
           <button onClick={() => takeSnapshot(activeProjectId!)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-teal-700 transition-all shadow-md shadow-teal-500/20"><Camera size={12} /> Snapshot</button>
         </div>
       </div>
 
-      {/* --- PAGE 1: EXECUTIVE SUMMARY --- */}
+      {/* Snapshot Registry Card (Screen only) */}
+      {snapshots.length > 0 && (
+        <div className="mx-auto my-6 max-w-[210mm] no-print">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 rounded-xl">
+                  <History size={16} className="text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Snapshot Registry</h3>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{snapshots.length} Captured Moments</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-6 gap-2">
+              {snapshots.slice().reverse().map((s) => (
+                <div key={s.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col items-center justify-between hover:bg-slate-100 transition-all group">
+                  <div className="flex flex-col items-center mb-2">
+                    <span className="text-[9px] font-black text-slate-700 uppercase leading-none">{format(new Date(s.timestamp), 'MM-dd')}</span>
+                    <span className="text-[7px] font-mono text-slate-400 mt-1">{format(new Date(s.timestamp), 'HH:mm')}</span>
+                  </div>
+                  <button
+                    onClick={() => window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id)}
+                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- PAGE 1: PROJECT INTELLIGENCE DASHBOARD --- */}
       <ReportPage pageNumber={1} totalPages={totalPages} projectName={project.name}>
+        <div className="flex flex-col gap-6">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-4 border-b-2 border-teal-500">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl shadow-lg">
+                <TrendingUp size={20} className="text-white" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h2 className="text-[12px] font-[1000] text-slate-900 uppercase tracking-wider leading-none">Intelligence Dashboard</h2>
+                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time Analytics & Insights</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Total Drawings</div>
+              <div className="text-2xl font-[1000] text-teal-600 leading-none mt-1">{stats.total}</div>
+            </div>
+          </div>
+
+          {/* Status Distribution & Comments */}
+          <div className="grid grid-cols-2 gap-5">
+            {/* Status Pie Chart */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">Status Distribution</h3>
+                <div className="flex gap-1.5 flex-wrap">
+                  <LegendItem color="bg-emerald-500" label="Approved" />
+                  <LegendItem color="bg-amber-500" label="Reviewing" />
+                  <LegendItem color="bg-blue-500" label="Waiting" />
+                  <LegendItem color="bg-slate-300" label="Pending" />
+                </div>
+              </div>
+              <div className="flex items-center justify-center h-[140px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Approved', value: stats.approved },
+                        { name: 'Reviewing', value: stats.reviewing },
+                        { name: 'Waiting Reply', value: drawings.filter(d => d.status === 'Waiting Reply').length },
+                        { name: 'Pending', value: drawings.filter(d => d.status === 'Pending').length },
+                      ].filter(d => d.value > 0)}
+                      cx="50%" cy="50%"
+                      innerRadius={35} outerRadius={55}
+                      paddingAngle={3} dataKey="value"
+                      label={({ value, percent }) => `${value} (${(percent * 100).toFixed(0)}%)`}
+                      labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
+                    >
+                      <Cell fill="#10b981" />
+                      <Cell fill="#f59e0b" />
+                      <Cell fill="#3b82f6" />
+                      <Cell fill="#cbd5e1" />
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Comments Analysis */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest mb-3">Comments Intelligence</h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-2.5 bg-red-50 border border-red-100 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-red-500 rounded-lg">
+                      <MessageSquare size={12} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="text-[7px] font-black text-red-600 uppercase tracking-widest">Open</div>
+                      <div className="text-lg font-[1000] text-red-700 leading-none mt-0.5">{stats.openComments}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[6px] font-black text-red-400 uppercase">Critical</div>
+                    <div className="text-[9px] font-bold text-red-600">{stats.totalComments > 0 ? ((stats.openComments / stats.totalComments) * 100).toFixed(0) : 0}%</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-slate-600 rounded-lg">
+                      <MessageSquare size={12} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="text-[7px] font-black text-slate-600 uppercase tracking-widest">Total</div>
+                      <div className="text-lg font-[1000] text-slate-700 leading-none mt-0.5">{stats.totalComments}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[6px] font-black text-slate-400 uppercase">Avg/Dwg</div>
+                    <div className="text-[9px] font-bold text-slate-600">{stats.total > 0 ? (stats.totalComments / stats.total).toFixed(1) : 0}</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-emerald-500 rounded-lg">
+                      <CheckCircle size={12} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="text-[7px] font-black text-emerald-600 uppercase tracking-widest">Resolved</div>
+                      <div className="text-lg font-[1000] text-emerald-700 leading-none mt-0.5">{stats.totalComments - stats.openComments}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[6px] font-black text-emerald-400 uppercase">Rate</div>
+                    <div className="text-[9px] font-bold text-emerald-600">{stats.totalComments > 0 ? (((stats.totalComments - stats.openComments) / stats.totalComments) * 100).toFixed(0) : 0}%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Workload & Stale Drawings */}
+          <div className="space-y-4">
+            {/* Workload Hotspots - Full Width */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest mb-3">Workload Hotspots</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {disciplineMainData
+                  .sort((a, b) => b.openComments - a.openComments)
+                  .slice(0, 9)
+                  .map((disc, idx) => (
+                    <div key={disc.name} className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[7px] font-black shrink-0 ${idx === 0 ? 'bg-red-500 text-white' : idx === 1 ? 'bg-orange-400 text-white' : idx === 2 ? 'bg-amber-400 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[7px] font-black text-slate-700 uppercase truncate">{disc.name}</div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-red-500 to-orange-400 rounded-full"
+                              style={{ width: `${(disc.openComments / Math.max(...disciplineMainData.map(d => d.openComments), 1)) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[7px] font-black text-red-600 w-6 text-right">{disc.openComments}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Stale Drawings Alert - Full Width */}
+            <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl border-2 border-red-200 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-1.5 bg-red-500 rounded-lg animate-pulse">
+                  <Clock size={14} className="text-white" />
+                </div>
+                <h3 className="text-[9px] font-[1000] text-red-700 uppercase tracking-widest">Stagnant Drawings Alert</h3>
+                <div className="text-[6px] font-black text-red-400 uppercase tracking-wider">(No activity &gt; 14 days)</div>
+                <div className="ml-auto text-[8px] font-black text-red-600 bg-white px-3 py-1 rounded-lg">{staleDrawings.length} Drawings</div>
+              </div>
+              <div className="max-h-[110px] overflow-y-auto scrollbar-thin scrollbar-thumb-red-300 bg-white/50 rounded-xl p-2">
+                {staleDrawings.length === 0 ? (
+                  <div className="py-3 text-center">
+                    <CheckCircle size={20} className="text-emerald-500 mx-auto mb-1.5" />
+                    <div className="text-[8px] font-black text-emerald-600 uppercase">All Clear!</div>
+                    <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">No stagnant drawings</div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {staleDrawings.map(d => {
+                      const now = new Date();
+                      const lastUpdate = d.statusHistory && d.statusHistory.length > 0
+                        ? new Date(d.statusHistory[d.statusHistory.length - 1].createdAt)
+                        : new Date(d.logs[0]?.receivedDate || now);
+                      const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+                      return (
+                        <div key={d.id} className="flex items-center justify-between p-2 bg-white border border-red-100 rounded-lg hover:bg-red-50 transition-all">
+                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            <div className={`px-1.5 py-0.5 rounded text-[6px] font-black uppercase shrink-0 ${d.status === 'Reviewing' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {d.status === 'Reviewing' ? 'REV' : 'WAIT'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[7px] font-black text-slate-800 truncate">{d.drawingNo}</div>
+                              <div className="text-[6px] font-bold text-slate-400 uppercase truncate">{d.discipline}</div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-2">
+                            <div className="text-[8px] font-black text-red-600">{daysSince}d</div>
+                            <div className="text-[5px] font-bold text-red-400 uppercase">stale</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </ReportPage>
+
+      {/* --- PAGE 2: EXECUTIVE SUMMARY --- */}
+      <ReportPage pageNumber={2} totalPages={totalPages} projectName={project.name}>
         <div className="flex flex-col gap-10">
           <div className="grid grid-cols-3 gap-4 shrink-0">
             <StatCard label="Total Units" value={stats.total} icon={<Hash size={12} />} color="blue" />
@@ -294,85 +541,70 @@ export const Reports: React.FC = () => {
         </div>
       </ReportPage>
 
-      {/* --- PAGE 2: DISCIPLINE HEALTH --- */}
-      <ReportPage pageNumber={2} totalPages={totalPages} projectName={project.name}>
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4">
-            <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Health Snapshot</h3>
-            <div className="flex gap-3">
-              {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={`bg-[${HEALTH_COLORS[i]}]`} label={l} />)}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 shrink-0">
-            {derivedDisciplines.map(disc => {
-              const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
-              const pieData = [
-                { name: 'Approved', value: discDrawings.filter(d => d.status === 'Approved').length },
-                { name: 'Reviewing', value: discDrawings.filter(d => d.status === 'Reviewing').length },
-                { name: 'Waiting Reply', value: discDrawings.filter(d => d.status === 'Waiting Reply').length },
-                { name: 'Pending', value: discDrawings.filter(d => d.status === 'Pending').length },
-              ].filter(p => p.value > 0);
-              return (
-                <div key={disc} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm group">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-[1000] text-slate-900 uppercase mb-2 tracking-widest border-b border-slate-200 pb-2 truncate">{disc}</div>
-                    <div className="space-y-1">
-                      {HEALTH_LABELS.map((label) => {
-                        const count = discDrawings.filter(d => d.status === (label as any)).length;
-                        return (
-                          <div key={label} className="flex items-center justify-between text-[8px] font-black uppercase tracking-tight">
-                            <span className="text-slate-400">{label}</span>
-                            <span className={count > 0 ? 'text-slate-800' : 'text-slate-200'}>{count}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="h-24 w-24 shrink-0 bg-white rounded-xl border border-slate-100 flex items-center justify-center">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          cx="50%" cy="50%"
-                          innerRadius={22} outerRadius={32}
-                          paddingAngle={2} dataKey="value" stroke="none"
-                          label={({ value }) => value}
-                          labelLine={false}
-                        >
-                          {pieData.map((p, i) => <Cell key={i} fill={HEALTH_COLORS[HEALTH_LABELS.indexOf(p.name)]} />)}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {showSnapshotList && snapshots.length > 0 && (
-            <div className="mt-4 no-print shrink-0">
-              <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 border-l-2 border-indigo-400 pl-2">Capture Registry</div>
-              <div className="grid grid-cols-4 gap-2">
-                {snapshots.slice().reverse().map((s) => (
-                  <div key={s.id} className="bg-slate-50 border border-slate-200 p-2 rounded-lg flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-[8px] font-black text-slate-700 uppercase leading-none">{format(new Date(s.timestamp), 'MM-dd')}</span>
-                      <span className="text-[7px] font-mono text-slate-300 mt-0.5">{format(new Date(s.timestamp), 'HH:mm')}</span>
-                    </div>
-                    <button onClick={() => window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id)} className="p-1 text-slate-200 hover:text-red-500 transition-all"><Trash2 size={10} /></button>
-                  </div>
-                ))}
+      {/* --- PAGE 3+: DISCIPLINE HEALTH (Paginated) --- */}
+      {Array.from({ length: Math.ceil(derivedDisciplines.length / 8) }).map((_, healthPageIdx) => (
+        <ReportPage key={`health-${healthPageIdx}`} pageNumber={3 + healthPageIdx} totalPages={totalPages} projectName={project.name}>
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4">
+              <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Health Snapshot {derivedDisciplines.length > 8 ? `(${healthPageIdx + 1}/${Math.ceil(derivedDisciplines.length / 8)})` : ''}</h3>
+              <div className="flex gap-3">
+                {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={`bg-[${HEALTH_COLORS[i]}]`} label={l} />)}
               </div>
             </div>
-          )}
-        </div>
-      </ReportPage>
+            <div className="grid grid-cols-2 gap-4 shrink-0">
+              {derivedDisciplines.slice(healthPageIdx * 8, healthPageIdx * 8 + 8).map(disc => {
+                const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
+                const pieData = [
+                  { name: 'Approved', value: discDrawings.filter(d => d.status === 'Approved').length },
+                  { name: 'Reviewing', value: discDrawings.filter(d => d.status === 'Reviewing').length },
+                  { name: 'Waiting Reply', value: discDrawings.filter(d => d.status === 'Waiting Reply').length },
+                  { name: 'Pending', value: discDrawings.filter(d => d.status === 'Pending').length },
+                ].filter(p => p.value > 0);
+                return (
+                  <div key={disc} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm group break-inside-avoid">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] font-[1000] text-slate-900 uppercase mb-2 tracking-widest border-b border-slate-200 pb-2 truncate">{disc}</div>
+                      <div className="space-y-1">
+                        {HEALTH_LABELS.map((label) => {
+                          const count = discDrawings.filter(d => d.status === (label as any)).length;
+                          return (
+                            <div key={label} className="flex items-center justify-between text-[8px] font-black uppercase tracking-tight">
+                              <span className="text-slate-400">{label}</span>
+                              <span className={count > 0 ? 'text-slate-800' : 'text-slate-200'}>{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="h-24 w-24 shrink-0 bg-white rounded-xl border border-slate-100 flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%" cy="50%"
+                            innerRadius={22} outerRadius={32}
+                            paddingAngle={2} dataKey="value" stroke="none"
+                            label={({ value }) => value}
+                            labelLine={false}
+                          >
+                            {pieData.map((p, i) => <Cell key={i} fill={HEALTH_COLORS[HEALTH_LABELS.indexOf(p.name)]} />)}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </ReportPage>
+      ))}
 
-      {/* --- PAGE 3+: TREND ANALYSIS --- */}
+      {/* --- TREND ANALYSIS PAGES --- */}
       {Array.from({ length: Math.ceil(historicalTrends.length / 2) }).map((_, pageIdx) => (
         <ReportPage
           key={pageIdx}
-          pageNumber={3 + pageIdx}
+          pageNumber={2 + healthPages + 1 + pageIdx}
           totalPages={totalPages}
           projectName={project.name}
         >
