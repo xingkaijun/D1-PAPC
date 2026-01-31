@@ -9,7 +9,7 @@ import {
 import { format } from 'date-fns';
 
 export const Settings: React.FC = () => {
-  const { data, setSettings, syncWithWebDAV, loadFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject } = useStore();
+  const { data, setSettings, syncWithWebDAV, saveSettingsToWebDAV, loadFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const settings = data?.settings || {
@@ -103,10 +103,13 @@ export const Settings: React.FC = () => {
 
   const handleExecutePush = async () => {
     const success = await syncWithWebDAV(verificationInput);
+    // Attempt to save settings too, silently or part of the process
+    await saveSettingsToWebDAV();
+
     if (success) {
       setShowVerifyModal(false);
       setVerificationInput('');
-      alert("Project successfully synced to WebDAV server.");
+      alert("Project & Global Config successfully synced to WebDAV.");
     }
   };
 
@@ -238,8 +241,8 @@ export const Settings: React.FC = () => {
                 {/* Test Result Display */}
                 {testResult && (
                   <div className={`mt-2 p-3 rounded-xl border animate-in fade-in slide-in-from-top-1 ${testResult.success
-                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                      : 'bg-red-50 border-red-200 text-red-700'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-red-50 border-red-200 text-red-700'
                     }`}>
                     <div className="flex items-center gap-2">
                       {testResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}

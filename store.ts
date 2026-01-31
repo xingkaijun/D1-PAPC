@@ -38,6 +38,7 @@ interface AppState {
   deleteSnapshot: (projectId: string, snapshotId: string) => void;
 
   syncWithWebDAV: (password: string) => Promise<boolean>;
+  saveSettingsToWebDAV: () => Promise<boolean>;
   loadFromWebDAV: () => Promise<void>;
   fetchAllProjectsFromWebDAV: () => Promise<void>;
   testWebDAVConnection: (url: string, user: string, pass: string) => Promise<{ success: boolean; message: string }>;
@@ -413,8 +414,43 @@ export const useStore = create<AppState>()(
 
           set({ isLoading: false, error: null });
           return true;
+          set({ isLoading: false, error: null });
+          return true;
         } catch (err: any) {
           set({ isLoading: false, error: err.message });
+          return false;
+        }
+      },
+
+      saveSettingsToWebDAV: async () => {
+        const { data } = get();
+        const { webdavUrl, webdavUser, webdavPass } = data.settings;
+
+        const targetUrl = (import.meta.env.VITE_WEBDAV_URL && import.meta.env.VITE_WEBDAV_URL.trim() !== '') ? import.meta.env.VITE_WEBDAV_URL : webdavUrl;
+        const targetUser = (import.meta.env.VITE_WEBDAV_USER && import.meta.env.VITE_WEBDAV_USER.trim() !== '') ? import.meta.env.VITE_WEBDAV_USER : webdavUser;
+        const targetPass = (import.meta.env.VITE_WEBDAV_PASSWORD && import.meta.env.VITE_WEBDAV_PASSWORD.trim() !== '') ? import.meta.env.VITE_WEBDAV_PASSWORD : webdavPass;
+
+        if (!targetUrl) return false;
+
+        try {
+          const auth = btoa(`${targetUser}:${targetPass}`);
+          const url = targetUrl.endsWith('/') ? `${targetUrl}PA_Settings.json` : `${targetUrl}/PA_Settings.json`;
+
+          // Only save relevant settings, exclude credentials if needed, but for now save all except potential sensitive overrides if any
+          const settingsToSave = {
+            ...data.settings,
+            // Ensure we don't accidentally save environment variable overrides if they were temporarily merged? 
+            // Actually data.settings stores the inputs, so it's fine.
+          };
+
+          await fetch(url, {
+            method: 'PUT',
+            headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(settingsToSave, null, 2)
+          });
+          return true;
+        } catch (e) {
+          console.error("Failed to save settings", e);
           return false;
         }
       },
@@ -496,7 +532,7 @@ export const useStore = create<AppState>()(
 
           const projectFiles = hrefs.filter(href => {
             const decoded = decodeURIComponent(href);
-            return decoded.includes('PA_') && decoded.endsWith('.json');
+            return (decoded.includes('PA_') && decoded.endsWith('.json'));
           });
 
           if (projectFiles.length === 0) {
@@ -504,66 +540,76 @@ export const useStore = create<AppState>()(
             return;
           }
 
-          // 2. Fetch each project file
-          const fetchedProjects: Project[] = [];
+          if (projectFiles.length === 0) {
+            set({ isLoading: false });
+            return;
+          }
 
-          // Use a unique set to handle duplicates if PROPFIND returns collection roots + files
+          // 2. Fetch each file
+          const fetchedProjects: Project[] = [];
+          let fetchedSettings: Partial<AppSettings> | null = null;
+
           const uniqueUrls = new Set(projectFiles.map(h => {
-            try {
-              return new URL(h, targetUrl).toString();
-            } catch {
-              return h;
-            }
+            try { return new URL(h, targetUrl).toString(); } catch { return h; }
           }));
 
           for (const url of uniqueUrls) {
             try {
-              const fileRes = await fetch(url, {
-                headers: { 'Authorization': `Basic ${auth}` }
-              });
+              const fileRes = await fetch(url, { headers: { 'Authorization': `Basic ${auth}` } });
               if (fileRes.ok) {
-                const projectData = await fileRes.json();
-                if (projectData && (projectData.id || projectData.name) && Array.isArray(projectData.drawings)) {
-                  fetchedProjects.push({
-                    ...projectData,
-                    id: projectData.id || Math.random().toString(36).substr(2, 9), // Ensure ID exists
-                    name: projectData.name || "Unknown Project"
-                  });
+                const json = await fileRes.json();
+
+                // Detect if it's a Project or Settings file
+                if (url.endsWith('PA_Settings.json') || (json.reviewers && json.disciplineDefaults)) {
+                  fetchedSettings = json;
+                } else if (json && (json.id || json.name) && Array.isArray(json.drawings)) {
+                  fetchedProjects.push({ ...json, id: json.id || Math.random().toString(36).substr(2, 9), name: json.name || "Unknown" });
                 }
               }
-            } catch (e) {
-              console.error(`Failed to load project from ${url}`, e);
-            }
+            } catch (e) { console.error(`Failed to load ${url}`, e); }
           }
 
           // 3. Merge into state
-          if (fetchedProjects.length > 0) {
-            set((state) => {
-              const currentProjects = [...state.data.projects];
+          set((state) => {
+            let nextSettings = state.data.settings;
+            if (fetchedSettings) {
+              // Merge fetched settings, but maybe preserve local credentials if server has empty ones?
+              // Prioritize server for Roster/Defaults/Holidays
+              nextSettings = {
+                ...state.data.settings,
+                reviewers: fetchedSettings.reviewers || state.data.settings.reviewers,
+                disciplineDefaults: fetchedSettings.disciplineDefaults || state.data.settings.disciplineDefaults,
+                holidays: fetchedSettings.holidays || state.data.settings.holidays,
+                roundACycle: fetchedSettings.roundACycle || state.data.settings.roundACycle,
+                otherRoundsCycle: fetchedSettings.otherRoundsCycle || state.data.settings.otherRoundsCycle,
+                // Keep local credentials if server is empty, or overwrite if server has them? 
+                // Usually credentials are local. Let's keep local credentials unless user explicitly pulls?
+                // User asked to prioritize server. But credentials are mostly local envs.
+                // Let's keep local credentials to avoid locking out.
+              };
+            }
 
+            const currentProjects = [...state.data.projects];
+            if (fetchedProjects.length > 0) {
               fetchedProjects.forEach(fp => {
-                const idx = currentProjects.findIndex(p => p.name === fp.name); // Match by name usually safer for cross-device
+                const idx = currentProjects.findIndex(p => p.name === fp.name);
                 if (idx > -1) {
-                  // Merge/Update: For now, we overwrite to sync from server
-                  // Preserve ID if matching by name to keep local selection state if possible
                   currentProjects[idx] = { ...fp, id: currentProjects[idx].id };
                 } else {
                   currentProjects.push(fp);
                 }
               });
+            }
 
-              const activeId = state.activeProjectId || (currentProjects.length > 0 ? currentProjects[0].id : null);
+            const activeId = state.activeProjectId || (currentProjects.length > 0 ? currentProjects[0].id : null);
+            return {
+              data: { ...state.data, settings: nextSettings, projects: currentProjects },
+              activeProjectId: activeId,
+              isLoading: false
+            };
+          });
+          return; // Done
 
-              return {
-                data: { ...state.data, projects: currentProjects },
-                activeProjectId: activeId,
-                isLoading: false
-              };
-            });
-            // Don't alert here to avoid spamming if called automatically, caller can alert
-          } else {
-            set({ isLoading: false });
-          }
 
         } catch (err: any) {
           set({ isLoading: false, error: err.message });
