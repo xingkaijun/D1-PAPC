@@ -6,6 +6,7 @@ import { DrawingList } from './components/DrawingList';
 import { Settings } from './components/Settings';
 import { CommandBar } from './components/CommandBar';
 import { Manual } from './components/Manual';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   FileStack,
   Settings as SettingsIcon,
@@ -241,7 +242,11 @@ const App: React.FC = () => {
 
           <div className="flex-1 bg-white rounded-[2rem] border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden flex flex-col">
             {activeTab === 'drawings' && <DrawingList />}
-            {activeTab === 'reports' && <Reports />}
+            {activeTab === 'reports' && (
+              <ErrorBoundary>
+                <Reports />
+              </ErrorBoundary>
+            )}
             {activeTab === 'settings' && <Settings />}
             {activeTab === 'manual' && <Manual />}
           </div>

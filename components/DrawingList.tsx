@@ -131,7 +131,7 @@ export const DrawingList: React.FC = () => {
   const ROWS_PER_PAGE = 50;
 
   const project = data.projects.find(p => p.id === activeProjectId);
-  const reviewers = data.settings.reviewers;
+  const reviewers = project?.conf?.reviewers || data.settings.reviewers;
 
   const derivedDisciplines = useMemo(() => {
     if (!project) return [];

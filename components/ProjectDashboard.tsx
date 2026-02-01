@@ -173,7 +173,7 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ drawings, st
                     <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                         <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest mb-3">Workload Hotspots</h3>
                         <div className="space-y-2">
-                            {disciplineMainData
+                            {[...disciplineMainData]
                                 .sort((a, b) => b.openComments - a.openComments)
                                 .slice(0, 5)
                                 .map((disc, idx) => (

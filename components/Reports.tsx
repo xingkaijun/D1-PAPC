@@ -14,6 +14,7 @@ import { format, endOfWeek, eachWeekOfInterval } from 'date-fns';
 
 // Fix: Local implementation of isWithinInterval to resolve missing export error from date-fns
 const isWithinInterval = (date: Date, interval: { start: Date; end: Date }) => {
+  if (!date || !interval || !interval.start || !interval.end) return false;
   const time = date.getTime();
   return time >= interval.start.getTime() && time <= interval.end.getTime();
 };
@@ -180,9 +181,19 @@ export const Reports: React.FC = () => {
     return derivedDisciplines.map(disc => {
       const trendData = snapshots.map(s => {
         // Compare with normalized logic
-        const dStat = s.stats.find(ds => ds.discipline.trim().toLowerCase() === disc.trim().toLowerCase());
+        if (!s.stats) return { date: '', totalComments: 0, openComments: 0, approvedCount: 0, reviewingCount: 0, waitingReplyCount: 0 };
+
+        const dStat = s.stats.find(ds => ds.discipline && ds.discipline.trim().toLowerCase() === disc.trim().toLowerCase());
+
+        let dateStr = 'Invalid';
+        try {
+          dateStr = format(new Date(s.timestamp), 'MM/dd');
+        } catch (e) {
+          console.error('Invalid date in snapshot:', s);
+        }
+
         return {
-          date: format(new Date(s.timestamp), 'MM/dd'),
+          date: dateStr,
           totalComments: dStat?.totalComments || 0,
           openComments: dStat?.openComments || 0,
           approvedCount: dStat?.approved || 0,
@@ -190,7 +201,9 @@ export const Reports: React.FC = () => {
           waitingReplyCount: dStat?.waitingReply || 0,
         };
       });
-      const latestDiscStat = latestSnapshot?.stats.find(ds => ds.discipline.trim().toLowerCase() === disc.trim().toLowerCase());
+
+      const latestDiscStat = latestSnapshot?.stats ? latestSnapshot.stats.find(ds => ds.discipline && ds.discipline.trim().toLowerCase() === disc.trim().toLowerCase()) : null;
+
       return {
         discipline: disc, trendData,
         latest: latestDiscStat ? {
@@ -368,8 +381,16 @@ export const Reports: React.FC = () => {
               {snapshots.slice().reverse().map((s) => (
                 <div key={s.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col items-center justify-between hover:bg-slate-100 transition-all group">
                   <div className="flex flex-col items-center mb-2">
-                    <span className="text-[9px] font-black text-slate-700 uppercase leading-none">{format(new Date(s.timestamp), 'MM-dd')}</span>
-                    <span className="text-[7px] font-mono text-slate-400 mt-1">{format(new Date(s.timestamp), 'HH:mm')}</span>
+                    <span className="text-[9px] font-black text-slate-700 uppercase leading-none">
+                      {(() => {
+                        try { return format(new Date(s.timestamp), 'MM-dd'); } catch { return 'Err'; }
+                      })()}
+                    </span>
+                    <span className="text-[7px] font-mono text-slate-400 mt-1">
+                      {(() => {
+                        try { return format(new Date(s.timestamp), 'HH:mm'); } catch { return '--:--'; }
+                      })()}
+                    </span>
                   </div>
                   <button
                     onClick={() => window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id)}
@@ -421,17 +442,23 @@ export const Reports: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={[
-                        { name: 'Approved', value: stats.approved },
-                        { name: 'Reviewing', value: stats.reviewing },
-                        { name: 'Waiting Reply', value: drawings.filter(d => d.status === 'Waiting Reply').length },
-                        { name: 'Pending', value: drawings.filter(d => d.status === 'Pending').length },
-                      ].filter(d => d.value > 0)}
+                      data={(() => {
+                        let data = [
+                          { name: 'Approved', value: stats.approved },
+                          { name: 'Reviewing', value: stats.reviewing },
+                          { name: 'Waiting Reply', value: drawings.filter(d => d.status === 'Waiting Reply').length },
+                          { name: 'Pending', value: drawings.filter(d => d.status === 'Pending').length },
+                        ].map(d => ({ ...d, value: d.value || 0 })).filter(d => d.value > 0);
+
+                        // Safety: Recharts fails if all values are 0 or data is undefined
+                        if (data.length === 0) {
+                          data = [{ name: 'Empty', value: 1 }]; // Placeholder or handle empty
+                        }
+                        return data;
+                      })()}
                       cx="50%" cy="50%"
                       innerRadius={35} outerRadius={55}
                       paddingAngle={3} dataKey="value"
-                      label={({ value, percent }) => `${value} (${(percent * 100).toFixed(0)}%)`}
-                      labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
                     >
                       <Cell fill="#10b981" />
                       <Cell fill="#f59e0b" />
@@ -502,7 +529,7 @@ export const Reports: React.FC = () => {
             <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm">
               <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest mb-3">Workload Hotspots</h3>
               <div className="grid grid-cols-3 gap-4">
-                {disciplineMainData
+                {[...disciplineMainData]
                   .sort((a, b) => b.openComments - a.openComments)
                   .slice(0, 9)
                   .map((disc, idx) => (
@@ -574,10 +601,10 @@ export const Reports: React.FC = () => {
             </div>
           </div>
         </div>
-      </ReportPage>
+      </ReportPage >
 
       {/* --- PAGE 2: EXECUTIVE SUMMARY --- */}
-      <ReportPage pageNumber={2} totalPages={totalPages} projectName={project.name}>
+      < ReportPage pageNumber={2} totalPages={totalPages} projectName={project.name} >
         <div className="flex flex-col gap-10">
           <div className="grid grid-cols-3 gap-4 shrink-0">
             <StatCard label="Total Units" value={stats.total} icon={<Hash size={12} />} color="blue" />
@@ -600,7 +627,7 @@ export const Reports: React.FC = () => {
             {/* Margins increased to top: 30 to prevent label clipping */}
             <div className="h-[220px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyData} margin={{ top: 30, right: 10, left: -30, bottom: 0 }}>
+                <BarChart data={weeklyData || []} margin={{ top: 30, right: 10, left: -30, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#94a3b8' }} />
@@ -623,7 +650,7 @@ export const Reports: React.FC = () => {
             {/* Margins increased on right: 50 to prevent label clipping */}
             <div className="h-[220px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={disciplineMainData} layout="vertical" margin={{ top: 20, right: 50, left: 10, bottom: 0 }}>
+                <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 10, bottom: 0 }}>
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }} />
@@ -639,121 +666,129 @@ export const Reports: React.FC = () => {
             </div>
           </div>
         </div>
-      </ReportPage>
+      </ReportPage >
 
       {/* --- PAGE 3+: DISCIPLINE HEALTH (Paginated) --- */}
-      {Array.from({ length: Math.ceil(derivedDisciplines.length / 8) }).map((_, healthPageIdx) => (
-        <ReportPage key={`health-${healthPageIdx}`} pageNumber={3 + healthPageIdx} totalPages={totalPages} projectName={project.name}>
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4">
-              <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Health Snapshot {derivedDisciplines.length > 8 ? `(${healthPageIdx + 1}/${Math.ceil(derivedDisciplines.length / 8)})` : ''}</h3>
-              <div className="flex gap-3">
-                {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={`bg-[${HEALTH_COLORS[i]}]`} label={l} />)}
+      {
+        Array.from({ length: Math.ceil(derivedDisciplines.length / 8) }).map((_, healthPageIdx) => (
+          <ReportPage key={`health-${healthPageIdx}`} pageNumber={3 + healthPageIdx} totalPages={totalPages} projectName={project.name}>
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4">
+                <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Health Snapshot {derivedDisciplines.length > 8 ? `(${healthPageIdx + 1}/${Math.ceil(derivedDisciplines.length / 8)})` : ''}</h3>
+                <div className="flex gap-3">
+                  {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={`bg-[${HEALTH_COLORS[i]}]`} label={l} />)}
+                </div>
               </div>
-            </div>
-            <div className="flex flex-wrap gap-4 shrink-0">
-              {derivedDisciplines.slice(healthPageIdx * 8, healthPageIdx * 8 + 8).map(disc => {
-                const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
-                const pieData = [
-                  { name: 'Approved', value: discDrawings.filter(d => d.status === 'Approved').length },
-                  { name: 'Reviewing', value: discDrawings.filter(d => d.status === 'Reviewing').length },
-                  { name: 'Waiting Reply', value: discDrawings.filter(d => d.status === 'Waiting Reply').length },
-                  { name: 'Pending', value: discDrawings.filter(d => d.status === 'Pending').length },
-                ].filter(p => p.value > 0);
-                return (
-                  <div key={disc} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm group break-inside-avoid" style={{ width: 'calc((100% - 1rem) / 2)' }}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[10px] font-[1000] text-slate-900 uppercase mb-2 tracking-widest border-b border-slate-200 pb-2 truncate">{disc}</div>
-                      <div className="space-y-1">
-                        {HEALTH_LABELS.map((label) => {
-                          const count = discDrawings.filter(d => d.status === (label as any)).length;
-                          return (
-                            <div key={label} className="flex items-center justify-between text-[8px] font-black uppercase tracking-tight">
-                              <span className="text-slate-400">{label}</span>
-                              <span className={count > 0 ? 'text-slate-800' : 'text-slate-200'}>{count}</span>
-                            </div>
-                          );
-                        })}
+              <div className="flex flex-wrap gap-4 shrink-0">
+                {derivedDisciplines.slice(healthPageIdx * 8, healthPageIdx * 8 + 8).map(disc => {
+                  const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
+                  const pieData = [
+                    { name: 'Approved', value: discDrawings.filter(d => d.status === 'Approved').length },
+                    { name: 'Reviewing', value: discDrawings.filter(d => d.status === 'Reviewing').length },
+                    { name: 'Waiting Reply', value: discDrawings.filter(d => d.status === 'Waiting Reply').length },
+                    { name: 'Pending', value: discDrawings.filter(d => d.status === 'Pending').length },
+                  ].filter(p => p.value > 0);
+                  return (
+                    <div key={disc} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-sm group break-inside-avoid" style={{ width: 'calc((100% - 1rem) / 2)' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-[1000] text-slate-900 uppercase mb-2 tracking-widest border-b border-slate-200 pb-2 truncate">{disc}</div>
+                        <div className="space-y-1">
+                          {HEALTH_LABELS.map((label) => {
+                            const count = discDrawings.filter(d => d.status === (label as any)).length;
+                            const colorClass =
+                              label === 'Approved' ? 'text-emerald-500' :
+                                label === 'Reviewing' ? 'text-amber-500' :
+                                  label === 'Waiting Reply' ? 'text-blue-500' :
+                                    'text-slate-400';
+
+                            return (
+                              <div key={label} className="flex items-center justify-between text-[8px] font-black uppercase tracking-tight">
+                                <span className={count > 0 ? 'text-slate-600' : 'text-slate-300'}>{label}</span>
+                                <span className={count > 0 ? colorClass : 'text-slate-100'}>{count}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="h-24 w-24 shrink-0 bg-white rounded-xl border border-slate-100 flex items-center justify-center">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={pieData}
+                              cx="50%" cy="50%"
+                              innerRadius={22} outerRadius={32}
+                              paddingAngle={2} dataKey="value" stroke="none"
+                            >
+                              {pieData.map((p, i) => <Cell key={i} fill={HEALTH_COLORS[HEALTH_LABELS.indexOf(p.name)]} />)}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
-                    <div className="h-24 w-24 shrink-0 bg-white rounded-xl border border-slate-100 flex items-center justify-center">
+                  );
+                })}
+              </div>
+            </div>
+          </ReportPage>
+        ))
+      }
+
+      {/* --- TREND ANALYSIS PAGES --- */}
+      {
+        Array.from({ length: Math.ceil(historicalTrends.length / 2) }).map((_, pageIdx) => (
+          <ReportPage
+            key={pageIdx}
+            pageNumber={2 + healthPages + 1 + pageIdx}
+            totalPages={totalPages}
+            projectName={project.name}
+          >
+            <div className="flex flex-col gap-10">
+              <div className="flex items-center justify-between border-l-4 border-indigo-600 pl-4">
+                <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Progress Trends</h3>
+                <div className="flex gap-4">
+                  <LegendItem color="bg-emerald-500" label="Approved" />
+                  <LegendItem color="bg-amber-500" label="Reviewing" />
+                  <LegendItem color="bg-blue-500" label="Waiting" />
+                  <LegendItem color="bg-red-500" label="Open Cmts" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-10">
+                {historicalTrends.slice(pageIdx * 2, pageIdx * 2 + 2).map(trend => (
+                  <div key={trend.discipline} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col gap-4 shadow-sm shrink-0">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-[11px] font-[1000] text-slate-900 uppercase tracking-widest">{trend.discipline} TREND</h4>
+                        {trend.latest && <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">Status as of {format(new Date(trend.latest.timestamp), 'MM-dd HH:mm')}</p>}
+                      </div>
+                      {trend.latest && (
+                        <div className="flex gap-4 bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl">
+                          <MiniMetric label="Approved" value={trend.latest.approved} color="text-emerald-500" />
+                          <MiniMetric label="Reviewing" value={trend.latest.reviewing} color="text-amber-500" />
+                          <MiniMetric label="Waiting" value={trend.latest.waiting} color="text-blue-500" />
+                          <MiniMetric label="Open Cmt" value={trend.latest.openComments} color="text-red-500" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="h-[200px] w-full bg-slate-50/20 rounded-2xl p-2 border border-slate-100/50 shrink-0">
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%" cy="50%"
-                            innerRadius={22} outerRadius={32}
-                            paddingAngle={2} dataKey="value" stroke="none"
-                            label={({ value }) => value}
-                            labelLine={false}
-                          >
-                            {pieData.map((p, i) => <Cell key={i} fill={HEALTH_COLORS[HEALTH_LABELS.indexOf(p.name)]} />)}
-                          </Pie>
-                        </PieChart>
+                        <AreaChart data={trend.trendData || []} margin={{ top: 10, right: 10, left: -30, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                          <Area type="monotone" dataKey="approvedCount" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
+                          <Area type="monotone" dataKey="reviewingCount" stroke="#f59e0b" strokeWidth={2} fill="#f59e0b" fillOpacity={0.1} />
+                          <Area type="monotone" dataKey="waitingReplyCount" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
+                          <Area type="monotone" dataKey="openComments" stroke="#ef4444" strokeWidth={1} strokeDasharray="4 4" fill="transparent" />
+                        </AreaChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </ReportPage>
-      ))}
-
-      {/* --- TREND ANALYSIS PAGES --- */}
-      {Array.from({ length: Math.ceil(historicalTrends.length / 2) }).map((_, pageIdx) => (
-        <ReportPage
-          key={pageIdx}
-          pageNumber={2 + healthPages + 1 + pageIdx}
-          totalPages={totalPages}
-          projectName={project.name}
-        >
-          <div className="flex flex-col gap-10">
-            <div className="flex items-center justify-between border-l-4 border-indigo-600 pl-4">
-              <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Progress Trends</h3>
-              <div className="flex gap-4">
-                <LegendItem color="bg-emerald-500" label="Approved" />
-                <LegendItem color="bg-amber-500" label="Reviewing" />
-                <LegendItem color="bg-blue-500" label="Waiting" />
-                <LegendItem color="bg-red-500" label="Open Cmts" />
+                ))}
               </div>
             </div>
-            <div className="flex flex-col gap-10">
-              {historicalTrends.slice(pageIdx * 2, pageIdx * 2 + 2).map(trend => (
-                <div key={trend.discipline} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col gap-4 shadow-sm shrink-0">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h4 className="text-[11px] font-[1000] text-slate-900 uppercase tracking-widest">{trend.discipline} TREND</h4>
-                      {trend.latest && <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">Status as of {format(new Date(trend.latest.timestamp), 'MM-dd HH:mm')}</p>}
-                    </div>
-                    {trend.latest && (
-                      <div className="flex gap-4 bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl">
-                        <MiniMetric label="Approved" value={trend.latest.approved} color="text-emerald-500" />
-                        <MiniMetric label="Reviewing" value={trend.latest.reviewing} color="text-amber-500" />
-                        <MiniMetric label="Waiting" value={trend.latest.waiting} color="text-blue-500" />
-                        <MiniMetric label="Open Cmt" value={trend.latest.openComments} color="text-red-500" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="h-[200px] w-full bg-slate-50/20 rounded-2xl p-2 border border-slate-100/50 shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={trend.trendData} margin={{ top: 10, right: 10, left: -30, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
-                        <Area type="monotone" dataKey="approvedCount" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
-                        <Area type="monotone" dataKey="reviewingCount" stroke="#f59e0b" strokeWidth={2} fill="#f59e0b" fillOpacity={0.1} />
-                        <Area type="monotone" dataKey="waitingReplyCount" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
-                        <Area type="monotone" dataKey="openComments" stroke="#ef4444" strokeWidth={1} strokeDasharray="4 4" fill="transparent" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </ReportPage>
-      ))}
-    </div>
+          </ReportPage>
+        ))
+      }
+    </div >
   );
 };

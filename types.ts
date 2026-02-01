@@ -18,20 +18,20 @@ export interface DrawingLog {
 }
 
 export interface Drawing {
-  id: string; 
-  customId: string; 
+  id: string;
+  customId: string;
   drawingNo: string;
   title: string;
   discipline: string;
-  assignees: string[]; 
+  assignees: string[];
   status: DrawingStatus;
-  currentRound: string; 
-  version: string; 
-  manualCommentsCount: number; 
-  manualOpenCommentsCount: number; 
-  reviewDeadline?: string; 
+  currentRound: string;
+  version: string;
+  manualCommentsCount: number;
+  manualOpenCommentsCount: number;
+  reviewDeadline?: string;
   logs: DrawingLog[];
-  remarks: Remark[]; 
+  remarks: Remark[];
   statusHistory: Remark[];
 }
 
@@ -51,19 +51,28 @@ export interface ProjectSnapshot {
   stats: DisciplineSnapshot[];
 }
 
+export interface ProjectConfig {
+  reviewers: string[];
+  disciplineDefaults: Record<string, string>;
+  holidays: string[];
+  roundACycle: number;
+  otherRoundsCycle: number;
+}
+
 export interface Project {
   id: string;
   name: string;
   drawings: Drawing[];
   snapshots?: ProjectSnapshot[];
-  webdavPath?: string; // Path or filename on WebDAV server
+  webdavPath?: string;
+  conf: ProjectConfig;
 }
 
 export interface AppSettings {
   reviewers: string[];
-  disciplineDefaults: Record<string, string>; 
+  disciplineDefaults: Record<string, string>;
   holidays: string[];
-  roundACycle: number; 
+  roundACycle: number;
   otherRoundsCycle: number;
   webdavUrl?: string;
   webdavUser?: string;

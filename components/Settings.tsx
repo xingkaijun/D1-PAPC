@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import {
@@ -9,32 +8,27 @@ import {
 import { format } from 'date-fns';
 
 export const Settings: React.FC = () => {
-  const { data, setSettings, syncWithWebDAV, saveSettingsToWebDAV, loadFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject } = useStore();
+  const { data, setSettings, updateProjectConfig, syncWithWebDAV, saveSettingsToWebDAV, loadFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const settings = data?.settings || {
-    reviewers: [],
-    disciplineDefaults: {},
-    holidays: [],
-    roundACycle: 14,
-    otherRoundsCycle: 7,
-    webdavUrl: '',
-    webdavUser: '',
-    webdavPass: '',
-    pushPassword: '',
-  };
-
   const project = data.projects.find(p => p.id === activeProjectId);
+
+  // Use project config if available, otherwise global defaults (as template/fallback)
+  const activeSettings = project?.conf || data.settings;
+  const globalSettings = data.settings; // For WebDAV only
 
   const activeDisciplines = React.useMemo(() => {
     if (!project) return [];
     return Array.from(new Set(project.drawings.map(d => d.discipline))).filter(Boolean).sort();
   }, [project]);
 
-  const [webdavUrl, setWebdavUrl] = useState(settings.webdavUrl || '');
-  const [webdavUser, setWebdavUser] = useState(settings.webdavUser || '');
-  const [webdavPass, setWebdavPass] = useState(settings.webdavPass || '');
-  const [pushPass, setPushPass] = useState(settings.pushPassword || '');
+  // Global Settings for WebDAV
+  const [webdavUrl, setWebdavUrl] = useState(globalSettings.webdavUrl || '');
+  const [webdavUser, setWebdavUser] = useState(globalSettings.webdavUser || '');
+  const [webdavPass, setWebdavPass] = useState(globalSettings.webdavPass || '');
+  const [pushPass, setPushPass] = useState(globalSettings.pushPassword || '');
+
+  // Local UI inputs
   const [newReviewer, setNewReviewer] = useState('');
   const [newHoliday, setNewHoliday] = useState('');
 
@@ -103,7 +97,7 @@ export const Settings: React.FC = () => {
 
   const handleExecutePush = async () => {
     const success = await syncWithWebDAV(verificationInput);
-    // Attempt to save settings too, silently or part of the process
+    // Attempt to save settings too
     await saveSettingsToWebDAV();
 
     if (success) {
@@ -120,21 +114,41 @@ export const Settings: React.FC = () => {
   };
 
   const addItem = (type: 'reviewers' | 'holidays', value: string, setter: (v: string) => void) => {
-    const list = settings[type] || [];
+    const list = activeSettings[type] || [];
     if (value && !list.includes(value)) {
-      setSettings({ [type]: [...list, value] });
+      if (project) {
+        updateProjectConfig(project.id, { [type]: [...list, value] });
+      } else {
+        setSettings({ [type]: [...list, value] }); // Fallback
+      }
       setter('');
     }
   };
 
   const removeItem = (type: 'reviewers' | 'holidays', value: string) => {
-    const list = settings[type] || [];
-    setSettings({ [type]: list.filter(v => v !== value) });
+    const list = activeSettings[type] || [];
+    if (project) {
+      updateProjectConfig(project.id, { [type]: list.filter(v => v !== value) });
+    } else {
+      setSettings({ [type]: list.filter(v => v !== value) });
+    }
   };
 
   const updateDisciplineDefault = (discipline: string, reviewer: string) => {
-    const next = { ...(settings.disciplineDefaults || {}), [discipline]: reviewer };
-    setSettings({ disciplineDefaults: next });
+    const next = { ...(activeSettings.disciplineDefaults || {}), [discipline]: reviewer };
+    if (project) {
+      updateProjectConfig(project.id, { disciplineDefaults: next });
+    } else {
+      setSettings({ disciplineDefaults: next });
+    }
+  };
+
+  const updatePolicy = (key: 'roundACycle' | 'otherRoundsCycle', val: number) => {
+    if (project) {
+      updateProjectConfig(project.id, { [key]: val });
+    } else {
+      setSettings({ [key]: val });
+    }
   };
 
   const handleLocalBackup = () => {
@@ -180,11 +194,11 @@ export const Settings: React.FC = () => {
 
   // --- Platform Health Logic ---
   const healthStats = React.useMemo(() => {
-    const totalReviewers = settings.reviewers.length;
-    const assignedDisciplines = activeDisciplines.filter(d => settings.disciplineDefaults[d]);
+    const totalReviewers = activeSettings.reviewers.length;
+    const assignedDisciplines = activeDisciplines.filter(d => activeSettings.disciplineDefaults[d]);
     const assignmentCoverage = activeDisciplines.length > 0 ? (assignedDisciplines.length / activeDisciplines.length) * 100 : 0;
-    const hasWebDAV = !!settings.webdavUrl;
-    const hasHolidays = settings.holidays.length > 0;
+    const hasWebDAV = !!globalSettings.webdavUrl;
+    const hasHolidays = activeSettings.holidays.length > 0;
 
     return {
       roster: totalReviewers > 0,
@@ -193,7 +207,7 @@ export const Settings: React.FC = () => {
       holidays: hasHolidays,
       score: [totalReviewers > 0, assignmentCoverage === 100, hasWebDAV].filter(Boolean).length
     };
-  }, [settings, activeDisciplines]);
+  }, [activeSettings, globalSettings, activeDisciplines]);
 
   return (
     <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200 animate-in fade-in slide-in-from-bottom-2 duration-300 p-6">
@@ -297,6 +311,19 @@ export const Settings: React.FC = () => {
 
                 <div className="h-px bg-slate-100 my-1" />
 
+                {/* Visual Indicator of Config Scope */}
+                {project ? (
+                  <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
+                    <div className="text-[9px] font-black uppercase text-indigo-600 tracking-widest flex items-center justify-center gap-1">
+                      <ShieldCheck size={10} /> Editing: {project.name} Config
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2 bg-slate-50 border border-slate-100 rounded-xl text-center">
+                    <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Global Default Config</div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={handleLocalBackup}
@@ -339,7 +366,7 @@ export const Settings: React.FC = () => {
                 <button onClick={() => addItem('reviewers', newReviewer, setNewReviewer)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16} /></button>
               </div>
               <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                {(settings.reviewers || []).map(r => (
+                {(activeSettings.reviewers || []).map(r => (
                   <div key={r} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl group hover:border-teal-400 transition-all">
                     <span className="text-[10px] font-black text-slate-700 uppercase">{r}</span>
                     <button onClick={() => removeItem('reviewers', r)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
@@ -361,12 +388,12 @@ export const Settings: React.FC = () => {
                   <div key={d} className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50/50 border border-slate-100">
                     <span className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-widest">{d}</span>
                     <select
-                      value={(settings.disciplineDefaults || {})[d] || ''}
+                      value={(activeSettings.disciplineDefaults || {})[d] || ''}
                       onChange={(e) => updateDisciplineDefault(d, e.target.value)}
                       className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black outline-none uppercase tracking-tight"
                     >
                       <option value="">No Default</option>
-                      {(settings.reviewers || []).map(r => <option key={r} value={r}>{r}</option>)}
+                      {(activeSettings.reviewers || []).map(r => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
                 ))}
@@ -390,11 +417,11 @@ export const Settings: React.FC = () => {
                   <div className="flex items-center gap-4">
                     <input
                       type="range" min="1" max="30" step="1"
-                      value={settings.roundACycle}
-                      onChange={(e) => setSettings({ roundACycle: parseInt(e.target.value) })}
+                      value={activeSettings.roundACycle}
+                      onChange={(e) => updatePolicy('roundACycle', parseInt(e.target.value))}
                       className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
                     />
-                    <span className="text-lg font-[1000] text-amber-600 w-10">{settings.roundACycle}</span>
+                    <span className="text-lg font-[1000] text-amber-600 w-10">{activeSettings.roundACycle}</span>
                   </div>
                 </div>
                 <div>
@@ -402,11 +429,11 @@ export const Settings: React.FC = () => {
                   <div className="flex items-center gap-4">
                     <input
                       type="range" min="1" max="21" step="1"
-                      value={settings.otherRoundsCycle}
-                      onChange={(e) => setSettings({ otherRoundsCycle: parseInt(e.target.value) })}
+                      value={activeSettings.otherRoundsCycle}
+                      onChange={(e) => updatePolicy('otherRoundsCycle', parseInt(e.target.value))}
                       className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-amber-500"
                     />
-                    <span className="text-lg font-[1000] text-amber-600 w-10">{settings.otherRoundsCycle}</span>
+                    <span className="text-lg font-[1000] text-amber-600 w-10">{activeSettings.otherRoundsCycle}</span>
                   </div>
                 </div>
               </div>
@@ -433,13 +460,13 @@ export const Settings: React.FC = () => {
                 <button onClick={() => addItem('holidays', newHoliday, setNewHoliday)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16} /></button>
               </div>
               <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                {(settings.holidays || []).sort().map(h => (
+                {(activeSettings.holidays || []).sort().map(h => (
                   <div key={h} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl group hover:border-red-400 transition-all">
                     <span className="text-[10px] font-black text-slate-700">{format(new Date(h), 'yyyy-MM-dd')}</span>
                     <button onClick={() => removeItem('holidays', h)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                   </div>
                 ))}
-                {settings.holidays.length === 0 && (
+                {(activeSettings.holidays || []).length === 0 && (
                   <div className="text-center py-10 opacity-30 text-[9px] font-black uppercase tracking-widest">No Holidays Logged</div>
                 )}
               </div>
@@ -454,10 +481,10 @@ export const Settings: React.FC = () => {
             </div>
             <div className="p-6 flex-1 space-y-4">
               <div className="flex flex-col gap-3">
-                <HealthItem label="Team Roster" active={healthStats.roster} subText={`${settings.reviewers.length} Reviewers Loaded`} />
+                <HealthItem label="Team Roster" active={healthStats.roster} subText={`${activeSettings.reviewers.length} Reviewers Loaded`} />
                 <HealthItem label="Discipline Defaults" active={healthStats.coverage} subText={healthStats.coverage ? 'Full Assignment Coverage' : 'Missing Default Leads'} />
                 <HealthItem label="WebDAV Registry" active={healthStats.cloud} subText={healthStats.cloud ? 'Cloud Services Active' : 'Offline Persistence Only'} />
-                <HealthItem label="Holiday Policy" active={healthStats.holidays} subText={healthStats.holidays ? `${settings.holidays.length} Dates Configured` : 'Using Standard Calendar'} />
+                <HealthItem label="Holiday Policy" active={healthStats.holidays} subText={healthStats.holidays ? `${activeSettings.holidays.length} Dates Configured` : 'Using Standard Calendar'} />
               </div>
 
               <div className="mt-4 pt-4 border-t border-slate-100">
