@@ -226,12 +226,15 @@ export const Reports: React.FC = () => {
       let total = 0;
       let pending = 0;
       let approved = 0;
+      let totalComments = 0;
 
       if (s.stats) {
         s.stats.forEach(ds => {
-          total += (ds.approved + ds.reviewing + ds.waitingReply + ds.pending);
+          const disciplineTotal = ds.approved + ds.reviewing + ds.waitingReply + ds.pending;
+          total += disciplineTotal;
           pending += ds.pending;
           approved += ds.approved;
+          totalComments += (ds.totalComments || 0);
         });
       }
 
@@ -240,6 +243,7 @@ export const Reports: React.FC = () => {
         date: format(new Date(s.timestamp), 'MM/dd'),
         'Issued Drawings': total - pending,
         'Completed Output': approved,
+        'Total Comments': totalComments,
       };
     });
   }, [snapshots]);
@@ -569,7 +573,7 @@ export const Reports: React.FC = () => {
             {/* Progress Trend Chart (Replaces Workload Hotspots) */}
             <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">Progress Trend</h3>
+                <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">Overall Progress Trend</h3>
                 <div className="flex gap-2">
                   <LegendItem color="bg-blue-500" label="Issued" />
                   <LegendItem color="bg-emerald-500" label="Completed" />
@@ -578,7 +582,7 @@ export const Reports: React.FC = () => {
               <div className="h-[180px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   {/* 
-                 // @ts-ignore */}
+                   // @ts-ignore */}
                   <AreaChart data={progressTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorIssued" x1="0" y1="0" x2="0" y2="1">
@@ -928,14 +932,35 @@ export const Reports: React.FC = () => {
                     </div>
                     <div className="h-[200px] w-full bg-slate-50/20 rounded-2xl p-2 border border-slate-100/50 shrink-0">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={trend.trendData || []} margin={{ top: 10, right: 10, left: -30, bottom: 0 }}>
+                        {/* 
+                         // @ts-ignore */}
+                        <AreaChart data={trend.trendData || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                          <defs>
+                            {/* Gradient defs if needed, or reuse existing ones in scope if accessible, 
+                                 or define new ones inline here if not global. 
+                                 For simplicity we use solid colors/fills based on previous design. */}
+                          </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
-                          <Area type="monotone" dataKey="approvedCount" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
-                          <Area type="monotone" dataKey="reviewingCount" stroke="#f59e0b" strokeWidth={2} fill="#f59e0b" fillOpacity={0.1} />
-                          <Area type="monotone" dataKey="waitingReplyCount" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
-                          <Area type="monotone" dataKey="openComments" stroke="#ef4444" strokeWidth={1} strokeDasharray="4 4" fill="transparent" />
+
+                          {/* Left Axis: Comments */}
+                          <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#ef4444' }} />
+
+                          {/* Right Axis: Drawings Count */}
+                          <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} />
+
+                          <Tooltip
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '9px' }}
+                            itemStyle={{ padding: 0 }}
+                          />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 700, paddingTop: '10px' }} />
+
+                          <Area yAxisId="right" type="monotone" dataKey="approvedCount" name="Approved" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
+                          <Area yAxisId="right" type="monotone" dataKey="reviewingCount" name="Reviewing" stroke="#f59e0b" strokeWidth={2} fill="#f59e0b" fillOpacity={0.1} />
+                          <Area yAxisId="right" type="monotone" dataKey="waitingReplyCount" name="Waiting Reply" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
+
+                          {/* Comments on Left Axis */}
+                          <Area yAxisId="left" type="monotone" dataKey="openComments" name="Open Comments" stroke="#ef4444" strokeWidth={2} strokeDasharray="4 4" fill="transparent" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
