@@ -213,9 +213,18 @@ const App: React.FC = () => {
 
             {/* Selector Header */}
             <div className="p-10 pb-6 flex items-center justify-between shrink-0">
-              <div>
-                <h1 className="text-3xl font-[1000] text-slate-900 tracking-tighter uppercase mb-2">Select Project</h1>
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Choose a registry to load from {isWebDAVConfigured ? 'WebDAV Cloud' : 'Local Cache'}</p>
+              <div className="flex items-center gap-5">
+                <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 overflow-hidden shrink-0 w-32 h-32 flex items-center justify-center">
+                  <img
+                    src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
+                    alt="Pacific Gas Logo"
+                    className="w-full h-auto object-contain"
+                  />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-[1000] text-slate-900 tracking-tighter uppercase mb-2">Select Project</h1>
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Choose a registry to load from {isWebDAVConfigured ? 'WebDAV Cloud' : 'Local Cache'}</p>
+                </div>
               </div>
               <div className="flex gap-4">
                 {!isWebDAVConfigured && (

@@ -728,7 +728,12 @@ export const useStore = create<AppState>()(
 
               // Folder Found
               console.log(`[WebDAV] Folder found: ${name}`);
-              if (!projectsMap.has(name)) {
+
+              const existingProject = data.projects.find(p => p.name === name);
+
+              if (existingProject) {
+                projectsMap.set(name, existingProject);
+              } else if (!projectsMap.has(name)) {
                 projectsMap.set(name, {
                   id: Math.random().toString(36).substr(2, 9),
                   name: name,
@@ -742,7 +747,12 @@ export const useStore = create<AppState>()(
                 // Legacy Support
                 const cleanName = name.replace(/^PA_/, '').replace(/\.json$/, '');
                 // console.log(`[WebDAV] Legacy file found: ${cleanName}`);
-                if (cleanName && !projectsMap.has(cleanName)) {
+
+                const existingLegacy = data.projects.find(p => p.name === cleanName);
+
+                if (existingLegacy) {
+                  projectsMap.set(cleanName, existingLegacy);
+                } else if (cleanName && !projectsMap.has(cleanName)) {
                   projectsMap.set(cleanName, {
                     id: Math.random().toString(36).substr(2, 9),
                     name: cleanName,
