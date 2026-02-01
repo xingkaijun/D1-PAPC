@@ -723,9 +723,9 @@ export const Reports: React.FC = () => {
             <div className="flex flex-col gap-4 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-indigo-500 pl-4">Discipline Comments Status</h3>
               {/* Margins increased on right: 50 to prevent label clipping */}
-              <div className="h-[400px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
+              <div className="h-[350px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 180, bottom: 0 }}>
+                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 160, bottom: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={0} tick={({ x, y, payload }: any) => (
                       <text x={20} y={y} dy={3} textAnchor="start" fill="#64748b" fontSize={11} fontWeight={700}>
@@ -734,10 +734,10 @@ export const Reports: React.FC = () => {
                     )} />
                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }} />
                     <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
-                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20}>
+                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={16}>
                       <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 11, fontWeight: 900 }} />
                     </Bar>
-                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={20}>
+                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={16}>
                       <LabelList dataKey="totalComments" position="right" style={{ fill: '#64748b', fontSize: 11, fontWeight: 900 }} />
                     </Bar>
                   </BarChart>
@@ -755,9 +755,9 @@ export const Reports: React.FC = () => {
             <div className="flex flex-col gap-4 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-indigo-500 pl-4">Discipline Comments Status</h3>
               {/* Margins increased on right: 50 to prevent label clipping */}
-              <div className="h-[400px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
+              <div className="h-[350px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 180, bottom: 0 }}>
+                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 160, bottom: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={0} tick={({ x, y, payload }: any) => (
                       <text x={20} y={y} dy={3} textAnchor="start" fill="#64748b" fontSize={11} fontWeight={700}>
@@ -766,10 +766,10 @@ export const Reports: React.FC = () => {
                     )} />
                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }} />
                     <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
-                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20}>
+                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={16}>
                       <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 11, fontWeight: 900 }} />
                     </Bar>
-                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={20}>
+                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={16}>
                       <LabelList dataKey="totalComments" position="right" style={{ fill: '#64748b', fontSize: 11, fontWeight: 900 }} />
                     </Bar>
                   </BarChart>
