@@ -221,6 +221,29 @@ export const Reports: React.FC = () => {
     })).filter(d => d.toReview > 0 || d.toWaiting > 0 || d.toApproved > 0) : [];
   }, [snapshots]);
 
+  const progressTrendData = useMemo(() => {
+    return snapshots.map(s => {
+      let total = 0;
+      let pending = 0;
+      let approved = 0;
+
+      if (s.stats) {
+        s.stats.forEach(ds => {
+          total += (ds.approved + ds.reviewing + ds.waitingReply + ds.pending);
+          pending += ds.pending;
+          approved += ds.approved;
+        });
+      }
+
+      return {
+        timestamp: s.timestamp,
+        date: format(new Date(s.timestamp), 'MM/dd'),
+        'Issued Drawings': total - pending,
+        'Completed Output': approved,
+      };
+    });
+  }, [snapshots]);
+
   // Dynamic Pagination Logic
   // If velocityData (Table) exists, it consumes vertical space. To ensure charts aren't squashed, we split Exec Summary.
   const execSplitRequired = velocityData.length > 0;
@@ -543,39 +566,65 @@ export const Reports: React.FC = () => {
 
           {/* Workload & Stale Drawings */}
           <div className="space-y-4">
-            {/* Workload Hotspots - Full Width */}
+            {/* Progress Trend Chart (Replaces Workload Hotspots) */}
             <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">Workload Hotspots</h3>
-                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">Top disciplines by open comments</span>
+                <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">Progress Trend</h3>
+                <div className="flex gap-2">
+                  <LegendItem color="bg-blue-500" label="Issued" />
+                  <LegendItem color="bg-emerald-500" label="Completed" />
+                </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                {[...disciplineMainData]
-                  .sort((a, b) => b.openComments - a.openComments)
-                  .slice(0, 9)
-                  .map((disc, idx) => (
-                    <div key={disc.name} className="flex items-center gap-2">
-                      <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[7px] font-black shrink-0 ${idx === 0 ? 'bg-red-500 text-white' : idx === 1 ? 'bg-orange-400 text-white' : idx === 2 ? 'bg-amber-400 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[7px] font-black text-slate-700 uppercase truncate">{disc.name}</div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-red-500 to-orange-400 rounded-full"
-                              style={{ width: `${(disc.openComments / Math.max(...disciplineMainData.map(d => d.openComments), 1)) * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-[7px] font-black text-red-600 w-6 text-right">{disc.openComments}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <div className="h-[180px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  {/* 
+                 // @ts-ignore */}
+                  <AreaChart data={progressTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorIssued" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="timestamp"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 8, fontWeight: 700, fill: '#94a3b8' }}
+                      tickFormatter={(t) => {
+                        try { return format(new Date(t), 'MM/dd'); } catch { return ''; }
+                      }}
+                    />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#94a3b8' }} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }}
+                      labelStyle={{ display: 'none' }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="Issued Drawings"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorIssued)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="Completed Output"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorCompleted)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
-
-
           </div>
         </div>
       </ReportPage >
@@ -668,6 +717,38 @@ export const Reports: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+
+            {/* Workload Hotspots (Moved from Page 1) */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 shadow-sm shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">Workload Hotspots</h3>
+                <span className="text-[7px] font-bold text-slate-400 uppercase tracking-wider">Top Disciplines by Open Comments</span>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[...disciplineMainData]
+                  .sort((a, b) => b.openComments - a.openComments)
+                  .slice(0, 9)
+                  .map((disc, idx) => (
+                    <div key={disc.name} className="flex items-center gap-2">
+                      <div className={`w-5 h-5 rounded-md flex items-center justify-center text-[7px] font-black shrink-0 ${idx === 0 ? 'bg-red-500 text-white' : idx === 1 ? 'bg-orange-400 text-white' : idx === 2 ? 'bg-amber-400 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[7px] font-black text-slate-700 uppercase truncate">{disc.name}</div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-red-500 to-orange-400 rounded-full"
+                              style={{ width: `${(disc.openComments / Math.max(...disciplineMainData.map(d => d.openComments), 1)) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[7px] font-black text-red-600 w-6 text-right">{disc.openComments}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
 
           {/* If NOT split, show Discipline Chart here */}
@@ -675,22 +756,31 @@ export const Reports: React.FC = () => {
             <div className="flex flex-col gap-4 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-indigo-500 pl-4">Discipline Comments Status</h3>
               {/* Margins increased on right: 50 to prevent label clipping */}
-              <div className="h-[350px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
+              <div className="h-[350px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 160, bottom: 0 }}>
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={0} tick={({ x, y, payload }: any) => (
-                      <text x={20} y={y} dy={3} textAnchor="start" fill="#64748b" fontSize={11} fontWeight={700}>
-                        {payload.value}
-                      </text>
-                    )} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }} />
-                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
-                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 11, fontWeight: 900 }} />
+                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }} barGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }} />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      axisLine={false}
+                      tickLine={false}
+                      width={120}
+                      tick={{ fontSize: 10, fill: '#475569', fontWeight: 800, textTransform: 'uppercase' }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#f1f5f9', radius: 4 }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                      itemStyle={{ fontSize: '11px', fontWeight: 700, padding: '2px 0' }}
+                      labelStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', color: '#94a3b8', marginBottom: '8px' }}
+                    />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '20px' }} />
+
+                    <Bar dataKey="totalComments" name="Total Comments" fill="#cbd5e1" radius={[0, 4, 4, 0]} barSize={12}>
                     </Bar>
-                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="totalComments" position="right" style={{ fill: '#64748b', fontSize: 11, fontWeight: 900 }} />
+                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={12}>
+                      <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 10, fontWeight: 900 }} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -707,22 +797,31 @@ export const Reports: React.FC = () => {
             <div className="flex flex-col gap-4 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-indigo-500 pl-4">Discipline Comments Status</h3>
               {/* Margins increased on right: 50 to prevent label clipping */}
-              <div className="h-[350px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
+              <div className="h-[350px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 160, bottom: 0 }}>
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={0} tick={({ x, y, payload }: any) => (
-                      <text x={20} y={y} dy={3} textAnchor="start" fill="#64748b" fontSize={11} fontWeight={700}>
-                        {payload.value}
-                      </text>
-                    )} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }} />
-                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
-                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 11, fontWeight: 900 }} />
+                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }} barGap={2}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 600 }} />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      axisLine={false}
+                      tickLine={false}
+                      width={120}
+                      tick={{ fontSize: 10, fill: '#475569', fontWeight: 800, textTransform: 'uppercase' }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#f1f5f9', radius: 4 }}
+                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                      itemStyle={{ fontSize: '11px', fontWeight: 700, padding: '2px 0' }}
+                      labelStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', color: '#94a3b8', marginBottom: '8px' }}
+                    />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '20px' }} />
+
+                    <Bar dataKey="totalComments" name="Total Comments" fill="#cbd5e1" radius={[0, 4, 4, 0]} barSize={12}>
                     </Bar>
-                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={16}>
-                      <LabelList dataKey="totalComments" position="right" style={{ fill: '#64748b', fontSize: 11, fontWeight: 900 }} />
+                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={12}>
+                      <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 10, fontWeight: 900 }} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
