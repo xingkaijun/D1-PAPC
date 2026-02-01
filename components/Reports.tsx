@@ -575,51 +575,7 @@ export const Reports: React.FC = () => {
               </div>
             </div>
 
-            {/* Stale Drawings Alert - Full Width */}
-            <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl border-2 border-red-200 p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="p-1.5 bg-red-500 rounded-lg animate-pulse">
-                  <Clock size={14} className="text-white" />
-                </div>
-                <h3 className="text-[9px] font-[1000] text-red-700 uppercase tracking-widest">Stagnant Drawings Alert</h3>
-                <div className="text-[6px] font-black text-red-400 uppercase tracking-wider">(No activity &gt; 14 days)</div>
-                <div className="ml-auto text-[8px] font-black text-red-600 bg-white px-3 py-1 rounded-lg">{staleDrawings.length} Drawings</div>
-              </div>
-              <div className="max-h-[110px] overflow-y-auto scrollbar-thin scrollbar-thumb-red-300 bg-white/50 rounded-xl p-2">
-                {staleDrawings.length === 0 ? (
-                  <div className="py-3 text-center">
-                    <CheckCircle size={20} className="text-emerald-500 mx-auto mb-1.5" />
-                    <div className="text-[8px] font-black text-emerald-600 uppercase">All Clear!</div>
-                    <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">No stagnant drawings</div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {staleDrawings.map(d => {
-                      const now = new Date();
-                      const lastUpdate = getDrawingLastUpdate(d);
-                      const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
-                      return (
-                        <div key={d.id} className="flex items-center justify-between p-2 bg-white border border-red-100 rounded-lg hover:bg-red-50 transition-all">
-                          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                            <div className={`px-1.5 py-0.5 rounded text-[6px] font-black uppercase shrink-0 ${d.status === 'Reviewing' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                              {d.status === 'Reviewing' ? 'REV' : 'WAIT'}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[7px] font-black text-slate-800 truncate">{d.drawingNo}</div>
-                              <div className="text-[6px] font-bold text-slate-400 uppercase truncate">{d.discipline}</div>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0 ml-2">
-                            <div className="text-[8px] font-black text-red-600">{daysSince}d</div>
-                            <div className="text-[5px] font-bold text-red-400 uppercase">stale</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
+
           </div>
         </div>
       </ReportPage >
@@ -627,52 +583,7 @@ export const Reports: React.FC = () => {
       {/* --- PAGE 2: EXECUTIVE SUMMARY --- */}
       < ReportPage pageNumber={2} totalPages={totalPages} projectName={project.name} >
         <div className="flex flex-col gap-6">
-          {/* Stagnant Drawings Alert (Moved from Page 1, Auto Height) */}
-          <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl border-2 border-red-200 p-4 shadow-sm shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 bg-red-500 rounded-lg animate-pulse">
-                <Clock size={14} className="text-white" />
-              </div>
-              <h3 className="text-[9px] font-[1000] text-red-700 uppercase tracking-widest">Stagnant Drawings Alert</h3>
-              <div className="text-[6px] font-black text-red-400 uppercase tracking-wider">(No activity &gt; 14 days)</div>
-              <div className="ml-auto text-[8px] font-black text-red-600 bg-white px-3 py-1 rounded-lg">{staleDrawings.length} Drawings</div>
-            </div>
-            {/* Removed max-h and overflow to allow full expansion */}
-            <div className="bg-white/50 rounded-xl p-2">
-              {staleDrawings.length === 0 ? (
-                <div className="py-3 text-center">
-                  <CheckCircle size={20} className="text-emerald-500 mx-auto mb-1.5" />
-                  <div className="text-[8px] font-black text-emerald-600 uppercase">All Clear!</div>
-                  <div className="text-[6px] font-bold text-slate-400 uppercase mt-0.5">No stagnant drawings</div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {staleDrawings.map(d => {
-                    const now = new Date();
-                    const lastUpdate = getDrawingLastUpdate(d);
-                    const daysSince = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
-                    return (
-                      <div key={d.id} className="flex items-center justify-between p-2 bg-white border border-red-100 rounded-lg">
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <div className={`px-1.5 py-0.5 rounded text-[6px] font-black uppercase shrink-0 ${d.status === 'Reviewing' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {d.status === 'Reviewing' ? 'REV' : 'WAIT'}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[7px] font-black text-slate-800 truncate">{d.drawingNo}</div>
-                            <div className="text-[6px] font-bold text-slate-400 uppercase truncate">{d.discipline}</div>
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0 ml-2">
-                          <div className="text-[8px] font-black text-red-600">{daysSince}d</div>
-                          <div className="text-[5px] font-bold text-red-400 uppercase">stale</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+
 
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between border-l-4 border-teal-500 pl-4">
