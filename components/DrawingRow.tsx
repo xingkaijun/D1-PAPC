@@ -135,7 +135,7 @@ export const DrawingRow = memo(({
                         <span>{drawing.customId}</span>
                     </div>
                 </td>
-                <td className="px-3 py-2 font-mono text-[10px] font-bold text-teal-600 truncate">{drawing.drawingNo}</td>
+                <td className="px-1 py-2 font-mono text-[10px] font-bold text-teal-600 truncate">{drawing.drawingNo}</td>
                 <td className="px-3 py-2">
                     <input
                         type="text" value={drawing.version}
@@ -163,7 +163,7 @@ export const DrawingRow = memo(({
                         </div>
                     ) : <span className="text-slate-200">—</span>}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-1 py-2">
                     <MultiAssigneeDropdown drawing={drawing} reviewers={reviewers} onUpdate={(ids) => updateDrawing(activeProjectId, drawing.id, { assignees: ids })} />
                 </td>
                 <td className="px-3 py-2 text-center">

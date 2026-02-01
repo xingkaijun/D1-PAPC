@@ -3,7 +3,8 @@ import { useStore } from '../store';
 import {
   Database, Users, Trash2,
   Plus, UserCheck, RefreshCw, Send, Download, Shield, Info, Lock, X, Eye, EyeOff, AlertCircle,
-  Clock, CalendarDays, Save, Upload, Link as LinkIcon, CheckCircle, Activity, ShieldCheck, HeartPulse
+  Clock, CalendarDays, Save, Upload, Link as LinkIcon, CheckCircle, LayoutDashboard,
+  User, Calendar, ShieldCheck, Activity, HeartPulse
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -35,19 +36,7 @@ export const Settings: React.FC = () => {
   // Test connection result state
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // --- Verification Modal State ---
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const [verificationInput, setVerificationInput] = useState('');
-  const [showPass, setShowPass] = useState(false);
-  const [shaking, setShaking] = useState(false);
 
-  useEffect(() => {
-    if (error === 'AUTHENTICATION_FAILED') {
-      setShaking(true);
-      const timer = setTimeout(() => setShaking(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
 
   const handleSaveWebDAV = async () => {
     setSettings({
@@ -90,47 +79,64 @@ export const Settings: React.FC = () => {
     setTimeout(() => setTestResult(null), 5000);
   };
 
-  const handleSavePushPassword = () => {
-    setSettings({ pushPassword: pushPass });
-    alert('Push Authentication Password Updated!');
-  };
-
   const handleExecutePush = async () => {
-    const success = await syncWithWebDAV(verificationInput);
+    // Pass empty string for compatibility or remove param in store if updated
+    const success = await syncWithWebDAV('');
     // Attempt to save settings too
-    await saveSettingsToWebDAV();
+    // Deprecated per user request: await saveSettingsToWebDAV();
 
     if (success) {
-      setShowVerifyModal(false);
-      setVerificationInput('');
       alert("Project & Global Config successfully synced to WebDAV.");
     }
   };
 
-  const openPushModal = () => {
-    clearError();
-    setVerificationInput('');
-    setShowVerifyModal(true);
-  };
-
   const addItem = (type: 'reviewers' | 'holidays', value: string, setter: (v: string) => void) => {
-    const list = activeSettings[type] || [];
-    if (value && !list.includes(value)) {
-      if (project) {
-        updateProjectConfig(project.id, { [type]: [...list, value] });
-      } else {
-        setSettings({ [type]: [...list, value] }); // Fallback
+    // Handling Reviewers (Objects) vs Holidays (Strings)
+    if (type === 'reviewers') {
+      const list = (activeSettings.reviewers || []) as any[];
+      // Check duplication by name or ID
+      const exists = list.some(r => (typeof r === 'string' ? r === value : r.name === value));
+      if (value && !exists) {
+        const newReviewer = { id: value.toLowerCase().replace(/\s+/g, '_'), name: value };
+        const newList = [...list, newReviewer];
+        if (project) {
+          updateProjectConfig(project.id, { reviewers: newList });
+        } else {
+          setSettings({ reviewers: newList });
+        }
+        setter('');
       }
-      setter('');
+    } else {
+      // Holidays (Strings)
+      const list = (activeSettings[type] || []) as string[];
+      if (value && !list.includes(value)) {
+        if (project) {
+          updateProjectConfig(project.id, { [type]: [...list, value] });
+        } else {
+          setSettings({ [type]: [...list, value] });
+        }
+        setter('');
+      }
     }
   };
 
   const removeItem = (type: 'reviewers' | 'holidays', value: string) => {
-    const list = activeSettings[type] || [];
-    if (project) {
-      updateProjectConfig(project.id, { [type]: list.filter(v => v !== value) });
+    if (type === 'reviewers') {
+      const list = (activeSettings.reviewers || []) as any[];
+      // value passed might be ID or Name. In map loop we will pass ID if object.
+      const newList = list.filter(r => {
+        const rId = typeof r === 'string' ? r : r.id;
+        const rName = typeof r === 'string' ? r : r.name;
+        // We'll compare against both just to be safe if 'value' is ambiguous
+        return rId !== value && rName !== value;
+      });
+      if (project) updateProjectConfig(project.id, { reviewers: newList });
+      else setSettings({ reviewers: newList });
     } else {
-      setSettings({ [type]: list.filter(v => v !== value) });
+      const list = (activeSettings[type] || []) as string[];
+      const newList = list.filter(v => v !== value);
+      if (project) updateProjectConfig(project.id, { [type]: newList });
+      else setSettings({ [type]: newList });
     }
   };
 
@@ -197,15 +203,15 @@ export const Settings: React.FC = () => {
     const totalReviewers = activeSettings.reviewers.length;
     const assignedDisciplines = activeDisciplines.filter(d => activeSettings.disciplineDefaults[d]);
     const assignmentCoverage = activeDisciplines.length > 0 ? (assignedDisciplines.length / activeDisciplines.length) * 100 : 0;
-    const hasWebDAV = !!globalSettings.webdavUrl;
+    const hasPassword = !!(activeSettings as any).password;
     const hasHolidays = activeSettings.holidays.length > 0;
 
     return {
       roster: totalReviewers > 0,
       coverage: assignmentCoverage === 100,
-      cloud: hasWebDAV,
+      security: hasPassword,
       holidays: hasHolidays,
-      score: [totalReviewers > 0, assignmentCoverage === 100, hasWebDAV].filter(Boolean).length
+      score: [totalReviewers > 0, assignmentCoverage === 100, hasPassword, hasHolidays].filter(Boolean).length
     };
   }, [activeSettings, globalSettings, activeDisciplines]);
 
@@ -273,28 +279,21 @@ export const Settings: React.FC = () => {
                     </p>
                   </div>
                 )}
+
+                {/* Auto-Sync Setting */}
+
               </div>
 
-              <div>
-                <label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1 tracking-widest flex items-center gap-1.5">
-                  <Shield size={10} className="text-teal-500" /> Auth Password
-                </label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="password" value={pushPass} onChange={(e) => setPushPass(e.target.value)}
-                    placeholder="Security Key"
-                    className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-mono text-[9px] focus:bg-white transition-all"
-                  />
-                  <button onClick={handleSavePushPassword} className="px-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase hover:bg-black transition-colors">Set</button>
-                </div>
-              </div>
+
 
               <div className="pt-2 space-y-3">
                 <div className="text-[9px] font-black uppercase text-slate-400 ml-1">Hull: <span className="text-teal-600">{project?.name || 'Unset'}</span></div>
 
+
+
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={openPushModal}
+                    onClick={handleExecutePush}
                     disabled={isLoading || !project}
                     className="p-3 bg-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-teal-500/10"
                   >
@@ -350,28 +349,34 @@ export const Settings: React.FC = () => {
             </div>
           </section>
 
+
+
           {/* Review Team */}
           <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:border-teal-400 transition-colors">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
               <Users className="text-teal-600" size={16} />
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Team Roster</h2>
             </div>
-            <div className="p-5 flex-1 space-y-4">
-              <div className="flex gap-1.5">
+            <div className="p-3 flex-1 flex flex-col gap-2 min-h-0">
+              <div className="flex gap-1.5 shrink-0">
                 <input
                   type="text" value={newReviewer} onChange={(e) => setNewReviewer(e.target.value)}
                   placeholder="New Reviewer Name"
-                  className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none focus:bg-white transition-all uppercase"
+                  className="flex-1 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-black outline-none focus:bg-white transition-all uppercase"
                 />
-                <button onClick={() => addItem('reviewers', newReviewer, setNewReviewer)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16} /></button>
+                <button onClick={() => addItem('reviewers', newReviewer, setNewReviewer)} className="p-1.5 bg-slate-900 text-white rounded-lg hover:bg-black active:scale-95 transition-all"><Plus size={14} /></button>
               </div>
-              <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-                {(activeSettings.reviewers || []).map(r => (
-                  <div key={r} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl group hover:border-teal-400 transition-all">
-                    <span className="text-[10px] font-black text-slate-700 uppercase">{r}</span>
-                    <button onClick={() => removeItem('reviewers', r)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 gap-1 overflow-y-auto pr-1 scrollbar-thin flex-1">
+                {(activeSettings.reviewers || []).map(r => {
+                  const rName = typeof r === 'string' ? r : r.name;
+                  const rId = typeof r === 'string' ? r : r.id;
+                  return (
+                    <div key={rId} className="flex items-center justify-between p-1.5 bg-white border border-slate-100 rounded-lg group hover:border-teal-400 transition-all shrink-0">
+                      <span className="text-[10px] font-black text-slate-700 uppercase">{rName}</span>
+                      <button onClick={() => removeItem('reviewers', rId)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </section>
@@ -382,18 +387,22 @@ export const Settings: React.FC = () => {
               <UserCheck className="text-indigo-600" size={16} />
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Default Leads</h2>
             </div>
-            <div className="p-5 flex-1 space-y-3">
-              <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-1 scrollbar-thin">
+            <div className="p-3 flex-1 flex flex-col gap-2 min-h-0">
+              <div className="grid grid-cols-1 gap-1 overflow-y-auto pr-1 scrollbar-thin flex-1">
                 {activeDisciplines.map(d => (
-                  <div key={d} className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50/50 border border-slate-100">
-                    <span className="text-[8px] font-black uppercase text-slate-400 ml-1 tracking-widest">{d}</span>
+                  <div key={d} className="flex items-center justify-between p-1 px-2 rounded-lg bg-slate-50/50 border border-slate-100 hover:border-indigo-200 transition-colors shrink-0">
+                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest flex-1 truncate py-1" title={d}>{d}</span>
                     <select
                       value={(activeSettings.disciplineDefaults || {})[d] || ''}
                       onChange={(e) => updateDisciplineDefault(d, e.target.value)}
-                      className="w-full p-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-black outline-none uppercase tracking-tight"
+                      className="w-24 p-1 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-black outline-none uppercase tracking-tight ml-2 h-6"
                     >
                       <option value="">No Default</option>
-                      {(activeSettings.reviewers || []).map(r => <option key={r} value={r}>{r}</option>)}
+                      {(activeSettings.reviewers || []).map(r => {
+                        const rName = typeof r === 'string' ? r : r.name;
+                        const rId = typeof r === 'string' ? r : r.id;
+                        return <option key={rId} value={rName}>{rName}</option>;
+                      })}
                     </select>
                   </div>
                 ))}
@@ -451,17 +460,17 @@ export const Settings: React.FC = () => {
               <CalendarDays className="text-red-600" size={16} />
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Public Holidays</h2>
             </div>
-            <div className="p-5 flex-1 space-y-4">
-              <div className="flex gap-1.5">
+            <div className="p-5 flex-1 flex flex-col gap-4 min-h-0">
+              <div className="flex gap-1.5 shrink-0">
                 <input
                   type="date" value={newHoliday} onChange={(e) => setNewHoliday(e.target.value)}
                   className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none focus:bg-white transition-all uppercase"
                 />
                 <button onClick={() => addItem('holidays', newHoliday, setNewHoliday)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16} /></button>
               </div>
-              <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+              <div className="grid grid-cols-1 gap-1.5 overflow-y-auto pr-1 scrollbar-thin flex-1">
                 {(activeSettings.holidays || []).sort().map(h => (
-                  <div key={h} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl group hover:border-red-400 transition-all">
+                  <div key={h} className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl group hover:border-red-400 transition-all shrink-0">
                     <span className="text-[10px] font-black text-slate-700">{format(new Date(h), 'yyyy-MM-dd')}</span>
                     <button onClick={() => removeItem('holidays', h)} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
                   </div>
@@ -483,7 +492,7 @@ export const Settings: React.FC = () => {
               <div className="flex flex-col gap-3">
                 <HealthItem label="Team Roster" active={healthStats.roster} subText={`${activeSettings.reviewers.length} Reviewers Loaded`} />
                 <HealthItem label="Discipline Defaults" active={healthStats.coverage} subText={healthStats.coverage ? 'Full Assignment Coverage' : 'Missing Default Leads'} />
-                <HealthItem label="WebDAV Registry" active={healthStats.cloud} subText={healthStats.cloud ? 'Cloud Services Active' : 'Offline Persistence Only'} />
+                <HealthItem label="Project Protection" active={healthStats.security} subText={(healthStats as any).security ? 'Secure Access Enabled' : 'Public Access Mode'} />
                 <HealthItem label="Holiday Policy" active={healthStats.holidays} subText={healthStats.holidays ? `${activeSettings.holidays.length} Dates Configured` : 'Using Standard Calendar'} />
               </div>
 
@@ -491,9 +500,88 @@ export const Settings: React.FC = () => {
                 <div className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Config Integrity Score</div>
                 <div className="flex gap-1.5">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className={`flex-1 h-2 rounded-full transition-all duration-1000 ${i <= healthStats.score + (healthStats.holidays ? 1 : 0) ? 'bg-indigo-500 shadow-lg shadow-indigo-500/20' : 'bg-slate-100'}`} />
+                    <div key={i} className={`flex-1 h-2 rounded-full transition-all duration-1000 ${i <= healthStats.score ? 'bg-indigo-500 shadow-lg shadow-indigo-500/20' : 'bg-slate-100'}`} />
                   ))}
                 </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Project Configuration (Merged: Name, Password, Sync) */}
+          <section className="bg-white rounded-[2rem] border border-indigo-100 shadow-sm overflow-hidden flex flex-col hover:border-indigo-400 transition-colors group relative">
+            <div className="px-5 py-4 border-b border-indigo-50 flex items-center gap-3 bg-indigo-50/30">
+              <LayoutDashboard className="text-indigo-400 group-hover:text-indigo-600 transition-colors" size={16} />
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-indigo-900/70 group-hover:text-indigo-900">Project Configuration</h2>
+            </div>
+            <div className="p-5 flex-1 space-y-5 relative z-10">
+
+              {/* Project Name */}
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1">Project Report Name</label>
+                <input
+                  type="text"
+                  value={activeSettings.displayName || ''}
+                  onChange={(e) => project && updateProjectConfig(project.id, { displayName: e.target.value })}
+                  placeholder="CUSTOM DISPLAY TITLE"
+                  disabled={!project}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-300 group-hover/input:bg-white"
+                />
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-1">Project Password (Optional)</label>
+                <div className="relative group/input">
+                  <input
+                    type="text"
+                    value={(activeSettings as any).password || ''}
+                    onChange={(e) => {
+                      if (project) {
+                        updateProjectConfig(project.id, { password: e.target.value });
+                      }
+                    }}
+                    placeholder="NO PASSWORD SET"
+                    disabled={!project}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all placeholder:text-slate-300 group-hover/input:bg-white"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover/input:opacity-100 transition-opacity">
+                    {(activeSettings as any).password ? <Lock size={14} className="text-red-400" /> : <CheckCircle size={14} className="text-slate-300" />}
+                  </div>
+                </div>
+                <p className="text-[9px] font-bold text-slate-300 leading-relaxed pl-1 max-w-md">
+                  Requires password entry when loading from Server.
+                </p>
+              </div>
+
+              {/* Auto Sync - Visual Divider */}
+              <div className="h-px bg-indigo-50" />
+
+              {/* Auto Sync */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1">
+                    <Clock size={10} /> Auto-Sync Interval
+                  </label>
+                  <span className="text-[9px] font-[1000] text-teal-600 bg-teal-50 px-2 py-1 rounded-md">
+                    {project?.conf?.autoSyncInterval ?? data.settings.autoSyncInterval ?? 3} min
+                  </span>
+                </div>
+                <input
+                  type="range" min="0" max="60" step="1"
+                  value={project?.conf?.autoSyncInterval ?? data.settings.autoSyncInterval ?? 3}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (project) {
+                      updateProjectConfig(project.id, { autoSyncInterval: val });
+                    } else {
+                      setSettings({ autoSyncInterval: val });
+                    }
+                  }}
+                  className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                />
+                <p className="text-[8px] font-bold text-slate-300 uppercase tracking-tight text-center">
+                  0 = Disabled (Manual Only)
+                </p>
               </div>
             </div>
           </section>
@@ -501,78 +589,6 @@ export const Settings: React.FC = () => {
         </div>
       </div>
 
-      {/* Verification Modal */}
-      {showVerifyModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
-          <div className={`bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden flex flex-col p-8 transition-transform duration-100 ${shaking ? 'animate-shake' : ''}`}>
-
-            <div className="flex items-center justify-between mb-10">
-              <div className="w-14 h-14 bg-teal-50 rounded-[1.25rem] flex items-center justify-center text-teal-600 shadow-sm border border-teal-100">
-                <Lock size={28} strokeWidth={2.5} />
-              </div>
-              <button onClick={() => setShowVerifyModal(false)} className="p-2 text-slate-300 hover:text-slate-600 transition-colors rounded-full hover:bg-slate-50">
-                <X size={28} />
-              </button>
-            </div>
-
-            <div className="mb-10 text-center">
-              <h3 className="text-2xl font-[1000] text-slate-900 tracking-tight leading-none mb-4 uppercase">Authorize WebDAV Sync</h3>
-              <p className="text-slate-500 text-[11px] font-black uppercase tracking-[0.2em] leading-relaxed">Security key required for <span className="text-teal-600 underline">"{project?.name}"</span></p>
-            </div>
-
-            <div className="space-y-6">
-              <div className="relative">
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block ml-1 tracking-[0.25em]">Master Access Key</label>
-                <div className="relative">
-                  <input
-                    autoFocus
-                    type={showPass ? "text" : "password"}
-                    value={verificationInput}
-                    onChange={(e) => setVerificationInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleExecutePush()}
-                    placeholder="••••••••"
-                    className={`w-full p-5 pr-14 bg-slate-50 border-2 rounded-[1.5rem] outline-none text-xl font-bold tracking-widest transition-all ${error === 'AUTHENTICATION_FAILED' ? 'border-red-200 bg-red-50 text-red-600' : 'border-slate-100 focus:border-teal-500 focus:bg-white'}`}
-                  />
-                  <button
-                    onClick={() => setShowPass(!showPass)}
-                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-teal-600 transition-colors"
-                  >
-                    {showPass ? <EyeOff size={22} /> : <Eye size={22} />}
-                  </button>
-                </div>
-              </div>
-              {error === 'AUTHENTICATION_FAILED' && (
-                <div className="flex items-center gap-3 text-red-600 p-5 bg-red-100/50 rounded-2xl border border-red-100 animate-in slide-in-from-top-2">
-                  <AlertCircle size={18} className="shrink-0" />
-                  <span className="text-[10px] font-black uppercase tracking-widest leading-none">Security Access Denied</span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-12 flex flex-col gap-4">
-              <button
-                onClick={handleExecutePush}
-                disabled={isLoading || verificationInput.trim() === ''}
-                className="w-full py-5 bg-teal-600 text-white rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.3em] shadow-xl shadow-teal-500/20 hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-4"
-              >
-                {isLoading ? <RefreshCw className="animate-spin" size={20} /> : <Shield size={20} />}
-                {isLoading ? 'Processing...' : 'Authorize Sync'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-8px); }
-          75% { transform: translateX(8px); }
-        }
-        .animate-shake {
-          animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
-        }
-      `}</style>
     </div>
   );
 };

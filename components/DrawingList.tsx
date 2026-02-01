@@ -134,7 +134,7 @@ export const DrawingList: React.FC = () => {
   const reviewers = project?.conf?.reviewers || data.settings.reviewers;
 
   const derivedDisciplines = useMemo(() => {
-    if (!project) return [];
+    if (!project || !project.drawings) return [];
     return Array.from(new Set(project.drawings.map(d => d.discipline))).filter(Boolean).sort();
   }, [project]);
 
@@ -145,12 +145,13 @@ export const DrawingList: React.FC = () => {
     // Reset to page 1 when filter changes
     // Note: We can't set state directly in useMemo, use useEffect below or handle in onChange
 
-    return project.drawings.filter(d => {
+    return (project.drawings || []).filter(d => {
       const matchesSearch = !searchTerm ||
         d.drawingNo.toLowerCase().includes(lowerSearch) ||
         d.title.toLowerCase().includes(lowerSearch) ||
         d.discipline.toLowerCase().includes(lowerSearch) ||
-        d.customId.toLowerCase().includes(lowerSearch);
+        d.customId.toLowerCase().includes(lowerSearch) ||
+        (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch)));
       if (!matchesSearch) return false;
       if (statusFilter === 'Overdue') {
         return d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
@@ -254,11 +255,11 @@ export const DrawingList: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
           <FilterButton active={statusFilter === null} onClick={() => setStatusFilter(null)} label="All Units" icon={<Layers size={12} />} color="slate" />
           <div className="w-px h-4 bg-slate-200 mx-1" />
-          <FilterButton active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} label="Pending" color="slate" count={project.drawings.filter(d => d.status === 'Pending').length} />
-          <FilterButton active={statusFilter === 'Reviewing'} onClick={() => setStatusFilter('Reviewing')} label="Reviewing" color="teal" count={project.drawings.filter(d => d.status === 'Reviewing').length} />
-          <FilterButton active={statusFilter === 'Waiting Reply'} onClick={() => setStatusFilter('Waiting Reply')} label="Waiting" color="cyan" count={project.drawings.filter(d => d.status === 'Waiting Reply').length} />
-          <FilterButton active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} label="Approved" color="emerald" count={project.drawings.filter(d => d.status === 'Approved').length} />
-          <FilterButton active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} label="Overdue" color="red" icon={<Layers size={12} />} count={project.drawings.filter(d => d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline))).length} />
+          <FilterButton active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} label="Pending" color="slate" count={(project.drawings || []).filter(d => d.status === 'Pending').length} />
+          <FilterButton active={statusFilter === 'Reviewing'} onClick={() => setStatusFilter('Reviewing')} label="Reviewing" color="teal" count={(project.drawings || []).filter(d => d.status === 'Reviewing').length} />
+          <FilterButton active={statusFilter === 'Waiting Reply'} onClick={() => setStatusFilter('Waiting Reply')} label="Waiting" color="cyan" count={(project.drawings || []).filter(d => d.status === 'Waiting Reply').length} />
+          <FilterButton active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} label="Approved" color="emerald" count={(project.drawings || []).filter(d => d.status === 'Approved').length} />
+          <FilterButton active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} label="Overdue" color="red" icon={<Layers size={12} />} count={(project.drawings || []).filter(d => d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline))).length} />
         </div>
       </div>
 
@@ -269,16 +270,16 @@ export const DrawingList: React.FC = () => {
             <tr className="text-slate-400 uppercase text-[8px] font-black tracking-[0.1em] border-b border-slate-100 shadow-sm">
               <th className="px-3 py-3 w-10 bg-slate-50/80 backdrop-blur-md"></th>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, id: w }))} width={columnWidths.id || 70}>ID</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, no: w }))} width={columnWidths.no || 140}>Code</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, no: w }))} width={columnWidths.no || 110}>Code</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ver: w }))} width={columnWidths.ver || 50}>Ver</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, rnd: w }))} width={columnWidths.rnd || 40}>Rd</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, disc: w }))} width={columnWidths.disc || 120}>Discipline</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, title: w }))} width={columnWidths.title || 250}>Drawing Title</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, dead: w }))} width={columnWidths.dead || 90}>Deadline</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ass: w }))} width={columnWidths.ass || 130}>Assignees</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ass: w }))} width={columnWidths.ass || 90}>Assignees</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, stat: w }))} width={columnWidths.stat || 100}>Status</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 75}>Total Cmt</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, opn: w }))} width={columnWidths.opn || 75}>Open Cmt</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 50}>Total Cmt</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, opn: w }))} width={columnWidths.opn || 50}>Open Cmt</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ok: w }))} width={columnWidths.ok || 50}>OK</ResizableHeader>
               <th className="px-3 py-3 w-10 bg-slate-50/50"></th>
             </tr>

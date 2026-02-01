@@ -54,12 +54,21 @@ export interface ProjectSnapshot {
   stats: DisciplineSnapshot[];
 }
 
+export interface Reviewer {
+  id: string;
+  name: string;
+}
+
 export interface ProjectConfig {
-  reviewers: string[];
-  disciplineDefaults: Record<string, string>;
-  holidays: string[];
-  roundACycle: number;
-  otherRoundsCycle: number;
+  reviewers: Reviewer[];
+  disciplineDefaults: { [key: string]: string }; // Map discipline -> default reviewer ID
+  holidays: string[]; // ISO Date strings YYYY-MM-DD
+  roundACycle: number; // Days
+  otherRoundsCycle: number; // Days
+  password?: string; // Optional Project Password
+  displayName?: string; // Custom Project Display Name for Reports
+  autoSyncInterval?: number; // Project-specific auto-sync interval
+  lastUpdated?: string; // Last modification timestamp
 }
 
 export interface Project {
@@ -69,10 +78,11 @@ export interface Project {
   snapshots?: ProjectSnapshot[];
   webdavPath?: string;
   conf: ProjectConfig;
+  lastUpdated?: string;
 }
 
 export interface AppSettings {
-  reviewers: string[];
+  reviewers: Reviewer[];
   disciplineDefaults: Record<string, string>;
   holidays: string[];
   roundACycle: number;
@@ -81,6 +91,8 @@ export interface AppSettings {
   webdavUser?: string;
   webdavPass?: string;
   pushPassword?: string; // Verification password for local sync UI
+  displayName?: string; // Global default display name pattern (optional)
+  autoSyncInterval?: number; // Auto-sync interval in minutes (default: 3)
 }
 
 export interface AppData {

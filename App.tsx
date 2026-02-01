@@ -1,10 +1,36 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useStore } from './store';
 import { Reports } from './components/Reports';
 import { DrawingList } from './components/DrawingList';
 import { Settings } from './components/Settings';
 import { CommandBar } from './components/CommandBar';
+import { format } from 'date-fns';
+
+const PROJECT_THEMES = [
+  { bg: 'bg-white', border: 'border-slate-100', hover: 'hover:border-slate-300', iconBg: 'from-slate-100 to-slate-200', iconText: 'text-slate-500' }, // Classic
+  { bg: 'bg-rose-50/50', border: 'border-rose-100', hover: 'hover:border-rose-400', iconBg: 'from-rose-100 to-rose-200', iconText: 'text-rose-500' },
+  { bg: 'bg-orange-50/50', border: 'border-orange-100', hover: 'hover:border-orange-400', iconBg: 'from-orange-100 to-orange-200', iconText: 'text-orange-500' },
+  { bg: 'bg-amber-50/50', border: 'border-amber-100', hover: 'hover:border-amber-400', iconBg: 'from-amber-100 to-amber-200', iconText: 'text-amber-500' },
+  { bg: 'bg-emerald-50/50', border: 'border-emerald-100', hover: 'hover:border-emerald-400', iconBg: 'from-emerald-100 to-emerald-200', iconText: 'text-emerald-500' },
+  { bg: 'bg-teal-50/50', border: 'border-teal-100', hover: 'hover:border-teal-400', iconBg: 'from-teal-100 to-teal-200', iconText: 'text-teal-500' },
+  { bg: 'bg-cyan-50/50', border: 'border-cyan-100', hover: 'hover:border-cyan-400', iconBg: 'from-cyan-100 to-cyan-200', iconText: 'text-cyan-500' },
+  { bg: 'bg-blue-50/50', border: 'border-blue-100', hover: 'hover:border-blue-400', iconBg: 'from-blue-100 to-blue-200', iconText: 'text-blue-500' },
+  { bg: 'bg-indigo-50/50', border: 'border-indigo-100', hover: 'hover:border-indigo-400', iconBg: 'from-indigo-100 to-indigo-200', iconText: 'text-indigo-500' },
+  { bg: 'bg-violet-50/50', border: 'border-violet-100', hover: 'hover:border-violet-400', iconBg: 'from-violet-100 to-violet-200', iconText: 'text-violet-500' },
+  { bg: 'bg-fuchsia-50/50', border: 'border-fuchsia-100', hover: 'hover:border-fuchsia-400', iconBg: 'from-fuchsia-100 to-fuchsia-200', iconText: 'text-fuchsia-500' },
+];
+
+const getProjectTheme = (id: string, name: string) => {
+  // Combine ID and Name for hash to handle cases where ID might be sequential or weird
+  const seed = id + name;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return PROJECT_THEMES[Math.abs(hash) % PROJECT_THEMES.length];
+};
 import { Manual } from './components/Manual';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
@@ -23,11 +49,23 @@ import {
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'settings' | 'manual'>('drawings');
-  const { data, activeProjectId, setActiveProject, addProject, isLoading, fetchAllProjectsFromWebDAV, fetchGlobalSettingsFromWebDAV } = useStore();
+  const {
+    data,
+    activeProjectId,
+    setActiveProject,
+    addProject,
+    isLoading,
+    fetchProjectListFromWebDAV,
+    loadProjectFromWebDAV,
+    pushProjectToWebDAV,
+    fetchGlobalSettingsFromWebDAV
+  } = useStore();
 
   const currentProject = data.projects.find(p => p.id === activeProjectId);
 
-  // Helper function to check WebDAV configuration (considers both env vars and store settings)
+  const [showProjectSelector, setShowProjectSelector] = useState(true);
+
+  // Helper function to check WebDAV configuration
   const getWebDAVUrl = () => {
     const envUrl = import.meta.env.VITE_WEBDAV_URL;
     return (envUrl && envUrl.trim() !== '') ? envUrl : data.settings.webdavUrl;
@@ -35,72 +73,257 @@ const App: React.FC = () => {
 
   const isWebDAVConfigured = !!getWebDAVUrl();
 
-  // Auto-scan WebDAV projects on app startup
+  // 1. Startup Logic: Server First - FETCH LIST ONLY
   useEffect(() => {
-    const autoScanProjects = async () => {
-      // Always show loading state on initial app load
-      const startTime = Date.now();
+    const initApp = async () => {
+      // If we have an active project persisted, we might want to clear it or let user re-select?
+      // Requirement: "Before loading project do not enter main page". So we force selection.
+      // We don't wipe store, but we require selection.
+
+      if (!isWebDAVConfigured) {
+        // No WebDAV, maybe go straight to Offline if we have projects? 
+        // Or show selector with local projects?
+        // Let's show selector regardless, listing local cache.
+        useStore.setState({ isLoading: false });
+        return;
+      }
+
       useStore.setState({ isLoading: true });
-
       try {
-        // Only scan if WebDAV is configured
-        if (!isWebDAVConfigured) {
-          // Wait at least 300ms to show loading state
-          const elapsed = Date.now() - startTime;
-          if (elapsed < 300) {
-            await new Promise(resolve => setTimeout(resolve, 300 - elapsed));
-          }
-          useStore.setState({ isLoading: false });
-          return;
-        }
-
-        // Always try to fetch global settings (Roster, Leads, etc.)
-        try {
-          await data.settings.webdavUrl && useStore.getState().fetchGlobalSettingsFromWebDAV();
-        } catch (err) {
-          console.warn("Failed to auto-fetch settings", err);
-        }
-
-        // Skip if projects already exist (avoid redundant scans/overwrites)
-        if (data.projects.length > 0) {
-          console.log('Projects already loaded from cache');
-          // Wait at least 500ms to show loading state
-          const elapsed = Date.now() - startTime;
-          if (elapsed < 500) {
-            await new Promise(resolve => setTimeout(resolve, 500 - elapsed));
-          }
-          useStore.setState({ isLoading: false });
-          return;
-        }
-
-        try {
-          await fetchAllProjectsFromWebDAV();
-          console.log('Auto-scan completed: Projects loaded from WebDAV');
-        } catch (error) {
-          console.error('Auto-scan failed:', error);
-          // Fail silently - user can still manually scan via Settings
-        }
-
-        // Ensure minimum loading time
-        const elapsed = Date.now() - startTime;
-        if (elapsed < 500) {
-          await new Promise(resolve => setTimeout(resolve, 500 - elapsed));
-        }
+        // Try to fetch Server List
+        await fetchGlobalSettingsFromWebDAV();
+        await fetchProjectListFromWebDAV();
+        console.log("Server list fetched. Ready for selection.");
+      } catch (err) {
+        console.error("Server connection failed", err);
+        // Do not auto-offline. Let user choose in Selector (which will show emptiness + Offline button)
       } finally {
         useStore.setState({ isLoading: false });
       }
     };
 
-    autoScanProjects();
-  }, []); // Only run once on component mount
+    initApp();
+  }, []);
+
+  const handleSelectProject = async (projectId: string, passwordInput?: string) => {
+    useStore.setState({ isLoading: true });
+    try {
+      if (isWebDAVConfigured) {
+        // Pass password if provided
+        await loadProjectFromWebDAV(projectId, passwordInput);
+      } else {
+        // Local load (just set active)
+        setActiveProject(projectId);
+      }
+      setShowProjectSelector(false);
+      setActiveProject(projectId); // Ensure store knows active ID
+    } catch (e: any) {
+      if (e.message === 'PASSWORD_REQUIRED' || e.message === 'INVALID_PASSWORD') {
+        useStore.setState({ isLoading: false }); // Hide spinner to show prompt
+        // Simple prompt for now
+        const msg = e.message === 'INVALID_PASSWORD' ? "Incorrect Password. Try again:" : "This Registry is Protected. Enter Password:";
+        // Short delay to allow React render? PROMPT blocks immediately.
+        // We use setTimeout to allow UI update (hide spinner) before blocking.
+        setTimeout(() => {
+          const pwd = prompt(msg);
+          if (pwd !== null) {
+            handleSelectProject(projectId, pwd);
+          }
+        }, 50);
+        return;
+      } else {
+        alert("Failed to load project: " + e.message);
+      }
+    } finally {
+      // If we are NOT recursing (i.e. error wasn't password related, or success), turn off loading.
+      // If password related, we returned early.
+      // But we need to make sure we don't leave spinner if we didn't return.
+      // Actually `return ` above skips this finally?
+      // No, `return ` inside catch executes finally.
+      // We want to avoid turning off loading if we are about to recurse?
+      // But the recursive call will set isLoading=true at start.
+      // So turning it off here briefly is fine, or we can use a flag.
+      // But wait: `setTimeout` makes it async.
+      // So `finally` block runs BEFORE `setTimeout` callback.
+      // So `isLoading` becomes false. Then prompt shows. Then recursive call sets true.
+      // This is perfect! We want spinner to hide so user sees the app (or at least prompt).
+      useStore.setState({ isLoading: false });
+    }
+  };
+
+  const handleOfflineMode = () => {
+    setShowProjectSelector(false);
+  };
+
+  // ... (handleProjectSwitch remains same)
+
+  // 3. Auto-Save Logic (Configurable Interval)
+  // 3. Auto-Save Logic (Configurable Interval)
+  useEffect(() => {
+    if (!isWebDAVConfigured || !activeProjectId || showProjectSelector) return;
+
+    const activeProject = data.projects.find(p => p.id === activeProjectId);
+    const configInterval = activeProject?.conf?.autoSyncInterval;
+    const globalInterval = data.settings.autoSyncInterval;
+    const intervalMinutes = configInterval ?? globalInterval ?? 3;
+
+    if (intervalMinutes <= 0) return; // Disable auto-sync if set to 0
+
+    const interval = setInterval(async () => {
+      console.log(`Auto-saving current project (Interval: ${intervalMinutes}m)...`);
+      await pushProjectToWebDAV(activeProjectId);
+    }, intervalMinutes * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [activeProjectId, isWebDAVConfigured, showProjectSelector, data.settings.autoSyncInterval, data.projects]);
+
+
+  const handleGlobalRefresh = async () => {
+    useStore.setState({ isLoading: true });
+    try {
+      await fetchProjectListFromWebDAV();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      useStore.setState({ isLoading: false });
+    }
+  };
 
   const handleAddProject = () => {
     const name = prompt('Enter Hull Number or Project Name (e.g. PG-VLEC-H2684):');
-    if (name) addProject(name);
+    if (name) {
+      addProject(name);
+      // We assume addProject sets it as active? modify if needed
+      // Actually addProject in store sets activeProjectId. 
+      // We might want to auto-select it?
+      // Let's find the new ID or just wait for list refresh? 
+      // For new project, it's local first. 
+      // We should probably just close selector?
+      setShowProjectSelector(false);
+    }
   };
 
   return (
     <div className="h-screen flex flex-col bg-[#F8FAFC] text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans overflow-hidden">
+
+      {/* Project Selector Overlay (Blocking) */}
+      {showProjectSelector && !isLoading && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-50 overflow-hidden">
+          <div className="bg-white/80 backdrop-blur-xl w-full max-w-5xl h-[80vh] rounded-[3rem] shadow-2xl border border-white/50 flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
+
+            {/* Selector Header */}
+            <div className="p-10 pb-6 flex items-center justify-between shrink-0">
+              <div>
+                <h1 className="text-3xl font-[1000] text-slate-900 tracking-tighter uppercase mb-2">Select Project</h1>
+                <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Choose a registry to load from {isWebDAVConfigured ? 'WebDAV Cloud' : 'Local Cache'}</p>
+              </div>
+              <div className="flex gap-4">
+                {!isWebDAVConfigured && (
+                  <div className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <CloudOff size={14} /> Offline Mode
+                  </div>
+                )}
+                <button onClick={handleGlobalRefresh} className="p-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl transition-all active:scale-95">
+                  <RefreshCw size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Project Grid */}
+            <div className="flex-1 overflow-y-auto p-10 pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 align-content-start scrollbar-thin">
+
+              {/* New Project Card */}
+              <button onClick={handleAddProject} className="group flex flex-col items-center justify-center gap-4 p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 hover:border-teal-400 hover:bg-teal-50/50 transition-all min-h-[200px]">
+                <div className="w-16 h-16 rounded-full bg-slate-100 group-hover:bg-teal-100 flex items-center justify-center text-slate-300 group-hover:text-teal-600 transition-colors">
+                  <PlusCircle size={32} />
+                </div>
+                <span className="text-xs font-[1000] uppercase tracking-widest text-slate-400 group-hover:text-teal-600">Create New Registry</span>
+              </button>
+
+              {/* Project Items */}
+              {data.projects.map(p => {
+                const theme = getProjectTheme(p.id, p.name);
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSelectProject(p.id)}
+                    className={`group relative flex flex-col p-8 rounded-[2.5rem] border shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:scale-[1.02] transition-all text-left min-h-[200px] ${theme.bg} ${theme.border} ${theme.hover}`}
+                  >
+                    <div className="mb-auto">
+                      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br mb-6 flex items-center justify-center font-black shadow-inner ${theme.iconBg} ${theme.iconText}`}>
+                        {p.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <h3 className="text-xl font-[1000] text-slate-800 uppercase tracking-tight mb-2 group-hover:text-teal-700 transition-colors">{p.name}</h3>
+
+                      {/* Stats Grid */}
+                      {(p.drawings?.length || 0) > 0 ? (
+                        <div className="mt-4 space-y-4">
+                          {/* Progress Bar */}
+                          <div>
+                            <div className="flex justify-between items-end mb-1">
+                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Completion</span>
+                              <span className="text-lg font-[1000] text-teal-600">
+                                {Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%
+                              </span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-teal-500 rounded-full transition-all duration-1000 ease-out"
+                                style={{ width: `${Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                              <span className="block text-[8px] font-black uppercase text-slate-400 tracking-wider">Total</span>
+                              <span className="block text-sm font-[1000] text-slate-700">{p.drawings?.length}</span>
+                            </div>
+                            <div className="bg-teal-50 p-2 rounded-xl border border-teal-100">
+                              <span className="block text-[8px] font-black uppercase text-teal-600/70 tracking-wider">Approved</span>
+                              <span className="block text-sm font-[1000] text-teal-600">
+                                {p.drawings?.filter(d => d.status === 'Approved').length || 0}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-50 p-2 rounded-lg inline-block">
+                          Ready to Load
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-6 flex items-center justify-between border-t border-slate-50 pt-4">
+                      <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">
+                        Updated: {p.lastUpdated ? format(new Date(p.lastUpdated), 'yyyy-MM-dd HH:mm') : 'N/A'}
+                      </span>
+                      <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-teal-600 group-hover:text-white transition-all">
+                        <ChevronDown size={16} className="-rotate-90" />
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {data.projects.length === 0 && (
+                <div className="col-span-full py-20 text-center opacity-30">
+                  <h3 className="text-4xl font-[1000] text-slate-300 uppercase tracking-tighter mb-4">No Projects Found</h3>
+                  <p className="text-sm font-bold uppercase tracking-widest text-slate-400">Create a new one to get started</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-center">
+              <button onClick={handleOfflineMode} className="text-slate-400 hover:text-slate-600 text-[10px] font-black uppercase tracking-widest underline decoration-2 decoration-slate-200 underline-offset-4 hover:decoration-slate-400 transition-all">
+                Enter Offline Mode (Use Cached Data)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Full Screen Loading Overlay */}
       {isLoading && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/20 backdrop-blur-md animate-in fade-in duration-300">
@@ -119,7 +342,7 @@ const App: React.FC = () => {
                   Syncing Data
                 </h3>
                 <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">
-                  Loading from WebDAV Server
+                  Synchronizing with Server...
                 </p>
               </div>
 
@@ -129,7 +352,7 @@ const App: React.FC = () => {
               </div>
 
               <p className="text-xs text-slate-400 text-center mt-2">
-                Please wait while we sync your projects and settings...
+                Uploading/Downloading latest project data
               </p>
             </div>
           </div>
@@ -160,33 +383,33 @@ const App: React.FC = () => {
           </div>
 
           {/* Main Navigation Tabs */}
-          <nav className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/50 space-x-1">
+          <nav className="hidden md:flex items-center gap-1 bg-slate-100/50 backdrop-blur-sm p-1.5 rounded-full border border-slate-200/50">
             <button
               onClick={() => setActiveTab('drawings')}
-              className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
             >
-              <FileStack size={14} strokeWidth={2.5} />
+              <FileStack size={14} strokeWidth={2.5} className={activeTab === 'drawings' ? 'text-teal-500' : 'text-slate-400'} />
               <span>Inventory</span>
             </button>
             <button
               onClick={() => setActiveTab('reports')}
-              className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
             >
-              <LayoutDashboard size={14} strokeWidth={2.5} />
+              <LayoutDashboard size={14} strokeWidth={2.5} className={activeTab === 'reports' ? 'text-teal-500' : 'text-slate-400'} />
               <span>Intelligence</span>
             </button>
             <button
               onClick={() => setActiveTab('settings')}
-              className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
             >
-              <SettingsIcon size={14} strokeWidth={2.5} />
+              <SettingsIcon size={14} strokeWidth={2.5} className={activeTab === 'settings' ? 'text-teal-500' : 'text-slate-400'} />
               <span>Config</span>
             </button>
             <button
               onClick={() => setActiveTab('manual')}
-              className={`flex items-center space-x-2 px-6 py-2 rounded-xl text-[9px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'manual' ? 'bg-white text-teal-600 shadow-xl shadow-slate-200/20 ring-1 ring-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'manual' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
             >
-              <BookOpen size={14} strokeWidth={2.5} />
+              <BookOpen size={14} strokeWidth={2.5} className={activeTab === 'manual' ? 'text-teal-500' : 'text-slate-400'} />
               <span>Guide</span>
             </button>
           </nav>
@@ -196,7 +419,10 @@ const App: React.FC = () => {
           <div className="h-8 w-px bg-slate-200/80 mx-1"></div>
 
           <div className="relative group">
-            <button className="flex items-center space-x-4 pl-4 pr-3 py-2 bg-slate-900 rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98]">
+            <button
+              onClick={() => setShowProjectSelector(true)}
+              className="flex items-center space-x-4 pl-4 pr-3 py-2 bg-slate-900 rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98]"
+            >
               <div className="text-left min-w-[120px]">
                 <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1 flex items-center gap-1.5">
                   {isWebDAVConfigured ? <Cloud size={10} className="text-emerald-400" /> : <CloudOff size={10} className="text-slate-600" />}
@@ -206,31 +432,7 @@ const App: React.FC = () => {
               </div>
               <ChevronDown size={14} className="text-slate-500" />
             </button>
-
-            <div className="absolute right-0 top-full mt-3 w-64 bg-white border border-slate-200 rounded-3xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] p-3 animate-in fade-in slide-in-from-top-2">
-              <div className="text-[8px] font-black text-slate-400 uppercase px-4 py-2 tracking-widest border-b border-slate-50 mb-2">Fleet Inventory</div>
-              <div className="max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-100 px-1">
-                {data.projects.map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => setActiveProject(p.id)}
-                    className={`w-full text-left px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-tight flex items-center justify-between mb-1 transition-all ${activeProjectId === p.id ? 'bg-teal-50 text-teal-700 shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
-                  >
-                    <span className="truncate">{p.name}</span>
-                    {activeProjectId === p.id && <div className="w-1.5 h-1.5 rounded-full bg-teal-600" />}
-                  </button>
-                ))}
-                {data.projects.length === 0 && <div className="py-6 text-center text-[8px] font-black text-slate-300 uppercase italic">No Projects Found</div>}
-              </div>
-              <div className="h-px bg-slate-100 my-2"></div>
-              <button
-                onClick={handleAddProject}
-                className="w-full text-left px-4 py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest text-teal-600 hover:bg-teal-50 flex items-center space-x-3 transition-all active:scale-95"
-              >
-                <PlusCircle size={16} strokeWidth={2.5} />
-                <span>New Project Registry</span>
-              </button>
-            </div>
+            {/* Dropdown Removed as requested */}
           </div>
         </div>
       </header>
@@ -262,7 +464,7 @@ const App: React.FC = () => {
           </div>
           <div className="hidden md:flex items-center gap-2">
             <Layers size={12} className="text-teal-500/30" />
-            <span>Entities Logged: {currentProject?.drawings.length || 0}</span>
+            <span>Entities Logged: {currentProject?.drawings?.length || 0}</span>
           </div>
           <div className="text-slate-400 font-bold tracking-widest uppercase opacity-80 flex items-center gap-2">
             <div className="w-1 h-1 bg-teal-500 rounded-full" />
@@ -272,7 +474,7 @@ const App: React.FC = () => {
 
         <div className="flex items-center gap-8 mt-2 md:mt-0">
           <div className="flex items-center gap-3">
-            <div className={`w-2 h-2 rounded-full transition-all duration-1000 ${isWebDAVConfigured ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-slate-300'}`} />
+            <div className={`w - 2 h - 2 rounded - full transition - all duration - 1000 ${isWebDAVConfigured ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-slate-300'} `} />
             <span className={isWebDAVConfigured ? 'text-emerald-600 font-black' : 'text-slate-400'}>
               Cloud Service: {isWebDAVConfigured ? 'WEBDAV CONNECTED' : 'OFFLINE'}
             </span>

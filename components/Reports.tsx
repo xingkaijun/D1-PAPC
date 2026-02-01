@@ -7,7 +7,7 @@ import {
 import { useStore } from '../store';
 import { Drawing } from '../types';
 import {
-  TrendingUp, CheckCircle, Search, Hash, Trash2, Printer, Camera, History, Clock, MessageSquare
+  TrendingUp, CheckCircle, Search, Hash, Trash2, Printer, Camera, History, Clock, MessageSquare, RefreshCw
 } from 'lucide-react';
 // Fix: Removed missing isWithinInterval from date-fns imports
 import { format, endOfWeek, eachWeekOfInterval } from 'date-fns';
@@ -106,13 +106,28 @@ const StatCard: React.FC<{ label: string, value: string | number, icon: React.Re
 // --- Main Reports Component ---
 
 export const Reports: React.FC = () => {
-  const { activeProjectId, data, takeSnapshot, deleteSnapshot } = useStore();
+  const { activeProjectId, data, takeSnapshot, deleteSnapshot, refreshSnapshots, isLoading } = useStore();
   const project = data.projects.find(p => p.id === activeProjectId);
 
   if (!project) return <div className="p-20 text-center text-slate-400 font-black uppercase tracking-widest">Select a project to view reports.</div>;
 
   const drawings = project.drawings;
   const snapshots = project.snapshots || [];
+
+  // Local state for Snapshot filtering
+  const [selectedSnapshotIds, setSelectedSnapshotIds] = useState<string[]>([]);
+
+  // Initialize/Sync selection when snapshots change (Default: Top 10 Recent)
+  React.useEffect(() => {
+    if (snapshots.length > 0) {
+      // User Request: Default to most recent 10 snapshots on load/refresh
+      setSelectedSnapshotIds(snapshots.slice(0, 10).map(s => s.id));
+    }
+  }, [snapshots]);
+
+  const activeSnapshots = useMemo(() => {
+    return snapshots.filter(s => selectedSnapshotIds.includes(s.id));
+  }, [snapshots, selectedSnapshotIds]);
 
   // Aggressively normalize discipline names for derivation to prevent visual duplicates
   const derivedDisciplines = useMemo(() => {
@@ -131,8 +146,9 @@ export const Reports: React.FC = () => {
     return { total, reviewing, approved, totalComments, openComments, progressPercent };
   }, [drawings]);
 
+  /* --- CHANGED: Use activeSnapshots instead of all snapshots --- */
   const snapshotActivityData = useMemo(() => {
-    return snapshots.map(s => {
+    const rawData = activeSnapshots.slice().reverse().map(s => {
       let underReview = 0;
       let waitingReply = 0;
       let approved = 0;
@@ -146,15 +162,30 @@ export const Reports: React.FC = () => {
       }
 
       return {
-        // Use full timestamp to ensure uniqueness, formatted for display
         timestamp: s.timestamp,
         date: format(new Date(s.timestamp), 'MM/dd'),
         'Under Review': underReview,
         'Waiting Reply': waitingReply,
         'Approved': approved,
+        isPadding: false
       };
     });
-  }, [snapshots]);
+
+    // --- Padding Logic (Min 10 items) ---
+    const minItems = 10;
+    if (rawData.length < minItems) {
+      const paddingCount = minItems - rawData.length;
+      const padding = Array.from({ length: paddingCount }).map((_, i) => ({
+        timestamp: `pad-${i}`,
+        date: '',
+        'Under Review': 0, 'Waiting Reply': 0, 'Approved': 0, isPadding: true
+      }));
+      // Append padding to the right (future empty slots)
+      return [...rawData, ...padding];
+    }
+    return rawData;
+  }, [activeSnapshots]);
+
 
   const disciplineMainData = useMemo(() => {
     const disciplineMap = new Map();
@@ -170,9 +201,9 @@ export const Reports: React.FC = () => {
   }, [drawings]);
 
   const historicalTrends = useMemo(() => {
-    const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+    const latestSnapshot = activeSnapshots.length > 0 ? activeSnapshots[0] : null; // Fixed to use index 0 for latest
     return derivedDisciplines.map(disc => {
-      const trendData = snapshots.map(s => {
+      const trendData = activeSnapshots.slice().reverse().map(s => { // Reversed for Old->New trend
         // Compare with normalized logic
         if (!s.stats) return { date: '', totalComments: 0, openComments: 0, approvedCount: 0, reviewingCount: 0, waitingReplyCount: 0 };
 
@@ -209,20 +240,20 @@ export const Reports: React.FC = () => {
         } : null
       };
     });
-  }, [snapshots, derivedDisciplines]);
+  }, [activeSnapshots, derivedDisciplines]);
 
   const velocityData = useMemo(() => {
-    const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+    const latestSnapshot = activeSnapshots.length > 0 ? activeSnapshots[0] : null;
     return latestSnapshot && latestSnapshot.stats ? latestSnapshot.stats.map(s => ({
       name: s.discipline,
       toReview: s.flowToReview || 0,
       toWaiting: s.flowToWaiting || 0,
       toApproved: s.flowToApproved || 0
     })).filter(d => d.toReview > 0 || d.toWaiting > 0 || d.toApproved > 0) : [];
-  }, [snapshots]);
+  }, [activeSnapshots]);
 
   const progressTrendData = useMemo(() => {
-    return snapshots.map(s => {
+    return activeSnapshots.slice().reverse().map(s => {
       let total = 0;
       let pending = 0;
       let approved = 0;
@@ -242,11 +273,11 @@ export const Reports: React.FC = () => {
         timestamp: s.timestamp,
         date: format(new Date(s.timestamp), 'MM/dd'),
         'Issued Drawings': total - pending,
-        'Completed Output': approved,
+        'Approved': approved, // Renamed from 'Completed Output'
         'Total Comments': totalComments,
       };
     });
-  }, [snapshots]);
+  }, [activeSnapshots]);
 
   // Dynamic Pagination Logic
   // If velocityData (Table) exists, it consumes vertical space. To ensure charts aren't squashed, we split Exec Summary.
@@ -408,33 +439,57 @@ export const Reports: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Snapshot Registry</h3>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{snapshots.length} Captured Moments</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{snapshots.length} Captured | {activeSnapshots.length} Selected</p>
                 </div>
               </div>
+              <button
+                onClick={() => refreshSnapshots(activeProjectId!)}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+              >
+                <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} /> Refresh List
+              </button>
             </div>
             <div className="grid grid-cols-6 gap-2">
-              {snapshots.slice().reverse().map((s) => (
-                <div key={s.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col items-center justify-between hover:bg-slate-100 transition-all group">
-                  <div className="flex flex-col items-center mb-2">
-                    <span className="text-[9px] font-black text-slate-700 uppercase leading-none">
-                      {(() => {
-                        try { return format(new Date(s.timestamp), 'MM-dd'); } catch { return 'Err'; }
-                      })()}
-                    </span>
-                    <span className="text-[7px] font-mono text-slate-400 mt-1">
-                      {(() => {
-                        try { return format(new Date(s.timestamp), 'HH:mm'); } catch { return '--:--'; }
-                      })()}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id)}
-                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+              {snapshots.slice().reverse().map((s) => {
+                const isSelected = selectedSnapshotIds.includes(s.id);
+                return (
+                  <div key={s.id}
+                    className={`border p-3 rounded-xl flex flex-col items-center justify-between transition-all group cursor-pointer relative ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
+                    onClick={() => {
+                      setSelectedSnapshotIds(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
+                    }}
                   >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
+                    <div className="absolute top-2 right-2">
+                      <div className={`w-3 h-3 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-slate-300'}`}>
+                        {isSelected && <CheckCircle size={8} className="text-white" />}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-center mb-2 mt-1">
+                      <span className={`text-[9px] font-black uppercase leading-none ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
+                        {(() => {
+                          try { return format(new Date(s.timestamp), 'MM-dd'); } catch { return 'Err'; }
+                        })()}
+                      </span>
+                      <span className={`text-[7px] font-mono mt-1 ${isSelected ? 'text-indigo-400' : 'text-slate-400'}`}>
+                        {(() => {
+                          try { return format(new Date(s.timestamp), 'HH:mm'); } catch { return '--:--'; }
+                        })()}
+                      </span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id);
+                      }}
+                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 z-10"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -450,14 +505,13 @@ export const Reports: React.FC = () => {
                 <TrendingUp size={20} className="text-white" strokeWidth={2.5} />
               </div>
               <div>
-                <h2 className="text-[12px] font-[1000] text-slate-900 uppercase tracking-wider leading-none">Intelligence Dashboard</h2>
-                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time Analytics & Insights</p>
+                <h2 className="text-xl font-[1000] text-slate-900 uppercase tracking-tight leading-none">
+                  {project.conf?.displayName || project.name}
+                </h2>
+                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-1">Project Dashboard</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Total Drawings</div>
-              <div className="text-2xl font-[1000] text-teal-600 leading-none mt-1">{stats.total}</div>
-            </div>
+            {/* Removed Total Drawings as requested */}
           </div>
 
           {/* Stat Cards Grid (Moved from Page 2) */}
@@ -467,7 +521,7 @@ export const Reports: React.FC = () => {
             <StatCard label="Approved" value={stats.approved} icon={<CheckCircle size={12} />} color="emerald" />
             <StatCard label="Comments Flow" value={`${stats.openComments}/${stats.totalComments}`} icon={<MessageSquare size={12} />} color="slate" />
             <StatCard label="Progress" value={`${stats.progressPercent}%`} icon={<TrendingUp size={12} />} color="indigo" />
-            <StatCard label="Report Date" value={snapshots.length > 0 ? format(new Date(snapshots[snapshots.length - 1].timestamp), 'dd-MMM') : 'N/A'} icon={<Clock size={12} />} color="cyan" />
+            <StatCard label="Report Date" value={activeSnapshots.length > 0 ? format(new Date(activeSnapshots[0].timestamp), 'dd-MMM') : 'N/A'} icon={<Clock size={12} />} color="cyan" />
           </div>
 
           {/* Status Distribution & Comments */}
@@ -576,7 +630,7 @@ export const Reports: React.FC = () => {
                 <h3 className="text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">Overall Progress Trend</h3>
                 <div className="flex gap-2">
                   <LegendItem color="bg-blue-500" label="Issued" />
-                  <LegendItem color="bg-emerald-500" label="Completed" />
+                  <LegendItem color="bg-emerald-500" label="Approved" /> {/* Renamed Label */}
                 </div>
               </div>
               <div className="h-[180px] w-full">
@@ -619,7 +673,7 @@ export const Reports: React.FC = () => {
                     />
                     <Area
                       type="monotone"
-                      dataKey="Completed Output"
+                      dataKey="Approved" // Renamed Key
                       stroke="#10b981"
                       strokeWidth={2}
                       fillOpacity={1}
@@ -953,7 +1007,6 @@ export const Reports: React.FC = () => {
                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '9px' }}
                             itemStyle={{ padding: 0 }}
                           />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 700, paddingTop: '10px' }} />
 
                           <Area yAxisId="right" type="monotone" dataKey="approvedCount" name="Approved" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
                           <Area yAxisId="right" type="monotone" dataKey="reviewingCount" name="Reviewing" stroke="#f59e0b" strokeWidth={2} fill="#f59e0b" fillOpacity={0.1} />
