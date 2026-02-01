@@ -147,9 +147,21 @@ export const DrawingRow = memo(({
                 </td>
                 <td className="px-3 py-2 font-black text-slate-900 text-[10px] relative">
                     <div className="flex items-center gap-1.5">
-                        {liveOpenRemarkCount > 0 && (
-                            <div className="w-2 h-2 bg-red-500 rounded-full shrink-0 shadow-sm shadow-red-500/30" title="Unresolved internal remarks" />
-                        )}
+                        {liveOpenRemarkCount > 0 && (() => {
+                            const openRemarks = drawing.remarks?.filter(r => !r.resolved) || [];
+                            const hasUrgent = openRemarks.some(r => r.content.toLowerCase().includes('#urgent'));
+                            const hasHold = openRemarks.some(r => r.content.toLowerCase().includes('#hold'));
+                            const hasOtherTag = openRemarks.some(r => r.content.startsWith('#'));
+
+                            let dotColor = 'bg-blue-500 shadow-blue-500/30'; // Default text (Blue)
+                            if (hasUrgent) dotColor = 'bg-red-500 shadow-red-500/30';
+                            else if (hasHold) dotColor = 'bg-amber-500 shadow-amber-500/30';
+                            else if (hasOtherTag) dotColor = 'bg-purple-500 shadow-purple-500/30';
+
+                            return (
+                                <div className={`w-2 h-2 rounded-full shrink-0 shadow-sm ${dotColor}`} title="Unresolved internal remarks" />
+                            );
+                        })()}
                         <span>{drawing.customId}</span>
                     </div>
                 </td>
@@ -247,15 +259,32 @@ export const DrawingRow = memo(({
                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                 <h4 className="text-[8px] font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center gap-2"><StickyNote size={12} className="text-teal-500" /> Internal Notes ({liveRemarkCount})</h4>
                                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2 scrollbar-thin">
-                                    {drawing.remarks.map(r => (
-                                        <div key={r.id} className="text-[9px] px-3 py-1.5 bg-teal-50/30 rounded-lg flex items-start gap-2">
-                                            <button onClick={() => toggleRemarkStatus(activeProjectId, drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-emerald-500' : 'text-slate-300 hover:text-teal-500'}`}>
-                                                {r.resolved ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-                                            </button>
-                                            <span className={`font-bold leading-normal flex-1 ${r.resolved ? 'line-through text-slate-400' : 'text-slate-700'}`}>{r.content}</span>
-                                            <span className="text-[7px] font-mono text-slate-300 mt-0.5">{format(new Date(r.createdAt), 'MM-dd')}</span>
-                                        </div>
-                                    ))}
+                                    {drawing.remarks.map(r => {
+                                        const lower = r.content.toLowerCase();
+                                        let bgClass = 'bg-blue-50 text-blue-700'; // Default text (Blue)
+                                        let iconClass = 'text-blue-400';
+
+                                        if (lower.includes('#urgent')) {
+                                            bgClass = 'bg-red-50 text-red-700 border border-red-100';
+                                            iconClass = 'text-red-500';
+                                        } else if (lower.includes('#hold')) {
+                                            bgClass = 'bg-amber-50 text-amber-700 border border-amber-100';
+                                            iconClass = 'text-amber-500';
+                                        } else if (lower.startsWith('#')) {
+                                            bgClass = 'bg-purple-50 text-purple-700 border border-purple-100'; // Other tags
+                                            iconClass = 'text-purple-500';
+                                        }
+
+                                        return (
+                                            <div key={r.id} className={`text-[9px] px-3 py-1.5 rounded-lg flex items-start gap-2 transition-colors ${bgClass} ${r.resolved ? 'opacity-50 grayscale' : ''}`}>
+                                                <button onClick={() => toggleRemarkStatus(activeProjectId, drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-slate-400' : iconClass} hover:opacity-80`}>
+                                                    {r.resolved ? <CheckCircle2 size={14} /> : <Circle size={14} fill="currentColor" className="opacity-20" />}
+                                                </button>
+                                                <span className={`font-bold leading-normal flex-1 ${r.resolved ? 'line-through' : ''}`}>{r.content}</span>
+                                                <span className="text-[7px] font-mono opacity-50 mt-0.5">{format(new Date(r.createdAt), 'MM-dd')}</span>
+                                            </div>
+                                        );
+                                    })}
                                     {drawing.remarks.length === 0 && (
                                         <div className="py-10 text-center text-slate-300 text-[8px] font-black uppercase tracking-widest italic">No remarks recorded via command bar</div>
                                     )}

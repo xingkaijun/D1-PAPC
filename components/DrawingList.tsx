@@ -118,9 +118,9 @@ const PaginationControls = ({
 
 
 export const DrawingList: React.FC = () => {
-  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees } = useStore();
+  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [searchTerm, setSearchTerm] = useState('');
+  // Search state moved to store: filterQuery
   const [statusFilter, setStatusFilter] = useState<DrawingStatus | 'Overdue' | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
@@ -140,31 +140,34 @@ export const DrawingList: React.FC = () => {
 
   const filteredDrawings = useMemo(() => {
     if (!project) return [];
-    const lowerSearch = searchTerm.toLowerCase();
+    const lowerSearch = filterQuery.toLowerCase();
 
     // Reset to page 1 when filter changes
-    // Note: We can't set state directly in useMemo, use useEffect below or handle in onChange
+    // (Handled by useEffect below)
 
     return (project.drawings || []).filter(d => {
-      const matchesSearch = !searchTerm ||
+      const matchesSearch = !filterQuery ||
         d.drawingNo.toLowerCase().includes(lowerSearch) ||
         d.title.toLowerCase().includes(lowerSearch) ||
         d.discipline.toLowerCase().includes(lowerSearch) ||
         d.customId.toLowerCase().includes(lowerSearch) ||
-        (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch)));
+        (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch))) ||
+        (d.remarks && d.remarks.some(r => r.content.toLowerCase().includes(lowerSearch))); // Support searching tags/remarks
+
       if (!matchesSearch) return false;
+
       if (statusFilter === 'Overdue') {
         return d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
       }
       if (statusFilter) return d.status === statusFilter;
       return true;
     });
-  }, [project, searchTerm, statusFilter]);
+  }, [project, filterQuery, statusFilter]);
 
   // Reset pagination when filter changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [filterQuery, statusFilter]);
 
   // Calculate Paginated Data
   const paginatedDrawings = useMemo(() => {
@@ -225,9 +228,9 @@ export const DrawingList: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
             <input
               type="text"
-              placeholder="Search drawings..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search drawings or show:tag..."
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:bg-white focus:ring-4 focus:ring-teal-500/5 transition-all text-[10px] font-black uppercase tracking-tight"
             />
           </div>

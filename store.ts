@@ -22,6 +22,7 @@ interface AppState {
   activeProjectId: string | null;
   isLoading: boolean;
   error: string | null;
+  filterQuery: string; // Global Filter State for Command Bar controls
 
   setSettings: (settings: Partial<AppSettings>) => void;
   updateProjectConfig: (projectId: string, config: Partial<ProjectConfig>) => void; // New action
@@ -35,11 +36,12 @@ interface AppState {
   updateDrawing: (projectId: string, drawingId: string, updates: Partial<Drawing>) => void;
   deleteDrawing: (projectId: string, drawingId: string) => void;
   addRemark: (projectId: string, drawingId: string, content: string) => void;
+  deleteRemark: (projectId: string, drawingId: string, remarkContent: string) => void;
   toggleRemarkStatus: (projectId: string, drawingId: string, remarkId: string) => void;
   updateReviewer: (oldName: string, newName: string) => void;
   resetAllAssignees: (projectId: string) => void;
+  batchUpdateDrawings: (projectId: string, updates: { id: string; changes: Partial<Drawing> }[]) => void;
   takeSnapshot: (projectId: string) => void;
-  deleteSnapshot: (projectId: string, snapshotId: string) => void;
 
   syncWithWebDAV: (password: string) => Promise<boolean>; // Deprecated but kept for compatibility
   pushProjectToWebDAV: (projectId: string) => Promise<boolean>;
@@ -53,6 +55,7 @@ interface AppState {
   fetchAllProjectsFromWebDAV: () => Promise<void>;
   testWebDAVConnection: (url: string, user: string, pass: string) => Promise<{ success: boolean; message: string }>;
   clearError: () => void;
+  setFilterQuery: (query: string) => void;
 }
 
 const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
@@ -105,12 +108,15 @@ export const useStore = create<AppState>()(
       activeProjectId: null,
       isLoading: false,
       error: null,
+      filterQuery: '',
 
       clearError: () => set({ error: null }),
 
       setSettings: (newSettings) => set((state) => ({
         data: { ...state.data, settings: { ...state.data.settings, ...newSettings } }
       })),
+
+      setFilterQuery: (query) => set({ filterQuery: query }),
 
       addProject: (name) => set((state) => {
         const newProject: Project = {
@@ -323,6 +329,42 @@ export const useStore = create<AppState>()(
         return { data: { ...state.data, projects: state.data.projects.map(p => p.id === projectId ? { ...p, drawings: updatedDrawings, lastUpdated: timestamp, conf: { ...p.conf!, lastUpdated: timestamp } } : p) } };
       }),
 
+      batchUpdateDrawings: (projectId, updates) => set((state) => {
+        const project = state.data.projects.find(p => p.id === projectId);
+        if (!project) return state;
+        const timestamp = new Date().toISOString();
+        const changesMap = new Map(updates.map(u => [u.id, u.changes]));
+
+        const updatedDrawings = project.drawings.map(d => {
+          if (!changesMap.has(d.id)) return d;
+          const updates = changesMap.get(d.id)!;
+          let newUpdates = { ...updates };
+
+          if (updates.discipline !== undefined) {
+            newUpdates.discipline = normalizeDisc(updates.discipline);
+          }
+          // History & Status logic (simplified copy from updateDrawing - could refactor but copy is safer for now)
+          if (updates.version !== undefined && updates.version !== d.version) {
+            newUpdates.statusHistory = [...(d.statusHistory || []), { id: Math.random().toString(36).substr(2, 9), content: `Version: ${d.version} -> ${updates.version}`, createdAt: timestamp }];
+          }
+          if (updates.status && updates.status !== d.status) {
+            newUpdates.statusHistory = [...(newUpdates.statusHistory || d.statusHistory), { id: Math.random().toString(36).substr(2, 9), content: `Status: ${updates.status}`, createdAt: timestamp }];
+            if (updates.status === 'Reviewing') {
+              const conf = project.conf || state.data.settings;
+              const days = d.currentRound === 'A' ? conf.roundACycle : conf.otherRoundsCycle;
+              newUpdates.reviewDeadline = calculateDeadline(new Date(), days, conf.holidays);
+            } else {
+              newUpdates.reviewDeadline = undefined;
+            }
+            if (d.status === 'Reviewing' && updates.status === 'Waiting Reply') {
+              newUpdates.currentRound = getNextRound(d.currentRound);
+            }
+          }
+          return { ...d, ...newUpdates };
+        });
+        return { data: { ...state.data, projects: state.data.projects.map(p => p.id === projectId ? { ...p, drawings: updatedDrawings, lastUpdated: timestamp, conf: { ...p.conf!, lastUpdated: timestamp } } : p) } };
+      }),
+
       deleteDrawing: (projectId, drawingId) => set((state) => ({
         data: { ...state.data, projects: state.data.projects.map(p => p.id === projectId ? { ...p, drawings: p.drawings.filter(d => d.id !== drawingId), lastUpdated: new Date().toISOString(), conf: { ...p.conf!, lastUpdated: new Date().toISOString() } } : p) }
       })),
@@ -456,19 +498,27 @@ export const useStore = create<AppState>()(
         }
       })),
 
-      addRemark: (projectId, drawingId, content) => set((state) => ({
+      addRemark: (projectId, drawingId, content) => set((state) => {
+        const timestamp = new Date().toISOString();
+        return {
+          data: {
+            ...state.data,
+            projects: state.data.projects.map(p => p.id === projectId ? {
+              ...p, drawings: p.drawings.map(d => d.id === drawingId ? {
+                ...d, remarks: [...(d.remarks || []), { id: Math.random().toString(36).substr(2, 9), content, createdAt: timestamp, resolved: false }]
+              } : d)
+            } : p)
+          }
+        };
+      }),
+
+      deleteRemark: (projectId, drawingId, remarkContent) => set((state) => ({
         data: {
           ...state.data,
           projects: state.data.projects.map(p => p.id === projectId ? {
-            ...p,
-            drawings: p.drawings.map(d => {
-              if (d.id !== drawingId) return d;
-              const newRemarks = [...(d.remarks || []), { id: Math.random().toString(36).substr(2, 9), content, createdAt: new Date().toISOString(), resolved: false }];
-              return {
-                ...d,
-                remarks: newRemarks
-              };
-            })
+            ...p, drawings: p.drawings.map(d => d.id === drawingId ? {
+              ...d, remarks: (d.remarks || []).filter(r => r.content !== remarkContent) // Remove by exact content match (for tags)
+            } : d)
           } : p)
         }
       })),
