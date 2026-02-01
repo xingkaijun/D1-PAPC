@@ -329,16 +329,22 @@ export const useStore = create<AppState>()(
         const p = state.data.projects.find(x => x.id === projectId);
         if (!p) return state;
 
-        // Aggregate by normalized discipline to ensure no duplicates in snapshot stats
+        // Calculate time window from last snapshot
+        const lastSnapshot = p.snapshots && p.snapshots.length > 0 ? p.snapshots[p.snapshots.length - 1] : null;
+        const lastSnapshotTime = lastSnapshot ? new Date(lastSnapshot.timestamp).getTime() : 0;
+
+        // Aggregate by normalized discipline
         const discStatsMap = new Map<string, DisciplineSnapshot>();
 
         p.drawings.forEach(d => {
           const discKey = normalizeDisc(d.discipline);
           const currentStat = discStatsMap.get(discKey) || {
             discipline: discKey,
-            approved: 0, reviewing: 0, waitingReply: 0, pending: 0, totalComments: 0, openComments: 0
+            approved: 0, reviewing: 0, waitingReply: 0, pending: 0, totalComments: 0, openComments: 0,
+            flowToReview: 0, flowToWaiting: 0, flowToApproved: 0
           };
 
+          // Current State Counts
           if (d.status === 'Approved') currentStat.approved++;
           else if (d.status === 'Reviewing') currentStat.reviewing++;
           else if (d.status === 'Waiting Reply') currentStat.waitingReply++;
@@ -346,6 +352,18 @@ export const useStore = create<AppState>()(
 
           currentStat.totalComments += (d.manualCommentsCount || 0);
           currentStat.openComments += (d.manualOpenCommentsCount || 0);
+
+          // Flow Metrics (Activities in period)
+          if (d.statusHistory) {
+            d.statusHistory.forEach(h => {
+              const hTime = new Date(h.createdAt).getTime();
+              if (hTime > lastSnapshotTime) {
+                if (h.content.includes('Status: Reviewing')) currentStat.flowToReview = (currentStat.flowToReview || 0) + 1;
+                if (h.content.includes('Status: Waiting Reply')) currentStat.flowToWaiting = (currentStat.flowToWaiting || 0) + 1;
+                if (h.content.includes('Status: Approved')) currentStat.flowToApproved = (currentStat.flowToApproved || 0) + 1;
+              }
+            });
+          }
 
           discStatsMap.set(discKey, currentStat);
         });

@@ -43,6 +43,9 @@ export interface DisciplineSnapshot {
   pending: number;
   totalComments: number;
   openComments: number;
+  flowToReview: number;
+  flowToWaiting: number;
+  flowToApproved: number;
 }
 
 export interface ProjectSnapshot {
