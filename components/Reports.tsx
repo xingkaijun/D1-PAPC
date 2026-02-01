@@ -639,6 +639,55 @@ export const Reports: React.FC = () => {
                 </div>
               </div>
             )}
+            {/* --- NEW: SNAPSHOT ACTIVITIES TABLE -- */}
+            {velocityData.length > 0 && (
+              <div className="flex flex-col gap-2 mt-4">
+                <div className="flex items-center justify-between border-l-4 border-indigo-400 pl-4 py-1">
+                  <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Snapshot Activities (Since Last)</h3>
+                </div>
+
+                <div className="bg-white rounded-xl border border-indigo-100 overflow-hidden shadow-sm">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-indigo-50/50 border-b border-indigo-100">
+                        <th className="px-4 py-2 text-left text-[8px] font-black text-slate-500 uppercase tracking-wider">Discipline</th>
+                        <th className="px-4 py-2 text-center text-[8px] font-black text-amber-600 uppercase tracking-wider">Under Review</th>
+                        <th className="px-4 py-2 text-center text-[8px] font-black text-cyan-600 uppercase tracking-wider">Waiting Reply</th>
+                        <th className="px-4 py-2 text-center text-[8px] font-black text-emerald-600 uppercase tracking-wider">Approved</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {velocityData.map((row) => (
+                        <tr key={row.name} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-2 text-[9px] font-bold text-slate-700">{row.name}</td>
+                          <td className="px-4 py-2 text-center">
+                            {row.toReview > 0 ? (
+                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-700">
+                                +{row.toReview}
+                              </span>
+                            ) : <span className="text-[9px] text-slate-300">-</span>}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {row.toWaiting > 0 ? (
+                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-cyan-100 text-cyan-700">
+                                +{row.toWaiting}
+                              </span>
+                            ) : <span className="text-[9px] text-slate-300">-</span>}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {row.toApproved > 0 ? (
+                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700">
+                                +{row.toApproved}
+                              </span>
+                            ) : <span className="text-[9px] text-slate-300">-</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             {/* Margins increased to top: 30 to prevent label clipping */}
             <div className="h-[220px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -674,18 +723,22 @@ export const Reports: React.FC = () => {
             <div className="flex flex-col gap-4 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-indigo-500 pl-4">Discipline Comments Status</h3>
               {/* Margins increased on right: 50 to prevent label clipping */}
-              <div className="h-[180px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
+              <div className="h-[400px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 10, bottom: 0 }}>
+                  <BarChart data={disciplineMainData || []} layout="vertical" margin={{ top: 20, right: 50, left: 180, bottom: 0 }}>
                     <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} />
+                    <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={0} tick={({ x, y, payload }: any) => (
+                      <text x={20} y={y} dy={3} textAnchor="start" fill="#64748b" fontSize={11} fontWeight={700}>
+                        {payload.value}
+                      </text>
+                    )} />
                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '8px' }} />
-                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
-                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 2, 2, 0]} barSize={12}>
-                      <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 9, fontWeight: 900 }} />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
+                    <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={20}>
+                      <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 11, fontWeight: 900 }} />
                     </Bar>
-                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 2, 2, 0]} barSize={12}>
-                      <LabelList dataKey="totalComments" position="right" style={{ fill: '#64748b', fontSize: 9, fontWeight: 900 }} />
+                    <Bar dataKey="totalComments" name="Total Comments" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={20}>
+                      <LabelList dataKey="totalComments" position="right" style={{ fill: '#64748b', fontSize: 11, fontWeight: 900 }} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
