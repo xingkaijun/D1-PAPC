@@ -37,7 +37,7 @@ const PageHeader: React.FC<{ projectName: string }> = ({ projectName }) => (
       </div>
       <div>
         <div className="text-[9px] font-[1000] text-teal-600 uppercase tracking-[0.2em] mb-0.5">PACIFIC GAS PTE. LTD.</div>
-        <h1 className="text-2xl font-[1000] text-slate-900 uppercase tracking-tighter leading-none">Plan Approval Intelligence</h1>
+        <h1 className="text-2xl font-[1000] text-slate-900 uppercase tracking-tighter leading-none">Plan Approval Report</h1>
         <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.2em] mt-2">Project Registry: {projectName}</p>
       </div>
     </div>
@@ -145,6 +145,16 @@ export const Reports: React.FC = () => {
 
     return { total, reviewing, approved, totalComments, openComments, progressPercent };
   }, [drawings]);
+
+  const pieData = useMemo(() => {
+    const raw = [
+      { name: 'Approved', value: stats.approved, color: '#10b981' },
+      { name: 'Reviewing', value: stats.reviewing, color: '#f59e0b' },
+      { name: 'Waiting Reply', value: drawings.filter(d => d.status === 'Waiting Reply').length, color: '#3b82f6' },
+      { name: 'Pending', value: drawings.filter(d => d.status === 'Pending').length, color: '#cbd5e1' },
+    ];
+    return raw.filter(d => d.value > 0).length > 0 ? raw.filter(d => d.value > 0) : [{ name: 'Empty', value: 1, color: '#f1f5f9' }];
+  }, [stats, drawings]);
 
   /* --- CHANGED: Use activeSnapshots instead of all snapshots --- */
   const snapshotActivityData = useMemo(() => {
@@ -541,28 +551,14 @@ export const Reports: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={(() => {
-                        let data = [
-                          { name: 'Approved', value: stats.approved },
-                          { name: 'Reviewing', value: stats.reviewing },
-                          { name: 'Waiting Reply', value: drawings.filter(d => d.status === 'Waiting Reply').length },
-                          { name: 'Pending', value: drawings.filter(d => d.status === 'Pending').length },
-                        ].map(d => ({ ...d, value: d.value || 0 })).filter(d => d.value > 0);
-
-                        // Safety: Recharts fails if all values are 0 or data is undefined
-                        if (data.length === 0) {
-                          data = [{ name: 'Empty', value: 1 }]; // Placeholder or handle empty
-                        }
-                        return data;
-                      })()}
+                      data={pieData}
                       cx="50%" cy="50%"
                       innerRadius={35} outerRadius={55}
                       paddingAngle={3} dataKey="value"
                     >
-                      <Cell fill="#10b981" />
-                      <Cell fill="#f59e0b" />
-                      <Cell fill="#3b82f6" />
-                      <Cell fill="#cbd5e1" />
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
