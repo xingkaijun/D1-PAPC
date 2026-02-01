@@ -276,6 +276,7 @@ export const DrawingList: React.FC = () => {
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, disc: w }))} width={columnWidths.disc || 120}>Discipline</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, title: w }))} width={columnWidths.title || 250}>Drawing Title</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, dead: w }))} width={columnWidths.dead || 90}>Deadline</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, days: w }))} width={columnWidths.days || 60}>Days</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ass: w }))} width={columnWidths.ass || 90}>Assignees</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, stat: w }))} width={columnWidths.stat || 100}>Status</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 50}>Total Cmt</ResizableHeader>
@@ -353,6 +354,7 @@ export const DrawingList: React.FC = () => {
               <th className="py-2 w-28">Discipline</th>
               <th className="py-2">Title</th>
               <th className="py-2 w-20">Deadline</th>
+              <th className="py-2 w-12 text-center">Days</th>
               <th className="py-2 w-24">Assignees</th>
               <th className="py-2 w-20">Status</th>
               <th className="py-2 w-10 text-center">Cmt</th>

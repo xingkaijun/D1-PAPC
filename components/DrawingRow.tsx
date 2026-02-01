@@ -5,7 +5,7 @@ import {
     ChevronDown, ChevronRight, AlertTriangle, Clock,
     Trash2, History, StickyNote, CheckCircle2, Circle, Check
 } from 'lucide-react';
-import { format, isAfter } from 'date-fns';
+import { format, isAfter, differenceInCalendarDays } from 'date-fns';
 
 interface DrawingRowProps {
     drawing: Drawing;
@@ -15,7 +15,7 @@ interface DrawingRowProps {
     updateDrawing: (projectId: string, drawingId: string, updates: Partial<Drawing>) => void;
     deleteDrawing: (projectId: string, drawingId: string) => void;
     toggleRemarkStatus: (projectId: string, drawingId: string, remarkId: string) => void;
-    reviewers: string[];
+    reviewers: (string | { id: string, name: string })[];
     derivedDisciplines: string[];
 }
 
@@ -53,11 +53,25 @@ const StatusBadge = ({ drawing, onStatusChange }: { drawing: Drawing, onStatusCh
     );
 };
 
-const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate }: { drawing: Drawing, reviewers: string[], onUpdate: (ids: string[]) => void }) => {
+const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate }: { drawing: Drawing, reviewers: (string | { id: string, name: string })[], onUpdate: (ids: string[]) => void }) => {
     const [open, setOpen] = React.useState(false);
-    const toggle = (name: string) => {
+
+    // Helper to normalize reviewer to ID/Name
+    const getRevId = (r: string | { id: string, name: string }) => typeof r === 'string' ? r : r.id;
+    const getRevName = (r: string | { id: string, name: string }) => typeof r === 'string' ? r : r.name;
+
+    const toggle = (r: string | { id: string, name: string }) => {
+        const id = getRevId(r);
+        const name = getRevName(r); // We store Name or ID? Usually Name for display.
+        // Actually, existing logic likely stores Names in `drawing.assignees`.
+        // If we switch to objects, we might want to store IDs?
+        // Let's assume we continue storing NAMES (or whatever string representation was used).
+        // If the reviewer is {id: 'kevin', name: 'Kevin'}, we likely store 'Kevin'.
+        // Let's use getRevName(r) as the value for consistency with previous string-only array.
+        const val = getRevName(r);
+
         const current = drawing.assignees || [];
-        const next = current.includes(name) ? current.filter(n => n !== name) : [...current, name];
+        const next = current.includes(val) ? current.filter(n => n !== val) : [...current, val];
         onUpdate(next);
     };
 
@@ -84,17 +98,21 @@ const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate }: { drawing: Draw
                     <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
                     <div className="absolute top-full left-0 mt-1 w-36 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-1 animate-in zoom-in-95 duration-75">
                         <div className="text-[7px] font-black text-slate-400 uppercase p-1.5 tracking-widest border-b border-slate-50 mb-1">Reviewers</div>
-                        {reviewers.map(r => (
-                            <label key={r} className="flex items-center gap-2 px-2 py-1.5 hover:bg-teal-50 rounded-lg cursor-pointer transition-colors group">
-                                <input
-                                    type="checkbox"
-                                    checked={drawing.assignees.includes(r)}
-                                    onChange={() => toggle(r)}
-                                    className="w-3 h-3 rounded text-teal-600 focus:ring-teal-500 border-slate-200"
-                                />
-                                <span className="text-[10px] font-bold text-slate-700">{r}</span>
-                            </label>
-                        ))}
+                        {reviewers.map(r => {
+                            const id = getRevId(r);
+                            const name = getRevName(r);
+                            return (
+                                <label key={id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-teal-50 rounded-lg cursor-pointer transition-colors group">
+                                    <input
+                                        type="checkbox"
+                                        checked={drawing.assignees.includes(name)}
+                                        onChange={() => toggle(r)}
+                                        className="w-3 h-3 rounded text-teal-600 focus:ring-teal-500 border-slate-200"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-700">{name}</span>
+                                </label>
+                            );
+                        })}
                     </div>
                 </>
             )}
@@ -162,6 +180,19 @@ export const DrawingRow = memo(({
                             <Clock size={10} /> {format(new Date(drawing.reviewDeadline), 'MM-dd')}
                         </div>
                     ) : <span className="text-slate-200">—</span>}
+                </td>
+                <td className="px-3 py-2 text-center">
+                    {drawing.reviewDeadline ? (() => {
+                        const days = differenceInCalendarDays(new Date(drawing.reviewDeadline), new Date());
+                        let colorClass = 'text-slate-500';
+                        if (days < 0) colorClass = 'text-red-600 font-black'; // Overdue
+                        else if (days <= 3) colorClass = 'text-amber-500 font-black'; // Warning
+                        else colorClass = 'text-emerald-500 font-bold'; // Safe
+
+                        return (
+                            <span className={`text-[10px] ${colorClass}`}>{days}d</span>
+                        );
+                    })() : <span className="text-slate-200">—</span>}
                 </td>
                 <td className="px-1 py-2">
                     <MultiAssigneeDropdown drawing={drawing} reviewers={reviewers} onUpdate={(ids) => updateDrawing(activeProjectId, drawing.id, { assignees: ids })} />
