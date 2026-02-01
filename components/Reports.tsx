@@ -639,55 +639,7 @@ export const Reports: React.FC = () => {
                 </div>
               </div>
             )}
-            {/* --- NEW: SNAPSHOT ACTIVITIES TABLE -- */}
-            {velocityData.length > 0 && (
-              <div className="flex flex-col gap-2 mt-4">
-                <div className="flex items-center justify-between border-l-4 border-indigo-400 pl-4 py-1">
-                  <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Snapshot Activities (Since Last)</h3>
-                </div>
 
-                <div className="bg-white rounded-xl border border-indigo-100 overflow-hidden shadow-sm">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-indigo-50/50 border-b border-indigo-100">
-                        <th className="px-4 py-2 text-left text-[8px] font-black text-slate-500 uppercase tracking-wider">Discipline</th>
-                        <th className="px-4 py-2 text-center text-[8px] font-black text-amber-600 uppercase tracking-wider">Under Review</th>
-                        <th className="px-4 py-2 text-center text-[8px] font-black text-cyan-600 uppercase tracking-wider">Waiting Reply</th>
-                        <th className="px-4 py-2 text-center text-[8px] font-black text-emerald-600 uppercase tracking-wider">Approved</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {velocityData.map((row) => (
-                        <tr key={row.name} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-2 text-[9px] font-bold text-slate-700">{row.name}</td>
-                          <td className="px-4 py-2 text-center">
-                            {row.toReview > 0 ? (
-                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-700">
-                                +{row.toReview}
-                              </span>
-                            ) : <span className="text-[9px] text-slate-300">-</span>}
-                          </td>
-                          <td className="px-4 py-2 text-center">
-                            {row.toWaiting > 0 ? (
-                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-cyan-100 text-cyan-700">
-                                +{row.toWaiting}
-                              </span>
-                            ) : <span className="text-[9px] text-slate-300">-</span>}
-                          </td>
-                          <td className="px-4 py-2 text-center">
-                            {row.toApproved > 0 ? (
-                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700">
-                                +{row.toApproved}
-                              </span>
-                            ) : <span className="text-[9px] text-slate-300">-</span>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
             {/* Margins increased to top: 30 to prevent label clipping */}
             <div className="h-[220px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
