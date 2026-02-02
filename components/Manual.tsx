@@ -107,12 +107,61 @@ export const Manual: React.FC = () => {
             </Section>
 
             <Section icon={<Terminal size={18} />} title="2. 智能指令栏 (Command Bar)">
-              <div className="bg-slate-50 p-4 rounded-2xl space-y-3">
-                <p className="text-[10px] font-bold text-slate-500 uppercase mb-2 italic tracking-tight">快速录入的强大指令：</p>
-                <div className="space-y-2">
-                  <CommandItem code="@001 意见内容" desc="为 ID 为 001 的图纸添加内部备注。" />
-                  <CommandItem code="@001 c:12/3" desc="设置意见总数为 12，待关闭为 3。" />
-                  <CommandItem code="@R 001, 002" desc="一键批量将状态改为 'Reviewing'。" />
+              <div className="bg-slate-50 p-4 rounded-2xl space-y-6">
+                <p className="text-[10px] font-bold text-slate-500 uppercase mb-2 italic tracking-tight">所有指令均以 <strong>@</strong> 开头（全局搜索除外），支持空格或逗号分隔多个ID：</p>
+
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-700 uppercase mb-2 border-b border-slate-200 pb-1">1. 全局搜索/过滤 (无需 @)</h4>
+                    <div className="space-y-1">
+                      <CommandItem code="show : hull" desc="显示包含 'hull' 的图纸" />
+                      <CommandItem code="ls : kevin" desc="显示分配给 'kevin' 的图纸" />
+                      <CommandItem code="reset" desc="清除所有过滤条件" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-700 uppercase mb-2 border-b border-slate-200 pb-1">2. 批量状态更新</h4>
+                    <div className="space-y-1">
+                      <CommandItem code="@R 001, 002" desc="批量改为 Reviewing (R)" />
+                      <CommandItem code="@W 001" desc="改为 Waiting Reply (W)" />
+                      <CommandItem code="@A 001" desc="改为 Approved (A)" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-700 uppercase mb-2 border-b border-slate-200 pb-1">3. 备注与评论数</h4>
+                    <div className="space-y-1">
+                      <CommandItem code="@001 检查厚度" desc="添加备注 '检查厚度'" />
+                      <CommandItem code="@001 c:10/2" desc="设置: 总意见10条 / 未关闭2条" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-700 uppercase mb-2 border-b border-slate-200 pb-1">4. 版本与轮次</h4>
+                    <div className="space-y-1">
+                      <CommandItem code="@001 v:C" desc="更新版本为 C" />
+                      <CommandItem code="@001 rd:B" desc="更新轮次为 B" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-700 uppercase mb-2 border-b border-slate-200 pb-1">5. 截止日期与标签</h4>
+                    <div className="space-y-1">
+                      <CommandItem code="@001 dl:02-15" desc="设置截止日期 (自动当年)" />
+                      <CommandItem code="@001 #急件" desc="添加 #急件 标签" />
+                      <CommandItem code="@001 -#急件" desc="移除 #急件 标签" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-700 uppercase mb-2 border-b border-slate-200 pb-1">6. 人员分配</h4>
+                    <div className="space-y-1">
+                      <CommandItem code="@001 to:Kevin" desc="指派给 Kevin (覆盖)" />
+                      <CommandItem code="@001 add:David" desc="增加负责人 David" />
+                      <CommandItem code="@001 rm:Alice" desc="移除负责人 Alice" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </Section>
