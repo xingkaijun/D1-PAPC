@@ -6,6 +6,7 @@ import {
     Trash2, History, StickyNote, CheckCircle2, Circle, Check
 } from 'lucide-react';
 import { format, isAfter, differenceInCalendarDays } from 'date-fns';
+import { useStore } from '../store';
 
 interface DrawingRowProps {
     drawing: Drawing;
@@ -20,7 +21,7 @@ interface DrawingRowProps {
 }
 
 // Sub-components used in Row
-const StatusBadge = ({ drawing, onStatusChange }: { drawing: Drawing, onStatusChange: (s: DrawingStatus) => void }) => {
+const StatusBadge = ({ drawing, onStatusChange, disabled }: { drawing: Drawing, onStatusChange: (s: DrawingStatus) => void, disabled: boolean }) => {
     const isOverdue = drawing.status === 'Reviewing' && drawing.reviewDeadline && isAfter(new Date(), new Date(drawing.reviewDeadline));
     const config = {
         'Pending': 'bg-slate-100 text-slate-500 border-slate-200',
@@ -41,9 +42,10 @@ const StatusBadge = ({ drawing, onStatusChange }: { drawing: Drawing, onStatusCh
                 </span>
             )}
             <select
+                disabled={disabled}
                 value={drawing.status}
                 onChange={(e) => onStatusChange(e.target.value as DrawingStatus)}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                className={`absolute inset-0 opacity-0 w-full h-full ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             >
                 {['Pending', 'Reviewing', 'Waiting Reply', 'Approved'].map(s => (
                     <option key={s} value={s}>{s}</option>
@@ -53,7 +55,8 @@ const StatusBadge = ({ drawing, onStatusChange }: { drawing: Drawing, onStatusCh
     );
 };
 
-const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate }: { drawing: Drawing, reviewers: (string | { id: string, name: string })[], onUpdate: (ids: string[]) => void }) => {
+
+const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate, disabled }: { drawing: Drawing, reviewers: (string | { id: string, name: string })[], onUpdate: (ids: string[]) => void, disabled: boolean }) => {
     const [open, setOpen] = React.useState(false);
 
     // Helper to normalize reviewer to ID/Name
@@ -78,8 +81,9 @@ const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate }: { drawing: Draw
     return (
         <div className="relative no-print">
             <button
+                disabled={disabled}
                 onClick={() => setOpen(!open)}
-                className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-teal-400 transition-all w-full shadow-sm"
+                className={`flex items-center gap-1.5 px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg transition-all w-full shadow-sm ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white hover:border-teal-400'}`}
             >
                 <div className="flex -space-x-1.5 overflow-hidden flex-1">
                     {(drawing.assignees || []).length > 0 ? (
@@ -131,6 +135,7 @@ export const DrawingRow = memo(({
     reviewers,
     derivedDisciplines
 }: DrawingRowProps) => {
+    const { isEditMode } = useStore();
     const liveRemarkCount = drawing.remarks?.length || 0;
     const liveOpenRemarkCount = drawing.remarks?.filter(r => !r.resolved).length || 0;
 
@@ -168,9 +173,10 @@ export const DrawingRow = memo(({
                 <td className="px-1 py-2 font-mono text-[10px] font-bold text-teal-600 truncate">{drawing.drawingNo}</td>
                 <td className="px-3 py-2">
                     <input
+                        disabled={!isEditMode}
                         type="text" value={drawing.version}
                         onChange={(e) => updateDrawing(activeProjectId, drawing.id, { version: e.target.value })}
-                        className="w-full bg-slate-100/50 border-none rounded-md text-[9px] font-black text-center py-0.5 focus:bg-white"
+                        className={`w-full bg-slate-100/50 border-none rounded-md text-[9px] font-black text-center py-0.5 focus:bg-white ${!isEditMode ? 'cursor-not-allowed text-slate-400' : ''}`}
                     />
                 </td>
                 <td className="px-3 py-2 text-center">
@@ -178,9 +184,10 @@ export const DrawingRow = memo(({
                 </td>
                 <td className="px-3 py-2">
                     <select
+                        disabled={!isEditMode}
                         value={drawing.discipline}
                         onChange={(e) => updateDrawing(activeProjectId, drawing.id, { discipline: e.target.value })}
-                        className="w-full bg-transparent border-none text-[9px] font-black uppercase text-slate-500 cursor-pointer p-0"
+                        className={`w-full bg-transparent border-none text-[9px] font-black uppercase text-slate-500 p-0 ${!isEditMode ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                         {derivedDisciplines.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
@@ -207,27 +214,29 @@ export const DrawingRow = memo(({
                     })() : <span className="text-slate-200">—</span>}
                 </td>
                 <td className="px-1 py-2">
-                    <MultiAssigneeDropdown drawing={drawing} reviewers={reviewers} onUpdate={(ids) => updateDrawing(activeProjectId, drawing.id, { assignees: ids })} />
+                    <MultiAssigneeDropdown disabled={!isEditMode} drawing={drawing} reviewers={reviewers} onUpdate={(ids) => updateDrawing(activeProjectId, drawing.id, { assignees: ids })} />
                 </td>
                 <td className="px-3 py-2 text-center">
-                    <StatusBadge drawing={drawing} onStatusChange={(s) => updateDrawing(activeProjectId, drawing.id, { status: s })} />
+                    <StatusBadge disabled={!isEditMode} drawing={drawing} onStatusChange={(s) => updateDrawing(activeProjectId, drawing.id, { status: s })} />
                 </td>
                 <td className="px-3 py-2 text-center group/cell">
                     <input
                         type="number"
                         min="0"
+                        disabled={!isEditMode}
                         value={drawing.manualCommentsCount}
                         onChange={(e) => updateDrawing(activeProjectId, drawing.id, { manualCommentsCount: parseInt(e.target.value) || 0 })}
-                        className="w-full bg-slate-100/50 border-none rounded-md text-[10px] font-black text-center py-0.5 focus:bg-white focus:ring-1 focus:ring-teal-500/30"
+                        className={`w-full bg-slate-100/50 border-none rounded-md text-[10px] font-black text-center py-0.5 focus:bg-white focus:ring-1 focus:ring-teal-500/30 ${!isEditMode ? 'cursor-not-allowed text-slate-400' : ''}`}
                     />
                 </td>
                 <td className="px-3 py-2 text-center">
                     <input
                         type="number"
                         min="0"
+                        disabled={!isEditMode}
                         value={drawing.manualOpenCommentsCount}
                         onChange={(e) => updateDrawing(activeProjectId, drawing.id, { manualOpenCommentsCount: parseInt(e.target.value) || 0 })}
-                        className={`w-full border-none rounded-md text-[10px] font-black text-center py-0.5 focus:bg-white focus:ring-1 focus:ring-teal-500/30 ${drawing.manualOpenCommentsCount > 0 ? 'bg-red-50 text-red-500' : 'bg-slate-100/50 text-slate-400'}`}
+                        className={`w-full border-none rounded-md text-[10px] font-black text-center py-0.5 focus:bg-white focus:ring-1 focus:ring-teal-500/30 ${drawing.manualOpenCommentsCount > 0 ? 'bg-red-50 text-red-500' : 'bg-slate-100/50 text-slate-400'} ${!isEditMode ? 'cursor-not-allowed' : ''}`}
                     />
                 </td>
                 <td className="px-3 py-2 text-center">
@@ -236,7 +245,7 @@ export const DrawingRow = memo(({
                     </div>
                 </td>
                 <td className="px-3 py-2 text-right">
-                    <button onClick={() => deleteDrawing(activeProjectId, drawing.id)} className="p-1.5 text-slate-200 hover:text-red-500 transition-colors">
+                    <button disabled={!isEditMode} onClick={() => deleteDrawing(activeProjectId, drawing.id)} className={`p-1.5 transition-colors ${!isEditMode ? 'text-slate-100 cursor-not-allowed' : 'text-slate-200 hover:text-red-500'}`}>
                         <Trash2 size={12} />
                     </button>
                 </td>
@@ -277,7 +286,7 @@ export const DrawingRow = memo(({
 
                                         return (
                                             <div key={r.id} className={`text-[9px] px-3 py-1.5 rounded-lg flex items-start gap-2 transition-colors ${bgClass} ${r.resolved ? 'opacity-50 grayscale' : ''}`}>
-                                                <button onClick={() => toggleRemarkStatus(activeProjectId, drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-slate-400' : iconClass} hover:opacity-80`}>
+                                                <button disabled={!isEditMode} onClick={() => toggleRemarkStatus(activeProjectId, drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-slate-400' : iconClass} ${!isEditMode ? 'cursor-not-allowed opacity-50' : 'hover:opacity-80'}`}>
                                                     {r.resolved ? <CheckCircle2 size={14} /> : <Circle size={14} fill="currentColor" className="opacity-20" />}
                                                 </button>
                                                 <span className={`font-bold leading-normal flex-1 ${r.resolved ? 'line-through' : ''}`}>{r.content}</span>

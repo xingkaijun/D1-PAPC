@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
-import { Terminal, Send } from 'lucide-react';
+import { Terminal, Send, Lock } from 'lucide-react';
 import { useStore } from '../store';
 import { DrawingStatus } from '../types';
 
 export const CommandBar: React.FC = () => {
   const [input, setInput] = useState('');
-  const { activeProjectId, data, addRemark, deleteRemark, updateDrawing, batchUpdateDrawings, setFilterQuery } = useStore();
+  const { activeProjectId, data, addRemark, deleteRemark, updateDrawing, batchUpdateDrawings, setFilterQuery, isEditMode } = useStore();
   const activeProject = data.projects.find(p => p.id === activeProjectId);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -183,21 +183,22 @@ export const CommandBar: React.FC = () => {
         onSubmit={handleSubmit}
         className="relative flex items-center bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden group focus-within:ring-2 ring-teal-500/20 transition-all"
       >
-        <div className="pl-4 text-slate-400 group-focus-within:text-teal-500 transition-colors" title="Command Input Mode">
-          <Terminal size={18} />
+        <div className={`pl-4 transition-colors ${!isEditMode ? 'text-slate-300' : 'text-slate-400 group-focus-within:text-teal-500'}`} title="Command Input Mode">
+          {!isEditMode ? <Lock size={18} /> : <Terminal size={18} />}
         </div>
         <input
           type="text"
           value={input}
+          disabled={!isEditMode}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Terminal: @001 [Remark] OR @001 c:12/3 (Comments) OR @R 001,002 (Status)"
-          className="w-full py-3.5 px-4 outline-none text-slate-700 bg-transparent placeholder:text-slate-400 font-bold text-sm"
+          placeholder={!isEditMode ? "Enter Edit Mode to execute commands..." : "Terminal: @001 [Remark] OR @001 c:12/3 (Comments) OR @R 001,002 (Status)"}
+          className={`w-full py-3.5 px-4 outline-none text-slate-700 bg-transparent placeholder:text-slate-400 font-bold text-sm ${!isEditMode ? 'cursor-not-allowed opacity-50' : ''}`}
         />
         <button
           type="submit"
           title="Execute Command"
           className="mr-2 p-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
-          disabled={!input.trim().startsWith('@')}
+          disabled={(!input.trim().startsWith('@') && !isEditMode) || !isEditMode}
         >
           <Send size={16} />
         </button>

@@ -56,6 +56,8 @@ interface AppState {
   testWebDAVConnection: (url: string, user: string, pass: string) => Promise<{ success: boolean; message: string }>;
   clearError: () => void;
   setFilterQuery: (query: string) => void;
+  isEditMode: boolean;
+  toggleEditMode: (password?: string) => boolean;
 }
 
 const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
@@ -117,6 +119,22 @@ export const useStore = create<AppState>()(
       })),
 
       setFilterQuery: (query) => set({ filterQuery: query }),
+
+      isEditMode: false,
+      toggleEditMode: (password?: string) => {
+        const current = get().isEditMode;
+        if (current) {
+          set({ isEditMode: false });
+          return true;
+        } else {
+          const envPass = import.meta.env.VITE_EDIT_PASSWORD || 'admin';
+          if (password === envPass) {
+            set({ isEditMode: true });
+            return true;
+          }
+          return false;
+        }
+      },
 
       addProject: (name) => set((state) => {
         const newProject: Project = {

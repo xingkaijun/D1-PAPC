@@ -44,7 +44,8 @@ import {
   CloudOff,
   RefreshCw,
   LayoutDashboard,
-  BookOpen
+  BookOpen,
+  Lock
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -58,7 +59,8 @@ const App: React.FC = () => {
     fetchProjectListFromWebDAV,
     loadProjectFromWebDAV,
     pushProjectToWebDAV,
-    fetchGlobalSettingsFromWebDAV
+    fetchGlobalSettingsFromWebDAV,
+    isEditMode
   } = useStore();
 
   const currentProject = data.projects.find(p => p.id === activeProjectId);
@@ -401,17 +403,21 @@ const App: React.FC = () => {
               <span>Inventory</span>
             </button>
             <button
-              onClick={() => setActiveTab('reports')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              onClick={() => isEditMode && setActiveTab('reports')}
+              disabled={!isEditMode}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              title={!isEditMode ? "Unlock Edit Mode to Access" : "Intelligence Dashboard"}
             >
-              <LayoutDashboard size={14} strokeWidth={2.5} className={activeTab === 'reports' ? 'text-teal-500' : 'text-slate-400'} />
+              {!isEditMode ? <Lock size={14} /> : <LayoutDashboard size={14} strokeWidth={2.5} className={activeTab === 'reports' ? 'text-teal-500' : 'text-slate-400'} />}
               <span>Intelligence</span>
             </button>
             <button
-              onClick={() => setActiveTab('settings')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              onClick={() => isEditMode && setActiveTab('settings')}
+              disabled={!isEditMode}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              title={!isEditMode ? "Unlock Edit Mode to Access" : "Configuration"}
             >
-              <SettingsIcon size={14} strokeWidth={2.5} className={activeTab === 'settings' ? 'text-teal-500' : 'text-slate-400'} />
+              {!isEditMode ? <Lock size={14} /> : <SettingsIcon size={14} strokeWidth={2.5} className={activeTab === 'settings' ? 'text-teal-500' : 'text-slate-400'} />}
               <span>Config</span>
             </button>
             <button

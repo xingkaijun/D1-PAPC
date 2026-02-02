@@ -3,7 +3,8 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import { Drawing, DrawingStatus } from '../types';
 import {
-  Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as ChevronRightIcon
+  Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Lock, Unlock
 } from 'lucide-react';
 import { isAfter } from 'date-fns';
 import { DrawingRow } from './DrawingRow';
@@ -118,7 +119,7 @@ const PaginationControls = ({
 
 
 export const DrawingList: React.FC = () => {
-  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery } = useStore();
+  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   // Search state moved to store: filterQuery
   const [statusFilter, setStatusFilter] = useState<DrawingStatus | 'Overdue' | null>(null);
@@ -242,16 +243,35 @@ export const DrawingList: React.FC = () => {
               <Printer size={14} /> Print List
             </button>
             <button
-              onClick={() => window.confirm("Reset team defaults?") && resetAllAssignees(activeProjectId!)}
-              className="px-4 py-2.5 bg-white border border-slate-200 text-slate-500 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all"
+              onClick={() => isEditMode && window.confirm("Reset team defaults?") && resetAllAssignees(activeProjectId!)}
+              disabled={!isEditMode}
+              className={`px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${!isEditMode ? 'opacity-50 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-50 active:scale-95'}`}
             >
               <Layers size={14} /> Team Setup
             </button>
             <button
-              onClick={() => setShowImportModal(true)}
-              className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-teal-700 active:scale-95 transition-all shadow-lg shadow-teal-500/10"
+              onClick={() => isEditMode && setShowImportModal(true)}
+              disabled={!isEditMode}
+              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-teal-500/10 ${!isEditMode ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'}`}
             >
               <FileUp size={14} /> Bulk Load
+            </button>
+            <button
+              onClick={() => {
+                if (isEditMode) {
+                  toggleEditMode();
+                } else {
+                  const pwd = prompt("Enter Administrator Password to Edit:");
+                  if (pwd !== null) {
+                    const success = toggleEditMode(pwd);
+                    if (!success) alert("Incorrect Password");
+                  }
+                }
+              }}
+              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${isEditMode ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'}`}
+            >
+              {isEditMode ? <Unlock size={14} /> : <Lock size={14} />}
+              {isEditMode ? 'Unlocked' : 'Edit'}
             </button>
           </div>
         </div>
