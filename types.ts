@@ -30,6 +30,9 @@ export interface Drawing {
   manualCommentsCount: number;
   manualOpenCommentsCount: number;
   reviewDeadline?: string;
+  receivedDate?: string;
+  category?: 'A' | 'B' | 'C';
+  deadline?: string;
   logs: DrawingLog[];
   remarks: Remark[];
   statusHistory: Remark[];
@@ -81,12 +84,29 @@ export interface Project {
   lastUpdated?: string;
 }
 
+export type StorageType = 'WEBDAV' | 'ONEDRIVE';
+
+export interface StorageConfig {
+  type: StorageType;
+  webdav?: {
+    url: string;
+    username: string;
+    password?: string;
+  };
+  onedrive?: {
+    proxyUrl: string; // e.g., http://localhost:3001/api/proxy
+  };
+}
+
 export interface AppSettings {
   reviewers: Reviewer[];
   disciplineDefaults: Record<string, string>;
   holidays: string[];
   roundACycle: number;
   otherRoundsCycle: number;
+  // New Storage Config
+  storage?: StorageConfig;
+  // Legacy WebDAV config (kept for backward compatibility during migration)
   webdavUrl?: string;
   webdavUser?: string;
   webdavPass?: string;

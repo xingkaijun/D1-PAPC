@@ -9,12 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "recharts": "^3.6.0",
-    "zustand": "^5.0.10",
+    "axios": "^1.13.4",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
-    "date-fns": "^4.1.0",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "recharts": "^3.6.0",
+    "zustand": "^5.0.10"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
