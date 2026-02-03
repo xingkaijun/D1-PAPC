@@ -52,9 +52,12 @@ export interface DisciplineSnapshot {
 }
 
 export interface ProjectSnapshot {
-  id: string;
-  timestamp: string;
-  stats: DisciplineSnapshot[];
+  id: string; // Filename usually
+  timestamp: string; // ISO Date
+  note?: string;
+  createdAt?: string; // Duplicate for compatibility
+  stats?: DisciplineSnapshot[]; // For reports
+  data?: any; // Full data if needed
 }
 
 export interface Reviewer {

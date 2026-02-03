@@ -52,6 +52,9 @@ interface AppState {
   loadProjectFromWebDAV: (projectId: string, passwordInput?: string) => Promise<void>;
   refreshSnapshots: (projectId: string) => Promise<void>;
   testWebDAVConnection: (url: string, user: string, pass: string, proxyUrl?: string) => Promise<{ success: boolean; message: string }>;
+  takeSnapshot: (projectId: string) => Promise<void>;
+  deleteSnapshot: (projectId: string, snapshotId: string) => Promise<void>;
+  restoreSnapshot: (snapshotId: string) => Promise<boolean>;
 
   // UI State
   viewMode: 'list' | 'board';
@@ -64,6 +67,7 @@ interface AppState {
   updateProjectConfig: (projectId: string, updates: Partial<ProjectConfig>) => void;
   clearError: () => void;
   restoreProject: (project: Project) => void;
+  toggleRemarkStatus: (drawingId: string, remarkId: string) => void;
 }
 
 const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
@@ -335,9 +339,36 @@ export const useStore = create<AppState>()(
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return;
 
-        set({ isLoading: true, error: null });
+        // No loading state for background refresh usually, but let's keep silent or localized
         try {
           const provider = getProvider(data.settings);
+          const snapshots = await provider.loadSnapshots(project);
+
+          set(state => ({
+            data: {
+              ...state.data,
+              projects: state.data.projects.map(p => p.id === projectId ? { ...p, snapshots } : p)
+            }
+          }));
+        } catch (err: any) {
+          console.warn("Snapshot refresh failed", err);
+        }
+      },
+
+      takeSnapshot: async (projectId: string) => {
+        const { data } = get();
+        const project = data.projects.find(p => p.id === projectId);
+        if (!project) return;
+
+        set({ isLoading: true });
+        try {
+          const provider = getProvider(data.settings);
+          // Auto-generate note via prompt or default
+          const note = prompt("Snapshot Note (Optional):") || "Manual Snapshot";
+
+          await provider.createSnapshot(project, note);
+
+          // Refresh list immediately
           const snapshots = await provider.loadSnapshots(project);
 
           set(state => ({
@@ -347,8 +378,62 @@ export const useStore = create<AppState>()(
               projects: state.data.projects.map(p => p.id === projectId ? { ...p, snapshots } : p)
             }
           }));
-        } catch (err: any) {
-          set({ isLoading: false, error: err.message });
+        } catch (e: any) {
+          set({ isLoading: false, error: e.message });
+        }
+      },
+
+      deleteSnapshot: async (projectId: string, snapshotId: string) => {
+        const { data } = get();
+        const project = data.projects.find(p => p.id === projectId);
+        if (!project) return;
+
+        set({ isLoading: true });
+        try {
+          const provider = getProvider(data.settings);
+          await provider.deleteSnapshot(project, snapshotId);
+
+          // Refresh list
+          const snapshots = await provider.loadSnapshots(project);
+
+          set(state => ({
+            isLoading: false,
+            data: {
+              ...state.data,
+              projects: state.data.projects.map(p => p.id === projectId ? { ...p, snapshots } : p)
+            }
+          }));
+        } catch (e: any) {
+          set({ isLoading: false, error: e.message });
+        }
+      },
+
+      restoreSnapshot: async (snapshotId: string) => {
+        const { data, activeProjectId } = get();
+        if (!activeProjectId) return false;
+        const project = data.projects.find(p => p.id === activeProjectId);
+        if (!project) return false;
+
+        const snapshot = project.snapshots?.find(s => s.id === snapshotId);
+        if (!snapshot) return false;
+
+        if (!window.confirm(`Are you sure you want to restore snapshot "${snapshot.note}"? Data since ${new Date(snapshot.createdAt).toLocaleString()} will be lost.`)) {
+          return false;
+        }
+
+        set({ isLoading: true });
+        try {
+          const provider = getProvider(data.settings);
+          await provider.restoreSnapshot(project, snapshot);
+
+          // Reload project data fully
+          await get().loadProjectFromWebDAV(activeProjectId, project.conf?.password);
+
+          set({ isLoading: false });
+          return true;
+        } catch (e: any) {
+          set({ isLoading: false, error: e.message });
+          return false;
         }
       },
 
@@ -429,6 +514,30 @@ export const useStore = create<AppState>()(
           projects: [...state.data.projects.filter(p => p.name !== project.name), project]
         }
       })),
+
+      toggleRemarkStatus: (drawingId, remarkId) => set((state) => {
+        const { activeProjectId } = state;
+        if (!activeProjectId) return state;
+
+        return {
+          data: {
+            ...state.data,
+            projects: state.data.projects.map(p => {
+              if (p.id !== activeProjectId) return p;
+              return {
+                ...p,
+                drawings: p.drawings.map(d => {
+                  if (d.id !== drawingId) return d;
+                  return {
+                    ...d,
+                    remarks: d.remarks.map(r => r.id === remarkId ? { ...r, resolved: !r.resolved } : r)
+                  };
+                })
+              };
+            })
+          }
+        };
+      }),
     }),
     {
       name: 'marine-drawings-v3-storage-webdav',

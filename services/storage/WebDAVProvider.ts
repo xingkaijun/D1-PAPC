@@ -349,4 +349,19 @@ export class WebDAVProvider implements IStorageProvider {
             return Promise.all(snapPromises);
         } catch (e) { console.warn("Load snapshots failed", e); return []; }
     }
+
+    async createSnapshot(project: Project, note: string): Promise<boolean> {
+        console.warn("createSnapshot not supported in WebDAV");
+        return false;
+    }
+
+    async restoreSnapshot(project: Project, snapshot: ProjectSnapshot): Promise<boolean> {
+        console.warn("restoreSnapshot not supported in WebDAV");
+        return false;
+    }
+
+    async deleteSnapshot(project: Project, snapshotId: string): Promise<boolean> {
+        console.warn("deleteSnapshot not supported in WebDAV");
+        return false;
+    }
 }

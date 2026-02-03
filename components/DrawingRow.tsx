@@ -13,9 +13,9 @@ interface DrawingRowProps {
     activeProjectId: string;
     isExpanded: boolean;
     onToggleExpand: (id: string) => void;
-    updateDrawing: (projectId: string, drawingId: string, updates: Partial<Drawing>) => void;
-    deleteDrawing: (projectId: string, drawingId: string) => void;
-    toggleRemarkStatus: (projectId: string, drawingId: string, remarkId: string) => void;
+    updateDrawing: (id: string, updates: Partial<Drawing>) => void;
+    deleteDrawing: (id: string) => void;
+    toggleRemarkStatus: (drawingId: string, remarkId: string) => void;
     reviewers: (string | { id: string, name: string })[];
     derivedDisciplines: string[];
 }
@@ -175,7 +175,7 @@ export const DrawingRow = memo(({
                     <input
                         disabled={!isEditMode}
                         type="text" value={drawing.version}
-                        onChange={(e) => updateDrawing(activeProjectId, drawing.id, { version: e.target.value })}
+                        onChange={(e) => updateDrawing(drawing.id, { version: e.target.value })}
                         className={`w-full bg-slate-100/50 border-none rounded-md text-[9px] font-black text-center py-0.5 focus:bg-white ${!isEditMode ? 'cursor-not-allowed text-slate-400' : ''}`}
                     />
                 </td>
@@ -186,7 +186,7 @@ export const DrawingRow = memo(({
                     <select
                         disabled={!isEditMode}
                         value={drawing.discipline}
-                        onChange={(e) => updateDrawing(activeProjectId, drawing.id, { discipline: e.target.value })}
+                        onChange={(e) => updateDrawing(drawing.id, { discipline: e.target.value })}
                         className={`w-full bg-transparent border-none text-[9px] font-black uppercase text-slate-500 p-0 ${!isEditMode ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                         {derivedDisciplines.map(d => <option key={d} value={d}>{d}</option>)}
@@ -214,10 +214,10 @@ export const DrawingRow = memo(({
                     })() : <span className="text-slate-200">—</span>}
                 </td>
                 <td className="px-1 py-2">
-                    <MultiAssigneeDropdown disabled={!isEditMode} drawing={drawing} reviewers={reviewers} onUpdate={(ids) => updateDrawing(activeProjectId, drawing.id, { assignees: ids })} />
+                    <MultiAssigneeDropdown disabled={!isEditMode} drawing={drawing} reviewers={reviewers} onUpdate={(ids) => updateDrawing(drawing.id, { assignees: ids })} />
                 </td>
                 <td className="px-3 py-2 text-center">
-                    <StatusBadge disabled={!isEditMode} drawing={drawing} onStatusChange={(s) => updateDrawing(activeProjectId, drawing.id, { status: s })} />
+                    <StatusBadge disabled={!isEditMode} drawing={drawing} onStatusChange={(s) => updateDrawing(drawing.id, { status: s })} />
                 </td>
                 <td className="px-3 py-2 text-center group/cell">
                     <input
@@ -225,7 +225,7 @@ export const DrawingRow = memo(({
                         min="0"
                         disabled={!isEditMode}
                         value={drawing.manualCommentsCount}
-                        onChange={(e) => updateDrawing(activeProjectId, drawing.id, { manualCommentsCount: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => updateDrawing(drawing.id, { manualCommentsCount: parseInt(e.target.value) || 0 })}
                         className={`w-full bg-slate-100/50 border-none rounded-md text-[10px] font-black text-center py-0.5 focus:bg-white focus:ring-1 focus:ring-teal-500/30 ${!isEditMode ? 'cursor-not-allowed text-slate-400' : ''}`}
                     />
                 </td>
@@ -235,7 +235,7 @@ export const DrawingRow = memo(({
                         min="0"
                         disabled={!isEditMode}
                         value={drawing.manualOpenCommentsCount}
-                        onChange={(e) => updateDrawing(activeProjectId, drawing.id, { manualOpenCommentsCount: parseInt(e.target.value) || 0 })}
+                        onChange={(e) => updateDrawing(drawing.id, { manualOpenCommentsCount: parseInt(e.target.value) || 0 })}
                         className={`w-full border-none rounded-md text-[10px] font-black text-center py-0.5 focus:bg-white focus:ring-1 focus:ring-teal-500/30 ${drawing.manualOpenCommentsCount > 0 ? 'bg-red-50 text-red-500' : 'bg-slate-100/50 text-slate-400'} ${!isEditMode ? 'cursor-not-allowed' : ''}`}
                     />
                 </td>
@@ -245,7 +245,7 @@ export const DrawingRow = memo(({
                     </div>
                 </td>
                 <td className="px-3 py-2 text-right">
-                    <button disabled={!isEditMode} onClick={() => deleteDrawing(activeProjectId, drawing.id)} className={`p-1.5 transition-colors ${!isEditMode ? 'text-slate-100 cursor-not-allowed' : 'text-slate-200 hover:text-red-500'}`}>
+                    <button disabled={!isEditMode} onClick={() => deleteDrawing(drawing.id)} className={`p-1.5 transition-colors ${!isEditMode ? 'text-slate-100 cursor-not-allowed' : 'text-slate-200 hover:text-red-500'}`}>
                         <Trash2 size={12} />
                     </button>
                 </td>
@@ -286,7 +286,7 @@ export const DrawingRow = memo(({
 
                                         return (
                                             <div key={r.id} className={`text-[9px] px-3 py-1.5 rounded-lg flex items-start gap-2 transition-colors ${bgClass} ${r.resolved ? 'opacity-50 grayscale' : ''}`}>
-                                                <button disabled={!isEditMode} onClick={() => toggleRemarkStatus(activeProjectId, drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-slate-400' : iconClass} ${!isEditMode ? 'cursor-not-allowed opacity-50' : 'hover:opacity-80'}`}>
+                                                <button disabled={!isEditMode} onClick={() => toggleRemarkStatus(drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-slate-400' : iconClass} ${!isEditMode ? 'cursor-not-allowed opacity-50' : 'hover:opacity-80'}`}>
                                                     {r.resolved ? <CheckCircle2 size={14} /> : <Circle size={14} fill="currentColor" className="opacity-20" />}
                                                 </button>
                                                 <span className={`font-bold leading-normal flex-1 ${r.resolved ? 'line-through' : ''}`}>{r.content}</span>

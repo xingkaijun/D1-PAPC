@@ -40,4 +40,19 @@ export interface IStorageProvider {
      * Load all snapshots for a project
      */
     loadSnapshots(project: Project): Promise<ProjectSnapshot[]>;
+
+    /**
+     * Create a new snapshot
+     */
+    createSnapshot(project: Project, note: string): Promise<boolean>;
+
+    /**
+     * Restore a snapshot
+     */
+    restoreSnapshot(project: Project, snapshot: ProjectSnapshot): Promise<boolean>;
+
+    /**
+     * Delete a snapshot
+     */
+    deleteSnapshot(project: Project, snapshotId: string): Promise<boolean>;
 }
