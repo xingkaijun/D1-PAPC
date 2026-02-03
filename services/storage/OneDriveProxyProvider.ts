@@ -21,7 +21,12 @@ export class OneDriveProxyProvider implements IStorageProvider {
         const proxyBase = this.getProxyUrl();
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
 
-        const url = new URL(`${proxyBase}/${cleanPath}`);
+        // Handle relative URLs (for Vercel/Production)
+        const fullUrlString = proxyBase.startsWith('http')
+            ? `${proxyBase}/${cleanPath}`
+            : `${window.location.origin}${proxyBase}/${cleanPath}`;
+
+        const url = new URL(fullUrlString);
         if (options.action) url.searchParams.append('action', options.action);
 
         const fetchOpts: RequestInit = {
