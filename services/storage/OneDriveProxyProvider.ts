@@ -78,18 +78,23 @@ export class OneDriveProxyProvider implements IStorageProvider {
         return Array.from(statsMap.values());
     }
 
-    // Helper to standardise Proxy Calls
+    // ── 唯一修改的地方：把 path 从 URL 路径改成 query param ──
+    // 之前: /api/proxy/ProjectA/settings.json?action=content  (Vercel 匹配不到)
+    // 现在: /api/proxy?action=content&path=ProjectA/settings.json  (正确)
     private async callProxy(path: string, options: { method?: string; body?: any; action?: string } = {}) {
         const proxyBase = this.getProxyUrl();
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
 
-        // Handle relative URLs (for Vercel/Production)
-        const fullUrlString = proxyBase.startsWith('http')
-            ? `${proxyBase}/${cleanPath}`
-            : `${window.location.origin}${proxyBase}/${cleanPath}`;
+        // 解析 base URL
+        const baseUrl = proxyBase.startsWith('http')
+            ? proxyBase
+            : `${window.location.origin}${proxyBase}`;
 
-        const url = new URL(fullUrlString);
+        const url = new URL(baseUrl);
+
+        // action 和 path 都放进 query param
         if (options.action) url.searchParams.append('action', options.action);
+        if (cleanPath) url.searchParams.append('path', cleanPath);
 
         const fetchOpts: RequestInit = {
             method: options.method || 'GET',
@@ -299,6 +304,7 @@ export class OneDriveProxyProvider implements IStorageProvider {
     }
 
 
+
     async createSnapshot(project: Project, note: string): Promise<boolean> {
         const folderName = project.name;
         const now = new Date();
@@ -362,29 +368,6 @@ export class OneDriveProxyProvider implements IStorageProvider {
     }
 
     async restoreSnapshot(project: Project, snapshot: ProjectSnapshot): Promise<boolean> {
-        // 1. Get snapshot content
-        // We need the file name. 
-        // We constructed it from ID in typical graph usage, but here we listing files.
-        // Wait, in loadSnapshots we mapped item.id to id. 
-        // But to READ file content by path, we need the filename.
-        // Graph API: accessing via ID is better if we have it. 
-        // But our proxy expects PATH.
-        // We'll have to rely on `snapshot.id` actually being the ID?
-        // OR, we assume we need to find the filename?
-        // Let's IMPROVE loadSnapshots to store filename in ID or a new field?
-        // `ProjectSnapshot` interface (types.ts) usually has `id`.
-
-        // Let's Try to use ID if proxy supports it? Proxy supports paths.
-        // Let's assume we can't easily get path from ID without querying.
-        // REFACTOR: loadSnapshots to store FILENAME as ID? 
-        // Or we just re-list to find it?
-
-        // Let's assume for now we use the ID as the file name if we can, or we fix loadSnapshots to put filename in ID?
-        // Actually, item.name IS the filename.
-        // Let's update loadSnapshots to put `item.name` as `id` or add a `fileName` field if types allow.
-        // Looking at types.ts (I recall): ProjectSnapshot { id: string, ... }
-        // I will update loadSnapshots to use item.name as ID.
-
         const fileName = snapshot.id; // We will ensure loadSnapshots sets this
         const folderName = project.name;
 
@@ -393,9 +376,6 @@ export class OneDriveProxyProvider implements IStorageProvider {
             const snapshotData = await res.json();
 
             // 2. Restore to main file
-            // We just call saveProject logic but with this data?
-            // Merge it into current project and save.
-
             const restoredProject: Project = {
                 ...project,
                 ...snapshotData
