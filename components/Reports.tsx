@@ -114,6 +114,13 @@ export const Reports: React.FC = () => {
   const drawings = project.drawings;
   const snapshots = project.snapshots || [];
 
+  // Auto-fetch snapshots on mount
+  React.useEffect(() => {
+    if (activeProjectId) {
+      refreshSnapshots(activeProjectId);
+    }
+  }, [activeProjectId]);
+
   // Local state for Snapshot filtering
   const [selectedSnapshotIds, setSelectedSnapshotIds] = useState<string[]>([]);
 
@@ -438,72 +445,71 @@ export const Reports: React.FC = () => {
         </div>
       </div>
 
-      {/* Snapshot Registry Card (Screen only) */}
-      {snapshots.length > 0 && (
-        <div className="mx-auto my-6 max-w-[210mm] no-print">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 rounded-xl">
-                  <History size={16} className="text-indigo-600" />
-                </div>
-                <div>
-                  <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Snapshot Registry</h3>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{snapshots.length} Captured | {activeSnapshots.length} Selected</p>
-                </div>
+      {/* Snapshot Registry Card (Always Visible) */}
+      <div className="mx-auto my-6 max-w-[210mm] no-print">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-50 rounded-xl">
+                <History size={16} className="text-indigo-600" />
               </div>
-              <button
-                onClick={() => refreshSnapshots(activeProjectId!)}
-                disabled={isLoading}
-                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
-              >
-                <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} /> Refresh List
-              </button>
+              <div>
+                <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Snapshot Registry</h3>
+                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{snapshots.length} Captured | {activeSnapshots.length} Selected</p>
+              </div>
             </div>
-            <div className="grid grid-cols-6 gap-2">
-              {snapshots.slice().reverse().map((s) => {
-                const isSelected = selectedSnapshotIds.includes(s.id);
-                return (
-                  <div key={s.id}
-                    className={`border p-3 rounded-xl flex flex-col items-center justify-between transition-all group cursor-pointer relative ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
-                    onClick={() => {
-                      setSelectedSnapshotIds(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
-                    }}
-                  >
-                    <div className="absolute top-2 right-2">
-                      <div className={`w-3 h-3 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-slate-300'}`}>
-                        {isSelected && <CheckCircle size={8} className="text-white" />}
-                      </div>
+            <button
+              onClick={() => refreshSnapshots(activeProjectId!)}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
+            >
+              <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} /> Refresh List
+            </button>
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            {snapshots.slice().reverse().map((s) => {
+              const isSelected = selectedSnapshotIds.includes(s.id);
+              return (
+                <div key={s.id}
+                  className={`border p-3 rounded-xl flex flex-col items-center justify-between transition-all group cursor-pointer relative ${isSelected ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
+                  onClick={() => {
+                    setSelectedSnapshotIds(prev => prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]);
+                  }}
+                >
+                  <div className="absolute top-2 right-2">
+                    <div className={`w-3 h-3 rounded border flex items-center justify-center ${isSelected ? 'bg-indigo-500 border-indigo-500' : 'bg-white border-slate-300'}`}>
+                      {isSelected && <CheckCircle size={8} className="text-white" />}
                     </div>
-
-                    <div className="flex flex-col items-center mb-2 mt-1">
-                      <span className={`text-[9px] font-black uppercase leading-none ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
-                        {(() => {
-                          try { return format(new Date(s.timestamp), 'MM-dd'); } catch { return 'Err'; }
-                        })()}
-                      </span>
-                      <span className={`text-[7px] font-mono mt-1 ${isSelected ? 'text-indigo-400' : 'text-slate-400'}`}>
-                        {(() => {
-                          try { return format(new Date(s.timestamp), 'HH:mm'); } catch { return '--:--'; }
-                        })()}
-                      </span>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id);
-                      }}
-                      className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 z-10"
-                    >
-                      <Trash2 size={12} />
-                    </button>
                   </div>
-                )
-              })}
-            </div>
+
+                  <div className="flex flex-col items-center mb-2 mt-1">
+                    <span className={`text-[9px] font-black uppercase leading-none ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
+                      {(() => {
+                        try { return format(new Date(s.timestamp), 'MM-dd'); } catch { return 'Err'; }
+                      })()}
+                    </span>
+                    <span className={`text-[7px] font-mono mt-1 ${isSelected ? 'text-indigo-400' : 'text-slate-400'}`}>
+                      {(() => {
+                        try { return format(new Date(s.timestamp), 'HH:mm'); } catch { return '--:--'; }
+                      })()}
+                    </span>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.confirm('Delete snapshot?') && deleteSnapshot(activeProjectId!, s.id);
+                    }}
+                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 z-10"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
-      )}
+      </div>
+
 
       {/* --- PAGE 1: PROJECT INTELLIGENCE DASHBOARD --- */}
       <ReportPage pageNumber={1} totalPages={totalPages} projectName={project.name}>
@@ -743,6 +749,13 @@ export const Reports: React.FC = () => {
               </div>
             )}
 
+            {/* Chart Description */}
+            <div className="px-4 mb-2 mt-6 flex items-center justify-between">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                Snapshot Activity Trend: Submissions vs. Approvals
+              </span>
+            </div>
+
             {/* Margins increased to top: 30 to prevent label clipping */}
             <div className="h-[220px] bg-slate-50/50 rounded-2xl p-4 border border-slate-100 shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -767,6 +780,7 @@ export const Reports: React.FC = () => {
                   <Bar dataKey="Approved" fill="#10b981" radius={[2, 2, 0, 0]}>
                     <LabelList dataKey="Approved" position="top" style={{ fill: '#10b981', fontSize: 9, fontWeight: 900 }} />
                   </Bar>
+                  <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '10px' }} />
 
                 </BarChart>
               </ResponsiveContainer>
@@ -790,10 +804,14 @@ export const Reports: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="text-[7px] font-black text-slate-700 uppercase truncate">{disc.name}</div>
                         <div className="flex items-center gap-1 mt-0.5">
-                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden print:bg-none print:border-b-[6px] print:border-slate-200 print:h-0 print:overflow-visible" style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}>
                             <div
-                              className="h-full bg-gradient-to-r from-red-500 to-orange-400 rounded-full"
-                              style={{ width: `${(disc.openComments / Math.max(...disciplineMainData.map(d => d.openComments), 1)) * 100}%` }}
+                              className="h-full bg-gradient-to-r from-red-500 to-orange-400 rounded-full print:bg-none print:border-b-[6px] print:border-red-500 print:h-0"
+                              style={{
+                                width: `${(disc.openComments / Math.max(...disciplineMainData.map(d => d.openComments), 1)) * 100}%`,
+                                printColorAdjust: 'exact',
+                                WebkitPrintColorAdjust: 'exact'
+                              }}
                             />
                           </div>
                           <span className="text-[7px] font-black text-red-600 w-6 text-right">{disc.openComments}</span>

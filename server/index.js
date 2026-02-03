@@ -59,41 +59,49 @@ app.get('/', (req, res) => {
 });
 
 // Proxy Middleware
-app.all('/api/proxy/*', async (req, res) => {
+const proxyHandler = async (req, res) => {
   const targetUserId = process.env.TARGET_USER_ID;
   if (!targetUserId) {
     return res.status(500).json({ error: "TARGET_USER_ID not configured on server" });
   }
 
-  const subPath = req.params[0]; // content after /api/proxy/
+  const subPath = req.params[0] || ''; // content after /api/proxy/
 
   try {
     const token = await getAccessToken();
 
     // Determine Graph API Endpoint
-    // 默认列出根目录元数据
-    let graphUrl = `https://graph.microsoft.com/v1.0/users/${targetUserId}/drive/root`;
+    // Determine Graph API Endpoint
+    const basePath = process.env.ONEDRIVE_BASE_PATH || '';
 
     // Normalize subpath
     const cleanPath = subPath ? subPath.replace(/^\//, '') : '';
-    // console.log(`[Proxy] Request: ${req.method} /${cleanPath} Action=${req.query.action}`);
 
-    const action = req.query.action || 'metadata';
+    // Combine base and clean path
+    let effectivePath = '';
+    if (basePath && cleanPath) {
+      effectivePath = `${basePath}/${cleanPath}`;
+    } else if (basePath) {
+      effectivePath = basePath;
+    } else {
+      effectivePath = cleanPath;
+    }
 
-    let pathPart = `:/${cleanPath}`;
-    if (cleanPath === '') pathPart = ''; // Root
+    // Ensure no leading or trailing slash for Graph API path syntax (root:/path)
+    effectivePath = effectivePath.replace(/^\/+|\/+$/g, '');
+
+    // Logic from server/index.js
+    let pathPart = effectivePath ? `:/${effectivePath}` : '';
 
     // Base Resource URL
     let resourceUrl = `https://graph.microsoft.com/v1.0/users/${targetUserId}/drive/root${pathPart}`;
 
-    if (cleanPath === '') {
-      // Root special case
-      resourceUrl = `https://graph.microsoft.com/v1.0/users/${targetUserId}/drive/root`;
-    }
+    const action = req.query.action || 'metadata';
+
 
     if (action === 'children') {
-      if (cleanPath !== '') resourceUrl += ':/children'; // for folder
-      else resourceUrl += '/children'; // for root
+      if (effectivePath !== '') resourceUrl += ':/children'; // for folder (base path or subpath)
+      else resourceUrl += '/children'; // for true root
     } else if (action === 'content') {
       resourceUrl += ':/content';
     } else if (action === 'create_upload_session') {
@@ -103,7 +111,15 @@ app.all('/api/proxy/*', async (req, res) => {
 
     graphUrl = resourceUrl;
 
-    // console.log(`[Proxy] ${req.method} ${subPath} -> ${graphUrl}`);
+    // console.log(`[Proxy] Request: ${req.method} /${cleanPath} Action=${req.query.action}`);
+
+    console.log(`[Proxy] Debug - Base: "${basePath}", cleanPath: "${cleanPath}", effective: "${effectivePath}", action: "${action}"`);
+
+    // Logic already applied above, no need to repeat
+
+    graphUrl = resourceUrl;
+
+    console.log(`[Proxy] ${req.method} ${subPath} -> ${graphUrl}`);
 
     const axiosConfig = {
       method: req.method,
@@ -130,7 +146,10 @@ app.all('/api/proxy/*', async (req, res) => {
     console.error("[Proxy] Error:", error.message);
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.all('/api/proxy', proxyHandler);
+app.all('/api/proxy/*', proxyHandler);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

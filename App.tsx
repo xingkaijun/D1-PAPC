@@ -45,7 +45,9 @@ import {
   RefreshCw,
   LayoutDashboard,
   BookOpen,
-  Lock
+  Lock,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -60,20 +62,38 @@ const App: React.FC = () => {
     loadProjectFromWebDAV,
     pushProjectToWebDAV,
     fetchGlobalSettingsFromWebDAV,
-    isEditMode
+    isEditMode,
+    setStorageMode
   } = useStore();
 
   const currentProject = data.projects.find(p => p.id === activeProjectId);
 
   const [showProjectSelector, setShowProjectSelector] = useState(true);
 
-  // Helper function to check WebDAV configuration
+  // Helper function to check Cloud configuration (WebDAV or OneDrive)
   const getWebDAVUrl = () => {
     const envUrl = import.meta.env.VITE_WEBDAV_URL;
     return (envUrl && envUrl.trim() !== '') ? envUrl : data.settings.webdavUrl;
   };
 
-  const isWebDAVConfigured = !!getWebDAVUrl();
+  const currentStorageType = data.settings.storage?.type || 'WEBDAV';
+  // If OneDrive, we assume it's configured via Proxy/Env. If WebDAV, we need URL.
+  const isWebDAVConfigured = currentStorageType === 'ONEDRIVE' ? true : !!getWebDAVUrl();
+
+  const handleStorageToggle = async () => {
+    const newType = currentStorageType === 'WEBDAV' ? 'ONEDRIVE' : 'WEBDAV';
+    setStorageMode({ type: newType });
+
+    // Trigger refresh to test connection/list
+    useStore.setState({ isLoading: true });
+    try {
+      await fetchProjectListFromWebDAV();
+    } catch (e) {
+      console.warn("Switch refresh failed", e);
+    } finally {
+      useStore.setState({ isLoading: false });
+    }
+  };
 
   // 1. Startup Logic: Server First - FETCH LIST ONLY
   useEffect(() => {
@@ -205,13 +225,36 @@ const App: React.FC = () => {
     }
   };
 
+  const carouselRef = React.useRef<HTMLDivElement>(null);
+
+  const scrollLeft = () => {
+    if (carouselRef.current) {
+      carouselRef.current.scrollBy({ left: -400, behavior: 'smooth' });
+    }
+  };
+
+  const scrollRight = () => {
+    if (carouselRef.current) {
+      carouselRef.current.scrollBy({ left: 400, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-[#F8FAFC] text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans overflow-hidden">
+
+      <style>{`
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}</style>
 
       {/* Project Selector Overlay (Blocking) */}
       {showProjectSelector && !isLoading && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-50 overflow-hidden">
-          <div className="bg-white/80 backdrop-blur-xl w-full max-w-5xl h-[80vh] rounded-[3rem] shadow-2xl border border-white/50 flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
+          <div className="bg-white/90 backdrop-blur-2xl w-full max-w-[95vw] h-[90vh] rounded-[3rem] shadow-2xl border border-white/50 flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
 
             {/* Selector Header */}
             <div className="p-10 pb-6 flex items-center justify-between shrink-0">
@@ -229,100 +272,150 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-4">
-                {!isWebDAVConfigured && (
-                  <div className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-100 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                    <CloudOff size={14} /> Offline Mode
-                  </div>
-                )}
+                <button
+                  onClick={handleStorageToggle}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest transition-all"
+                  title="Switch Cloud Provider"
+                >
+                  <div className={`w-2 h-2 rounded-full ${isWebDAVConfigured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  {currentStorageType} {isWebDAVConfigured ? 'Ready' : 'Offline'}
+                </button>
                 <button onClick={handleGlobalRefresh} className="p-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl transition-all active:scale-95">
                   <RefreshCw size={20} />
                 </button>
               </div>
             </div>
 
-            {/* Project Grid */}
-            <div className="flex-1 overflow-y-auto p-10 pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 align-content-start scrollbar-thin">
+            {/* Project Carousel Container */}
+            <div className="flex-1 relative w-full overflow-hidden flex flex-col justify-center">
 
-              {/* New Project Card */}
-              <button onClick={handleAddProject} className="group flex flex-col items-center justify-center gap-4 p-8 rounded-[2.5rem] border-4 border-dashed border-slate-200 hover:border-teal-400 hover:bg-teal-50/50 transition-all min-h-[200px]">
-                <div className="w-16 h-16 rounded-full bg-slate-100 group-hover:bg-teal-100 flex items-center justify-center text-slate-300 group-hover:text-teal-600 transition-colors">
-                  <PlusCircle size={32} />
-                </div>
-                <span className="text-xs font-[1000] uppercase tracking-widest text-slate-400 group-hover:text-teal-600">Create New Registry</span>
+              {/* Left Arrow */}
+              <button
+                onClick={scrollLeft}
+                className="absolute left-10 z-10 w-24 h-24 rounded-full bg-white/80 backdrop-blur-md shadow-2xl border border-slate-100 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:scale-110 active:scale-95 transition-all"
+              >
+                <ChevronLeft size={48} strokeWidth={3} />
               </button>
 
-              {/* Project Items */}
-              {data.projects.map(p => {
-                const theme = getProjectTheme(p.id, p.name);
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelectProject(p.id)}
-                    className={`group relative flex flex-col p-8 rounded-[2.5rem] border shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:scale-[1.02] transition-all text-left min-h-[200px] ${theme.bg} ${theme.border} ${theme.hover}`}
-                  >
-                    <div className="mb-auto">
-                      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br mb-6 flex items-center justify-center font-black shadow-inner ${theme.iconBg} ${theme.iconText}`}>
-                        {p.name.substring(0, 2).toUpperCase()}
-                      </div>
-                      <h3 className="text-xl font-[1000] text-slate-800 uppercase tracking-tight mb-2 group-hover:text-teal-700 transition-colors">{p.name}</h3>
+              {/* Right Arrow */}
+              <button
+                onClick={scrollRight}
+                className="absolute right-10 z-10 w-24 h-24 rounded-full bg-white/80 backdrop-blur-md shadow-2xl border border-slate-100 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:scale-110 active:scale-95 transition-all"
+              >
+                <ChevronRight size={48} strokeWidth={3} />
+              </button>
 
-                      {/* Stats Grid */}
-                      {(p.drawings?.length || 0) > 0 ? (
-                        <div className="mt-4 space-y-4">
-                          {/* Progress Bar */}
-                          <div>
-                            <div className="flex justify-between items-end mb-1">
-                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Completion</span>
-                              <span className="text-lg font-[1000] text-teal-600">
-                                {Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%
-                              </span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-teal-500 rounded-full transition-all duration-1000 ease-out"
-                                style={{ width: `${Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%` }}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                              <span className="block text-[8px] font-black uppercase text-slate-400 tracking-wider">Total</span>
-                              <span className="block text-sm font-[1000] text-slate-700">{p.drawings?.length}</span>
-                            </div>
-                            <div className="bg-teal-50 p-2 rounded-xl border border-teal-100">
-                              <span className="block text-[8px] font-black uppercase text-teal-600/70 tracking-wider">Approved</span>
-                              <span className="block text-sm font-[1000] text-teal-600">
-                                {p.drawings?.filter(d => d.status === 'Approved').length || 0}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2 bg-slate-50 p-2 rounded-lg inline-block">
-                          Ready to Load
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="mt-6 flex items-center justify-between border-t border-slate-50 pt-4">
-                      <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wider">
-                        Updated: {p.lastUpdated ? format(new Date(p.lastUpdated), 'yyyy-MM-dd HH:mm') : 'N/A'}
-                      </span>
-                      <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-teal-600 group-hover:text-white transition-all">
-                        <ChevronDown size={16} className="-rotate-90" />
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-
-              {data.projects.length === 0 && (
-                <div className="col-span-full py-20 text-center opacity-30">
-                  <h3 className="text-4xl font-[1000] text-slate-300 uppercase tracking-tighter mb-4">No Projects Found</h3>
-                  <p className="text-sm font-bold uppercase tracking-widest text-slate-400">Create a new one to get started</p>
+              {/* Carousel Scroll Area */}
+              <div
+                ref={carouselRef}
+                className="flex items-center gap-12 overflow-x-auto px-40 py-10 scroll-smooth w-full h-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
+                style={{ scrollSnapType: 'x mandatory' }}
+              >
+                {/* Company Logo Card */}
+                {/* Company Logo Card */}
+                <div
+                  className="group shrink-0 relative flex flex-col items-center justify-center rounded-[3rem] border border-slate-100 bg-slate-50 shadow-xl shadow-slate-200/50 w-[450px] h-[65vh] overflow-hidden"
+                  style={{ scrollSnapAlign: 'center' }}
+                >
+                  <div className="w-full h-full flex items-center justify-center p-8">
+                    <img
+                      src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
+                      alt="Pacific Gas Logo"
+                      className="w-full h-auto max-h-[80%] object-contain drop-shadow-md opacity-90 scale-[3]"
+                    />
+                    {/* Bottom Mask to hide cut-off text */}
+                    <div className="absolute bottom-0 left-0 right-0 h-48 bg-slate-50" />
+                  </div>
                 </div>
-              )}
+
+                {/* Project Items */}
+                {data.projects.map(p => {
+                  const theme = getProjectTheme(p.id, p.name);
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelectProject(p.id)}
+                      className={`group shrink-0 relative flex flex-col p-12 rounded-[3rem] border shadow-2xl shadow-slate-200/50 hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] hover:scale-[1.02] transition-all text-left w-[450px] h-[65vh] ${theme.bg} ${theme.border}`}
+                      style={{ scrollSnapAlign: 'center' }}
+                    >
+                      <div className="mb-auto w-full">
+                        <div className={`w-28 h-28 rounded-3xl bg-gradient-to-br mb-10 flex items-center justify-center text-5xl font-black shadow-inner ${theme.iconBg} ${theme.iconText}`}>
+                          {p.name.substring(0, 2).toUpperCase()}
+                        </div>
+                        <h3 className="text-3xl font-[1000] text-slate-800 uppercase tracking-tight mb-4 group-hover:text-teal-700 transition-colors leading-none break-words">{p.name}</h3>
+
+                        {/* Stats Grid */}
+                        {(p.drawings?.length || 0) > 0 ? (
+                          <div className="mt-8 space-y-6">
+                            {/* Progress Bar */}
+                            <div>
+                              <div className="flex justify-between items-end mb-2">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Completion</span>
+                                <span className="text-2xl font-[1000] text-teal-600">
+                                  {Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%
+                                </span>
+                              </div>
+                              <div className="w-full h-3 bg-white/50 rounded-full overflow-hidden border border-white/50">
+                                <div
+                                  className="h-full bg-teal-500 rounded-full transition-all duration-1000 ease-out shadow-sm"
+                                  style={{ width: `${Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="bg-white/60 p-4 rounded-2xl border border-white/50">
+                                <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Total Items</span>
+                                <span className="block text-xl font-[1000] text-slate-700">{p.drawings?.length}</span>
+                              </div>
+                              <div className="bg-teal-50/80 p-4 rounded-2xl border border-teal-100/50">
+                                <span className="block text-[9px] font-black uppercase text-teal-600/70 tracking-wider mb-1">Approved</span>
+                                <span className="block text-xl font-[1000] text-teal-600">
+                                  {p.drawings?.filter(d => d.status === 'Approved').length || 0}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-4 bg-white/50 p-3 rounded-xl inline-block border border-white/50">
+                            Ready to Load
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-8 flex items-center justify-between border-t border-slate-900/5 pt-6">
+                        <span className="text-[10px] font-bold text-slate-400/80 uppercase tracking-wider">
+                          Updated: {p.lastUpdated ? format(new Date(p.lastUpdated), 'yyyy-MM-dd') : 'N/A'}
+                        </span>
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-300 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-sm">
+                          <ChevronDown size={20} className="-rotate-90" />
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {/* New Project Card (Moved to End) */}
+                <button
+                  onClick={handleAddProject}
+                  className="group shrink-0 relative flex flex-col items-center justify-center gap-6 p-10 rounded-[3rem] border-4 border-dashed border-slate-200 hover:border-teal-400 hover:bg-teal-50/50 transition-all w-[450px] h-[65vh]"
+                  style={{ scrollSnapAlign: 'center' }}
+                >
+                  <div className="w-32 h-32 rounded-full bg-slate-100 group-hover:bg-teal-100 flex items-center justify-center text-slate-300 group-hover:text-teal-600 transition-colors">
+                    <PlusCircle size={64} />
+                  </div>
+                  <span className="text-sm font-[1000] uppercase tracking-widest text-slate-400 group-hover:text-teal-600">Create New Registry</span>
+                </button>
+
+                {data.projects.length === 0 && (
+                  <div className="shrink-0 w-[300px] flex items-center justify-center opacity-30 px-10">
+                    <div className="text-center">
+                      <h3 className="text-2xl font-[1000] text-slate-300 uppercase tracking-tighter mb-2">No Projects</h3>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Add one to start</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Footer Actions */}
@@ -488,12 +581,16 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-8 mt-2 md:mt-0">
-          <div className="flex items-center gap-3">
-            <div className={`w - 2 h - 2 rounded - full transition - all duration - 1000 ${isWebDAVConfigured ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-slate-300'} `} />
+          <button
+            onClick={handleStorageToggle}
+            className="flex items-center gap-3 hover:bg-slate-100 rounded-lg px-2 py-1 transition-all cursor-pointer"
+            title="Click to Switch Storage Provider"
+          >
+            <div className={`w-2 h-2 rounded-full transition-all duration-1000 ${isWebDAVConfigured ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-slate-300'} `} />
             <span className={isWebDAVConfigured ? 'text-emerald-600 font-black' : 'text-slate-400'}>
-              Cloud Service: {isWebDAVConfigured ? 'WEBDAV CONNECTED' : 'OFFLINE'}
+              Cloud Service: {isWebDAVConfigured ? `${currentStorageType} CONNECTED` : 'OFFLINE'}
             </span>
-          </div>
+          </button>
           <div className="flex items-center gap-1.5 text-slate-300 group">
             <Code size={12} className="group-hover:text-teal-500 transition-colors" />
             <span className="tracking-widest">PA-V3.1-LTD</span>
