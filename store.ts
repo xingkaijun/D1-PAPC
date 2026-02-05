@@ -249,6 +249,10 @@ export const useStore = create<AppState>()(
                       const holidays = p.conf?.holidays || [];
                       changedDrawing.reviewDeadline = calculateDeadline(new Date(), cycleDays, holidays).toISOString();
                     }
+                    // 状态从 Reviewing 变为其他状态时，清除 Deadline
+                    else if (d.status === 'Reviewing' && updates.status !== 'Reviewing') {
+                      changedDrawing.reviewDeadline = undefined;
+                    }
                   }
 
                   // Detect Version Change
