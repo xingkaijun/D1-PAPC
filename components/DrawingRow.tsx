@@ -240,9 +240,13 @@ export const DrawingRow = memo(({
                     />
                 </td>
                 <td className="px-3 py-2 text-center">
-                    <div className={`w-5 h-5 rounded-lg flex items-center justify-center mx-auto transition-all ${drawing.status === 'Approved' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 scale-110' : 'bg-slate-100 text-slate-200'}`}>
+                    <button
+                        onClick={() => updateDrawing(drawing.id, { checked: !drawing.checked })}
+                        className={`w-5 h-5 rounded-lg flex items-center justify-center mx-auto transition-all cursor-pointer hover:scale-110 ${drawing.checked ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-100 text-slate-300 hover:bg-slate-200'}`}
+                        title="Toggle Check"
+                    >
                         <Check size={12} strokeWidth={4} />
-                    </div>
+                    </button>
                 </td>
                 <td className="px-3 py-2 text-right">
                     <button disabled={!isEditMode} onClick={() => deleteDrawing(drawing.id)} className={`p-1.5 transition-colors ${!isEditMode ? 'text-slate-100 cursor-not-allowed' : 'text-slate-200 hover:text-red-500'}`}>

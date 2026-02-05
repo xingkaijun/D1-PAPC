@@ -33,6 +33,7 @@ export interface Drawing {
   receivedDate?: string;
   category?: 'A' | 'B' | 'C';
   deadline?: string;
+  checked?: boolean;
   logs: DrawingLog[];
   remarks: Remark[];
   statusHistory: Remark[];
@@ -75,6 +76,7 @@ export interface ProjectConfig {
   displayName?: string; // Custom Project Display Name for Reports
   autoSyncInterval?: number; // Project-specific auto-sync interval
   lastUpdated?: string; // Last modification timestamp
+  defaultAssignees?: Record<string, string[]>; // Map discipline -> default assignee names
 }
 
 export interface Project {

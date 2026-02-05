@@ -214,7 +214,7 @@ export const DrawingList: React.FC = () => {
       }
     });
     if (newDrawings.length > 0) {
-      bulkImportDrawings(activeProjectId!, newDrawings);
+      bulkImportDrawings(newDrawings);
       setImportText('');
       setShowImportModal(false);
     }
@@ -243,7 +243,7 @@ export const DrawingList: React.FC = () => {
               <Printer size={14} /> Print List
             </button>
             <button
-              onClick={() => isEditMode && window.confirm("Reset team defaults?") && resetAllAssignees(activeProjectId!)}
+              onClick={() => isEditMode && window.confirm("Reset team defaults?") && resetAllAssignees()}
               disabled={!isEditMode}
               className={`px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${!isEditMode ? 'opacity-50 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-50 active:scale-95'}`}
             >
@@ -304,7 +304,7 @@ export const DrawingList: React.FC = () => {
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, stat: w }))} width={columnWidths.stat || 100}>Status</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 50}>Total Cmt</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, opn: w }))} width={columnWidths.opn || 50}>Open Cmt</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ok: w }))} width={columnWidths.ok || 50}>OK</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ok: w }))} width={columnWidths.ok || 50}>Check</ResizableHeader>
               <th className="px-3 py-3 w-10 bg-slate-50/50"></th>
             </tr>
           </thead>

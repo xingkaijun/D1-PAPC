@@ -49,7 +49,7 @@ export const CommandBar: React.FC = () => {
           d.drawingNo.toLowerCase() === id.toLowerCase()
         );
         if (drawing) {
-          updateDrawing(activeProjectId, drawing.id, { status: targetStatus });
+          updateDrawing(drawing.id, { status: targetStatus });
           foundCount++;
         }
       });
@@ -82,7 +82,7 @@ export const CommandBar: React.FC = () => {
         const commentMatch = actionPart.match(/^c[:：](\d+)\/(\d+)$/i);
         if (commentMatch) {
           const [, total, open] = commentMatch;
-          validDrawings.forEach(d => updateDrawing(activeProjectId, d.id, {
+          validDrawings.forEach(d => updateDrawing(d.id, {
             manualCommentsCount: parseInt(total),
             manualOpenCommentsCount: parseInt(open)
           }));
@@ -96,7 +96,7 @@ export const CommandBar: React.FC = () => {
           const updatePayload: any = {};
           if (type.toLowerCase() === 'v') updatePayload.version = value.trim();
           if (type.toLowerCase() === 'rd') updatePayload.currentRound = value.trim();
-          validDrawings.forEach(d => updateDrawing(activeProjectId, d.id, updatePayload));
+          validDrawings.forEach(d => updateDrawing(d.id, updatePayload));
           actionHandled = true;
         }
 
@@ -112,7 +112,7 @@ export const CommandBar: React.FC = () => {
 
           const date = new Date(dateStr);
           if (!isNaN(date.getTime())) {
-            validDrawings.forEach(d => updateDrawing(activeProjectId, d.id, { reviewDeadline: date.toISOString() }));
+            validDrawings.forEach(d => updateDrawing(d.id, { reviewDeadline: date.toISOString() }));
             actionHandled = true;
           } else {
             alert(`Invalid Date Format: ${val}`);
@@ -128,8 +128,8 @@ export const CommandBar: React.FC = () => {
           const isRemove = modifier === '-';
           const fullTag = `#${tagName.trim()}`;
           validDrawings.forEach(d => {
-            if (isRemove) deleteRemark(activeProjectId, d.id, fullTag);
-            else addRemark(activeProjectId, d.id, fullTag);
+            if (isRemove) deleteRemark(d.id, fullTag);
+            else addRemark(d.id, fullTag);
           });
           actionHandled = true;
         }
@@ -158,14 +158,14 @@ export const CommandBar: React.FC = () => {
             return { id: d.id, changes: { assignees: newAssignees } };
           });
 
-          batchUpdateDrawings(activeProjectId, updates);
+          batchUpdateDrawings(updates);
           actionHandled = true;
         }
 
         // D. Default: Add Remark (if none of above matched, and it's not empty)
         // Ensure it's not a malformed command? No, treat as text.
         if (!actionHandled && actionPart.trim()) {
-          validDrawings.forEach(d => addRemark(activeProjectId, d.id, actionPart.trim()));
+          validDrawings.forEach(d => addRemark(d.id, actionPart.trim()));
           actionHandled = true;
         }
 

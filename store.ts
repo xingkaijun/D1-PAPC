@@ -41,6 +41,10 @@ interface AppState {
   addDrawing: (drawing: Drawing) => void;
   updateDrawing: (id: string, updates: Partial<Drawing>) => void;
   deleteDrawing: (id: string) => void;
+  addRemark: (drawingId: string, content: string) => void;
+  deleteRemark: (drawingId: string, content: string) => void;
+  batchUpdateDrawings: (updates: { id: string; changes: Partial<Drawing> }[]) => void;
+  resetAllAssignees: () => void;
   bulkImportDrawings: (drawings: Drawing[]) => void;
   syncWithWebDAV: (password: string) => Promise<boolean>;
   loadFromWebDAV: () => Promise<void>;
@@ -286,6 +290,95 @@ export const useStore = create<AppState>()(
           data: {
             ...state.data,
             projects: state.data.projects.map(p => p.id === activeProjectId ? { ...p, drawings: p.drawings.filter(d => d.id !== id) } : p)
+          }
+        };
+      }),
+
+      addRemark: (drawingId, content) => set((state) => {
+        const { activeProjectId } = state;
+        if (!activeProjectId) return state;
+        return {
+          data: {
+            ...state.data,
+            projects: state.data.projects.map(p => {
+              if (p.id !== activeProjectId) return p;
+              return {
+                ...p,
+                drawings: p.drawings.map(d => {
+                  if (d.id !== drawingId) return d;
+                  const newRemark = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    content,
+                    createdAt: new Date().toISOString()
+                  };
+                  return { ...d, remarks: [...(d.remarks || []), newRemark] };
+                })
+              };
+            })
+          }
+        };
+      }),
+
+      deleteRemark: (drawingId, content) => set((state) => {
+        const { activeProjectId } = state;
+        if (!activeProjectId) return state;
+        return {
+          data: {
+            ...state.data,
+            projects: state.data.projects.map(p => {
+              if (p.id !== activeProjectId) return p;
+              return {
+                ...p,
+                drawings: p.drawings.map(d => {
+                  if (d.id !== drawingId) return d;
+                  return { ...d, remarks: (d.remarks || []).filter(r => r.content !== content) };
+                })
+              };
+            })
+          }
+        };
+      }),
+
+      batchUpdateDrawings: (updates) => set((state) => {
+        const { activeProjectId } = state;
+        if (!activeProjectId) return state;
+        return {
+          data: {
+            ...state.data,
+            projects: state.data.projects.map(p => {
+              if (p.id !== activeProjectId) return p;
+              return {
+                ...p,
+                drawings: p.drawings.map(d => {
+                  const update = updates.find(u => u.id === d.id);
+                  if (!update) return d;
+                  return { ...d, ...update.changes };
+                })
+              };
+            })
+          }
+        };
+      }),
+
+      resetAllAssignees: () => set((state) => {
+        const { activeProjectId, data } = state;
+        if (!activeProjectId) return state;
+        const project = data.projects.find(p => p.id === activeProjectId);
+        if (!project) return state;
+        const defaultAssignees = project.conf?.defaultAssignees || {};
+        return {
+          data: {
+            ...state.data,
+            projects: state.data.projects.map(p => {
+              if (p.id !== activeProjectId) return p;
+              return {
+                ...p,
+                drawings: p.drawings.map(d => ({
+                  ...d,
+                  assignees: defaultAssignees[d.discipline] || []
+                }))
+              };
+            })
           }
         };
       }),
