@@ -224,7 +224,55 @@ export const useStore = create<AppState>()(
               if (p.id !== activeProjectId) return p;
               return {
                 ...p,
-                drawings: p.drawings.map(d => d.id === id ? { ...d, ...updates } : d)
+                drawings: p.drawings.map(d => {
+                  if (d.id !== id) return d;
+
+                  // Change Detection: Track important field changes
+                  const changedDrawing = { ...d, ...updates };
+                  const changeLogs: string[] = [];
+
+                  // Detect Status Change
+                  if (updates.status && d.status !== updates.status) {
+                    changeLogs.push(`Status: ${d.status} -> ${updates.status}`);
+                  }
+
+                  // Detect Version Change
+                  if (updates.version && d.version !== updates.version) {
+                    changeLogs.push(`Version: ${d.version} -> ${updates.version}`);
+                  }
+
+                  // Detect Round Change
+                  if (updates.currentRound && d.currentRound !== updates.currentRound) {
+                    changeLogs.push(`Round: ${d.currentRound} -> ${updates.currentRound}`);
+                  }
+
+                  // Detect Comments Count Change
+                  if (
+                    (updates.manualCommentsCount !== undefined && d.manualCommentsCount !== updates.manualCommentsCount) ||
+                    (updates.manualOpenCommentsCount !== undefined && d.manualOpenCommentsCount !== updates.manualOpenCommentsCount)
+                  ) {
+                    const oldTotal = d.manualCommentsCount || 0;
+                    const oldOpen = d.manualOpenCommentsCount || 0;
+                    const newTotal = updates.manualCommentsCount !== undefined ? updates.manualCommentsCount : oldTotal;
+                    const newOpen = updates.manualOpenCommentsCount !== undefined ? updates.manualOpenCommentsCount : oldOpen;
+
+                    if (oldTotal !== newTotal || oldOpen !== newOpen) {
+                      changeLogs.push(`Comments: ${oldTotal}/${oldOpen} -> ${newTotal}/${newOpen}`);
+                    }
+                  }
+
+                  // Write to statusHistory if there are changes
+                  if (changeLogs.length > 0) {
+                    const newHistoryEntry = {
+                      id: Math.random().toString(36).substr(2, 9),
+                      content: changeLogs.join(' | '),
+                      createdAt: new Date().toISOString()
+                    };
+                    changedDrawing.statusHistory = [...(d.statusHistory || []), newHistoryEntry];
+                  }
+
+                  return changedDrawing;
+                })
               };
             })
           }

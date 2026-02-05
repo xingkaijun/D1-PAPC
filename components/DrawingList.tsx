@@ -394,6 +394,9 @@ export const DrawingList: React.FC = () => {
                 <td className="py-1.5 px-1 truncate max-w-[100px]">{drawing.discipline}</td>
                 <td className="py-1.5 px-1 font-medium truncate max-w-[200px]">{drawing.title}</td>
                 <td className="py-1.5 px-1 text-gray-600">{drawing.reviewDeadline ? new Date(drawing.reviewDeadline).toLocaleDateString() : '-'}</td>
+                <td className="py-1.5 px-1 text-center font-bold text-gray-700">
+                  {drawing.reviewDeadline ? Math.ceil((new Date(drawing.reviewDeadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : '-'}
+                </td>
                 <td className="py-1.5 px-1 truncate max-w-[100px]">{drawing.assignees.join(', ')}</td>
                 <td className="py-1.5 px-1 font-bold">
                   <span className={`${drawing.status === 'Approved' ? 'text-black' : drawing.status === 'Overdue' ? 'text-black font-extrabold underline' : 'text-gray-700'}`}>
