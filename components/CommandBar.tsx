@@ -35,6 +35,7 @@ export const CommandBar: React.FC = () => {
     // 1. Batch Status Update Detection (@R, @W, @A)
     const batchMatch = trimmedInput.match(/^@([RWA])\s+(.*)$/i);
     if (batchMatch) {
+      if (!isEditMode) { alert("Edit Mode Required for Status Update"); return; }
       const [, cmd, idString] = batchMatch;
       const statusMap: Record<string, DrawingStatus> = {
         'r': 'Reviewing', 'w': 'Waiting Reply', 'a': 'Approved'
@@ -81,6 +82,7 @@ export const CommandBar: React.FC = () => {
         // A. Comment Counts: c:10/2
         const commentMatch = actionPart.match(/^c[:：](\d+)\/(\d+)$/i);
         if (commentMatch) {
+          if (!isEditMode) { alert("Edit Mode Required for Comments Update"); return; }
           const [, total, open] = commentMatch;
           validDrawings.forEach(d => updateDrawing(d.id, {
             manualCommentsCount: parseInt(total),
@@ -92,6 +94,7 @@ export const CommandBar: React.FC = () => {
         // B. Version/Round: v:3 or rd:A
         const overrideMatch = actionPart.match(/^(v|rd)[:：](.+)$/i);
         if (!actionHandled && overrideMatch) {
+          if (!isEditMode) { alert("Edit Mode Required for Version/Round Update"); return; }
           const [, type, value] = overrideMatch;
           const updatePayload: any = {};
           if (type.toLowerCase() === 'v') updatePayload.version = value.trim();
@@ -103,6 +106,7 @@ export const CommandBar: React.FC = () => {
         // B2. Due Date: due:2026-02-15 OR dl:02-15
         const dueMatch = actionPart.match(/^(due|dl)[:：](.+)$/i);
         if (!actionHandled && dueMatch) {
+          if (!isEditMode) { alert("Edit Mode Required for Due Date Update"); return; }
           const [, , val] = dueMatch;
           let dateStr = val.trim();
           // Simple heuristic for MM-DD or MM.DD implying current year
@@ -137,6 +141,7 @@ export const CommandBar: React.FC = () => {
         // E. Assignees: to:Name, add:Name, rm:Name
         const assignMatch = actionPart.match(/^(assign|to|add|plus|rm|drop)[:：]\s*(.+)$/i);
         if (!actionHandled && assignMatch) {
+          if (!isEditMode) { alert("Edit Mode Required for Assignees Update"); return; }
           const [, cmd, namesStr] = assignMatch;
           const names = namesStr.split(/[,，\s]+/).map(n => n.trim()).filter(Boolean);
           const command = cmd.toLowerCase();
