@@ -238,6 +238,17 @@ export const useStore = create<AppState>()(
                   // Detect Status Change
                   if (updates.status && d.status !== updates.status) {
                     changeLogs.push(`Status: ${d.status} -> ${updates.status}`);
+
+                    // 状态变为 Reviewing 时自动生成 Deadline
+                    if (updates.status === 'Reviewing' && d.status !== 'Reviewing') {
+                      const round = changedDrawing.currentRound || 'A';
+                      const isRoundA = round.toUpperCase() === 'A';
+                      const cycleDays = isRoundA
+                        ? (p.conf?.roundACycle || 14)
+                        : (p.conf?.otherRoundsCycle || 7);
+                      const holidays = p.conf?.holidays || [];
+                      changedDrawing.reviewDeadline = calculateDeadline(new Date(), cycleDays, holidays).toISOString();
+                    }
                   }
 
                   // Detect Version Change

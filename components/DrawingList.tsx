@@ -122,7 +122,7 @@ export const DrawingList: React.FC = () => {
   const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   // Search state moved to store: filterQuery
-  const [statusFilter, setStatusFilter] = useState<DrawingStatus | 'Overdue' | null>(null);
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -143,9 +143,6 @@ export const DrawingList: React.FC = () => {
     if (!project) return [];
     const lowerSearch = filterQuery.toLowerCase();
 
-    // Reset to page 1 when filter changes
-    // (Handled by useEffect below)
-
     return (project.drawings || []).filter(d => {
       const matchesSearch = !filterQuery ||
         d.drawingNo.toLowerCase().includes(lowerSearch) ||
@@ -153,22 +150,31 @@ export const DrawingList: React.FC = () => {
         d.discipline.toLowerCase().includes(lowerSearch) ||
         d.customId.toLowerCase().includes(lowerSearch) ||
         (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch))) ||
-        (d.remarks && d.remarks.some(r => r.content.toLowerCase().includes(lowerSearch))); // Support searching tags/remarks
+        (d.remarks && d.remarks.some(r => r.content.toLowerCase().includes(lowerSearch)));
 
       if (!matchesSearch) return false;
 
-      if (statusFilter === 'Overdue') {
-        return d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
+      // 多选筛选逻辑
+      if (statusFilters.size === 0) return true;
+
+      const isOverdue = d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
+      const isChecked = d.checked === true;
+
+      // 检查是否匹配任一筛选条件
+      for (const filter of statusFilters) {
+        if (filter === 'Overdue' && isOverdue) return true;
+        if (filter === 'Checked' && isChecked) return true;
+        if (filter === 'Unchecked' && !isChecked) return true;
+        if (filter === d.status) return true;
       }
-      if (statusFilter) return d.status === statusFilter;
-      return true;
+      return false;
     });
-  }, [project, filterQuery, statusFilter]);
+  }, [project, filterQuery, statusFilters]);
 
   // Reset pagination when filter changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [filterQuery, statusFilter]);
+  }, [filterQuery, statusFilters]);
 
   // Calculate Paginated Data
   const paginatedDrawings = useMemo(() => {
@@ -276,13 +282,16 @@ export const DrawingList: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          <FilterButton active={statusFilter === null} onClick={() => setStatusFilter(null)} label="All Units" icon={<Layers size={12} />} color="slate" />
+          <FilterButton active={statusFilters.size === 0} onClick={() => setStatusFilters(new Set())} label="All Units" icon={<Layers size={12} />} color="slate" />
           <div className="w-px h-4 bg-slate-200 mx-1" />
-          <FilterButton active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} label="Pending" color="slate" count={(project.drawings || []).filter(d => d.status === 'Pending').length} />
-          <FilterButton active={statusFilter === 'Reviewing'} onClick={() => setStatusFilter('Reviewing')} label="Reviewing" color="teal" count={(project.drawings || []).filter(d => d.status === 'Reviewing').length} />
-          <FilterButton active={statusFilter === 'Waiting Reply'} onClick={() => setStatusFilter('Waiting Reply')} label="Waiting" color="cyan" count={(project.drawings || []).filter(d => d.status === 'Waiting Reply').length} />
-          <FilterButton active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} label="Approved" color="emerald" count={(project.drawings || []).filter(d => d.status === 'Approved').length} />
-          <FilterButton active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} label="Overdue" color="red" icon={<Layers size={12} />} count={(project.drawings || []).filter(d => d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline))).length} />
+          <FilterButton active={statusFilters.has('Pending')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Pending') ? n.delete('Pending') : n.add('Pending'); return n; })} label="Pending" color="slate" count={(project.drawings || []).filter(d => d.status === 'Pending').length} />
+          <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="teal" count={(project.drawings || []).filter(d => d.status === 'Reviewing').length} />
+          <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="cyan" count={(project.drawings || []).filter(d => d.status === 'Waiting Reply').length} />
+          <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={(project.drawings || []).filter(d => d.status === 'Approved').length} />
+          <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={(project.drawings || []).filter(d => d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline))).length} />
+          <div className="w-px h-4 bg-slate-200 mx-1" />
+          <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={(project.drawings || []).filter(d => d.checked).length} />
+          <FilterButton active={statusFilters.has('Unchecked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Unchecked') ? n.delete('Unchecked') : n.add('Unchecked'); return n; })} label="Unchecked" color="slate" count={(project.drawings || []).filter(d => !d.checked).length} />
         </div>
       </div>
 

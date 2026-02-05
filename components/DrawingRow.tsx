@@ -290,7 +290,7 @@ export const DrawingRow = memo(({
 
                                         return (
                                             <div key={r.id} className={`text-[9px] px-3 py-1.5 rounded-lg flex items-start gap-2 transition-colors ${bgClass} ${r.resolved ? 'opacity-50 grayscale' : ''}`}>
-                                                <button disabled={!isEditMode} onClick={() => toggleRemarkStatus(drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-slate-400' : iconClass} ${!isEditMode ? 'cursor-not-allowed opacity-50' : 'hover:opacity-80'}`}>
+                                                <button onClick={() => toggleRemarkStatus(drawing.id, r.id)} className={`mt-0.5 ${r.resolved ? 'text-slate-400' : iconClass} hover:opacity-80 cursor-pointer`}>
                                                     {r.resolved ? <CheckCircle2 size={14} /> : <Circle size={14} fill="currentColor" className="opacity-20" />}
                                                 </button>
                                                 <span className={`font-bold leading-normal flex-1 ${r.resolved ? 'line-through' : ''}`}>{r.content}</span>
@@ -306,8 +306,9 @@ export const DrawingRow = memo(({
                         </div>
                     </td>
                 </tr>
-            )}
-        </React.Fragment>
+            )
+            }
+        </React.Fragment >
     );
 });
 
