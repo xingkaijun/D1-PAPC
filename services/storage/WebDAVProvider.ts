@@ -220,30 +220,58 @@ export class WebDAVProvider implements IStorageProvider {
                 try {
                     const snapFolderUrl = `${folderUrl}snapshots/`;
                     const listRes = await fetch(snapFolderUrl, { method: 'PROPFIND', headers: { ...this.getAuthHeaders(), 'Depth': '1' } });
+
                     if (listRes.ok) {
                         const text = await listRes.text();
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(text, 'text/xml');
-                        const nodes = doc.getElementsByTagName("*");
-                        const snapFiles: { href: string }[] = [];
-                        for (let i = 0; i < nodes.length; i++) {
-                            if (nodes[i].localName === "href") {
-                                const href = nodes[i].textContent;
-                                if (href && href.endsWith('.json') && !href.endsWith('/')) {
-                                    snapFiles.push({ href });
-                                }
-                            }
-                        }
-                        snapFiles.sort((a, b) => b.href.localeCompare(a.href));
-                        const recentSnaps = snapFiles.slice(0, 10);
 
-                        const snapPromises = recentSnaps.map(s => {
-                            const itemUrlObj = new URL(s.href, targetUrl); // Resolve
-                            return fetch(itemUrlObj.href, { headers: this.getAuthHeaders() }).then(r => r.json());
+                        // Robust href extraction
+                        const hrefs: string[] = [];
+                        const responseOrPropstat = Array.from(doc.querySelectorAll('*'))
+                            .filter(el => el.localName === 'href');
+
+                        responseOrPropstat.forEach(el => {
+                            if (el.textContent) hrefs.push(el.textContent);
                         });
-                        snapshots = await Promise.all(snapPromises);
+
+                        const snapFiles = hrefs
+                            .filter(href => href.endsWith('.json') && !href.endsWith('/')) // Must be JSON file
+                            .map(href => {
+                                // Ensure absolute URL for sorting/fetching
+                                try {
+                                    return new URL(href, targetUrl).href;
+                                } catch (e) {
+                                    return href;
+                                }
+                            })
+                            // Filter out the folder itself or other non-snapshot files if any
+                            .filter(url => url.includes('/snapshots/'));
+
+                        // Sort descending (latest first, assuming ISO timestamp in filename or just alphabetical order)
+                        snapFiles.sort((a, b) => b.localeCompare(a));
+
+                        const recentSnaps = snapFiles.slice(0, 10);
+                        console.log(`[WebDAV] Loading ${recentSnaps.length} recent snapshots`);
+
+                        const snapPromises = recentSnaps.map(url =>
+                            fetch(url, { headers: this.getAuthHeaders() })
+                                .then(r => {
+                                    if (!r.ok) throw new Error(`Failed to load snapshot ${url}`);
+                                    return r.json();
+                                })
+                                .catch(e => {
+                                    console.warn("Snapshot load error:", e);
+                                    return null;
+                                })
+                        );
+
+                        const results = await Promise.all(snapPromises);
+                        snapshots = results.filter((s): s is ProjectSnapshot => s !== null);
                     }
-                } catch (e) { console.warn("Snapshot fetch warning", e); }
+                } catch (e) {
+                    console.warn("Snapshot fetch warning", e);
+                }
 
                 fullProject = {
                     ...mainData,
