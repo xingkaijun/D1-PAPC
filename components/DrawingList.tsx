@@ -160,14 +160,23 @@ export const DrawingList: React.FC = () => {
       const isOverdue = d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
       const isChecked = d.checked === true;
 
-      // 检查是否匹配任一筛选条件
+      // 检查是否同时满足所有筛选条件 (AND 逻辑)
       for (const filter of statusFilters) {
-        if (filter === 'Overdue' && isOverdue) return true;
-        if (filter === 'Checked' && isChecked) return true;
-        if (filter === 'Unchecked' && !isChecked) return true;
-        if (filter === d.status) return true;
+        let match = false;
+        if (filter === 'Overdue') {
+          match = !!isOverdue;
+        } else if (filter === 'Checked') {
+          match = !!isChecked;
+        } else if (filter === 'Unchecked') {
+          match = !isChecked;
+        } else {
+          // 默认为状态筛选
+          match = d.status === filter;
+        }
+
+        if (!match) return false;
       }
-      return false;
+      return true;
     });
   }, [project, filterQuery, statusFilters]);
 
