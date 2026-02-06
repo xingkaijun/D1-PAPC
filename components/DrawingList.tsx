@@ -167,8 +167,8 @@ export const DrawingList: React.FC = () => {
           match = !!isOverdue;
         } else if (filter === 'Checked') {
           match = !!isChecked;
-        } else if (filter === 'Unchecked') {
-          match = !isChecked;
+        } else if (filter === 'Checked') {
+          match = !!isChecked;
         } else {
           // 默认为状态筛选
           match = d.status === filter;
@@ -300,7 +300,6 @@ export const DrawingList: React.FC = () => {
           <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={(project.drawings || []).filter(d => d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline))).length} />
           <div className="w-px h-4 bg-slate-200 mx-1" />
           <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={(project.drawings || []).filter(d => d.checked).length} />
-          <FilterButton active={statusFilters.has('Unchecked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Unchecked') ? n.delete('Unchecked') : n.add('Unchecked'); return n; })} label="Unchecked" color="slate" count={(project.drawings || []).filter(d => !d.checked).length} />
         </div>
       </div>
 
