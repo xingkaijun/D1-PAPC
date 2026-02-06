@@ -378,6 +378,12 @@ export class WebDAVProvider implements IStorageProvider {
         } catch (e) { console.warn("Load snapshots failed", e); return []; }
     }
 
+    async loadAllSnapshots(project: Project): Promise<ProjectSnapshot[]> {
+        // For WebDAV, loadSnapshots already loads all snapshots without limit
+        // So we just delegate to it
+        return this.loadSnapshots(project);
+    }
+
     async createSnapshot(project: Project, note: string): Promise<boolean> {
         console.warn("createSnapshot not supported in WebDAV");
         return false;

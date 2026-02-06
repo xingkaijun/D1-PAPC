@@ -42,6 +42,11 @@ export interface IStorageProvider {
     loadSnapshots(project: Project): Promise<ProjectSnapshot[]>;
 
     /**
+     * Load ALL snapshots for a project (no limit)
+     */
+    loadAllSnapshots(project: Project): Promise<ProjectSnapshot[]>;
+
+    /**
      * Create a new snapshot
      */
     createSnapshot(project: Project, note: string): Promise<boolean>;

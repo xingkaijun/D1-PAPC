@@ -305,6 +305,75 @@ export class OneDriveProxyProvider implements IStorageProvider {
 
 
 
+    async loadAllSnapshots(project: Project): Promise<ProjectSnapshot[]> {
+        console.log("[OneDrive] Loading ALL snapshots...");
+        const folderName = project.name;
+        try {
+            // List children of 'snapshots' folder
+            const res = await this.callProxy(`${folderName}/snapshots`, { action: 'children' });
+            const data = await res.json();
+
+            if (!data.value || !Array.isArray(data.value)) return [];
+
+            // Filter and Sort Files First
+            const files = data.value
+                .filter((item: any) => item.name.endsWith('.json'))
+                .sort((a: any, b: any) => new Date(b.lastModifiedDateTime).getTime() - new Date(a.lastModifiedDateTime).getTime());
+
+            // Load ALL files (no limit)
+            console.log(`[OneDrive] Loading ${files.length} snapshots`);
+
+            // Fetch content for all files
+            const snapshots: ProjectSnapshot[] = await Promise.all(files.map(async (item: any) => {
+                // Parse name for note backup
+                const nameParts = item.name.replace('.json', '').split('_');
+                const nameNote = nameParts.length > 1 ? nameParts.slice(1).join('_') : 'Snapshot';
+
+                try {
+                    // Fetch Content
+                    const contentRes = await this.callProxy(`${folderName}/snapshots/${item.name}`, { action: 'content' });
+                    const content = await contentRes.json();
+
+                    // Extract Info
+                    const meta = content.snapshotMeta || {};
+                    const note = meta.note || nameNote;
+                    const timestamp = meta.createdAt || item.lastModifiedDateTime;
+
+                    // Get or Calculate Stats
+                    let stats = meta.stats;
+                    if (!stats && content.drawings) {
+                        stats = this.calculateStats(content.drawings);
+                    }
+
+                    return {
+                        id: item.name,
+                        timestamp: timestamp,
+                        createdAt: timestamp,
+                        note: note,
+                        stats: stats,
+                        data: null
+                    };
+                } catch (err) {
+                    console.warn(`Failed to load snapshot content ${item.name}`, err);
+                    // Return minimal info on failure
+                    return {
+                        id: item.name,
+                        timestamp: item.lastModifiedDateTime,
+                        createdAt: item.lastModifiedDateTime,
+                        note: nameNote,
+                        stats: [],
+                        data: null
+                    };
+                }
+            }));
+
+            return snapshots;
+        } catch (e) {
+            console.warn("Failed to load all snapshots", e);
+            return [];
+        }
+    }
+
     async createSnapshot(project: Project, note: string): Promise<boolean> {
         const folderName = project.name;
         const now = new Date();

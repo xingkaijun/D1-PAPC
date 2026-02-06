@@ -27,8 +27,8 @@ const StatusBadge = ({ drawing, onStatusChange, disabled }: { drawing: Drawing, 
         'Pending': 'bg-slate-100 text-slate-500 border-slate-200',
         'Reviewing': isOverdue
             ? 'bg-red-50 text-red-700 border-red-200 animate-pulse'
-            : 'bg-teal-50 text-teal-700 border-teal-200/50',
-        'Waiting Reply': 'bg-cyan-50 text-cyan-700 border-cyan-200/50',
+            : 'bg-amber-50 text-amber-700 border-amber-200/50',
+        'Waiting Reply': 'bg-blue-50 text-blue-700 border-blue-200/50',
         'Approved': 'bg-emerald-50 text-emerald-700 border-emerald-200/50',
     };
     return (

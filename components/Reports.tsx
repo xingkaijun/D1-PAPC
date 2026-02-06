@@ -20,7 +20,7 @@ const isWithinInterval = (date: Date, interval: { start: Date; end: Date }) => {
 };
 
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#94a3b8', '#8b5cf6', '#06b6d4', '#ec4899'];
-const HEALTH_COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#e2e8f0']; // Approved, Reviewing, Waiting, Pending
+const HEALTH_COLORS = ['#10b981', '#eab308', '#3b82f6', '#94a3b8']; // Approved, Reviewing, Waiting, Pending
 const HEALTH_LABELS = ['Approved', 'Reviewing', 'Waiting Reply', 'Pending'];
 
 // --- Helper Components for the New Structure ---
@@ -106,7 +106,7 @@ const StatCard: React.FC<{ label: string, value: string | number, icon: React.Re
 // --- Main Reports Component ---
 
 export const Reports: React.FC = () => {
-  const { activeProjectId, data, takeSnapshot, deleteSnapshot, refreshSnapshots, isLoading } = useStore();
+  const { activeProjectId, data, takeSnapshot, deleteSnapshot, refreshSnapshots, refreshAllSnapshots, isLoading } = useStore();
   const project = data.projects.find(p => p.id === activeProjectId);
 
   if (!project) return <div className="p-20 text-center text-slate-400 font-black uppercase tracking-widest">Select a project to view reports.</div>;
@@ -156,9 +156,9 @@ export const Reports: React.FC = () => {
   const pieData = useMemo(() => {
     const raw = [
       { name: 'Approved', value: stats.approved, color: '#10b981' },
-      { name: 'Reviewing', value: stats.reviewing, color: '#f59e0b' },
+      { name: 'Reviewing', value: stats.reviewing, color: '#eab308' },
       { name: 'Waiting Reply', value: drawings.filter(d => d.status === 'Waiting Reply').length, color: '#3b82f6' },
-      { name: 'Pending', value: drawings.filter(d => d.status === 'Pending').length, color: '#cbd5e1' },
+      { name: 'Pending', value: drawings.filter(d => d.status === 'Pending').length, color: '#94a3b8' },
     ];
     return raw.filter(d => d.value > 0).length > 0 ? raw.filter(d => d.value > 0) : [{ name: 'Empty', value: 1, color: '#f1f5f9' }];
   }, [stats, drawings]);
@@ -459,7 +459,7 @@ export const Reports: React.FC = () => {
               </div>
             </div>
             <button
-              onClick={() => refreshSnapshots(activeProjectId!)}
+              onClick={() => refreshAllSnapshots(activeProjectId!)}
               disabled={isLoading}
               className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all"
             >
@@ -712,7 +712,7 @@ export const Reports: React.FC = () => {
                       <tr className="bg-indigo-50/50 border-b border-indigo-100">
                         <th className="px-4 py-2 text-left text-[8px] font-black text-slate-500 uppercase tracking-wider">Discipline</th>
                         <th className="px-4 py-2 text-center text-[8px] font-black text-amber-600 uppercase tracking-wider">Under Review</th>
-                        <th className="px-4 py-2 text-center text-[8px] font-black text-cyan-600 uppercase tracking-wider">Waiting Reply</th>
+                        <th className="px-4 py-2 text-center text-[8px] font-black text-blue-600 uppercase tracking-wider">Waiting Reply</th>
                         <th className="px-4 py-2 text-center text-[8px] font-black text-emerald-600 uppercase tracking-wider">Approved</th>
                       </tr>
                     </thead>
@@ -729,7 +729,7 @@ export const Reports: React.FC = () => {
                           </td>
                           <td className="px-4 py-2 text-center">
                             {row.toWaiting > 0 ? (
-                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-cyan-100 text-cyan-700">
+                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-700">
                                 +{row.toWaiting}
                               </span>
                             ) : <span className="text-[9px] text-slate-300">-</span>}
@@ -771,11 +771,11 @@ export const Reports: React.FC = () => {
                     }}
                   />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#94a3b8' }} />
-                  <Bar dataKey="Under Review" fill="#f59e0b" radius={[2, 2, 0, 0]}>
-                    <LabelList dataKey="Under Review" position="top" style={{ fill: '#f59e0b', fontSize: 9, fontWeight: 900 }} />
+                  <Bar dataKey="Under Review" fill="#eab308" radius={[2, 2, 0, 0]}>
+                    <LabelList dataKey="Under Review" position="top" style={{ fill: '#eab308', fontSize: 9, fontWeight: 900 }} />
                   </Bar>
-                  <Bar dataKey="Waiting Reply" fill="#0d9488" radius={[2, 2, 0, 0]}>
-                    <LabelList dataKey="Waiting Reply" position="top" style={{ fill: '#0d9488', fontSize: 9, fontWeight: 900 }} />
+                  <Bar dataKey="Waiting Reply" fill="#3b82f6" radius={[2, 2, 0, 0]}>
+                    <LabelList dataKey="Waiting Reply" position="top" style={{ fill: '#3b82f6', fontSize: 9, fontWeight: 900 }} />
                   </Bar>
                   <Bar dataKey="Approved" fill="#10b981" radius={[2, 2, 0, 0]}>
                     <LabelList dataKey="Approved" position="top" style={{ fill: '#10b981', fontSize: 9, fontWeight: 900 }} />
@@ -1023,7 +1023,7 @@ export const Reports: React.FC = () => {
                           />
 
                           <Area yAxisId="right" type="monotone" dataKey="approvedCount" name="Approved" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
-                          <Area yAxisId="right" type="monotone" dataKey="reviewingCount" name="Reviewing" stroke="#f59e0b" strokeWidth={2} fill="#f59e0b" fillOpacity={0.1} />
+                          <Area yAxisId="right" type="monotone" dataKey="reviewingCount" name="Reviewing" stroke="#eab308" strokeWidth={2} fill="#eab308" fillOpacity={0.1} />
                           <Area yAxisId="right" type="monotone" dataKey="waitingReplyCount" name="Waiting Reply" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
 
                           {/* Comments on Left Axis */}

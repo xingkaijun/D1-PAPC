@@ -55,6 +55,7 @@ interface AppState {
   fetchProjectListFromWebDAV: () => Promise<void>;
   loadProjectFromWebDAV: (projectId: string, passwordInput?: string) => Promise<void>;
   refreshSnapshots: (projectId: string) => Promise<void>;
+  refreshAllSnapshots: (projectId: string) => Promise<void>;
   testWebDAVConnection: (url: string, user: string, pass: string, proxyUrl?: string) => Promise<{ success: boolean; message: string }>;
   takeSnapshot: (projectId: string) => Promise<void>;
   deleteSnapshot: (projectId: string, snapshotId: string) => Promise<void>;
@@ -508,6 +509,26 @@ export const useStore = create<AppState>()(
           }));
         } catch (err: any) {
           console.warn("Snapshot refresh failed", err);
+        }
+      },
+
+      refreshAllSnapshots: async (projectId: string) => {
+        const { data } = get();
+        const project = data.projects.find(p => p.id === projectId);
+        if (!project) return;
+
+        try {
+          const provider = getProvider(data.settings);
+          const snapshots = await provider.loadAllSnapshots(project);
+
+          set(state => ({
+            data: {
+              ...state.data,
+              projects: state.data.projects.map(p => p.id === projectId ? { ...p, snapshots } : p)
+            }
+          }));
+        } catch (err: any) {
+          console.warn("Snapshot refresh all failed", err);
         }
       },
 

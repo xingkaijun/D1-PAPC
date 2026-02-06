@@ -105,9 +105,9 @@ export const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ drawings, st
                                         labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
                                     >
                                         <Cell fill="#10b981" />
-                                        <Cell fill="#f59e0b" />
+                                        <Cell fill="#eab308" />
                                         <Cell fill="#3b82f6" />
-                                        <Cell fill="#cbd5e1" />
+                                        <Cell fill="#94a3b8" />
                                     </Pie>
                                 </PieChart>
                             </ResponsiveContainer>

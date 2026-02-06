@@ -132,7 +132,7 @@ export const DailyLogReport: React.FC = () => {
         ].join('\n');
 
         navigator.clipboard.writeText(text);
-        alert('已复制到剪贴板');
+        alert('Copied to clipboard');
     };
 
     // 导出为 CSV
@@ -155,7 +155,7 @@ export const DailyLogReport: React.FC = () => {
         return (
             <div className="p-8 text-center text-slate-400">
                 <FileText size={48} className="mx-auto mb-4 opacity-20" />
-                <p>请先选择一个项目</p>
+                <p>Please select a project first</p>
             </div>
         );
     }
@@ -164,8 +164,8 @@ export const DailyLogReport: React.FC = () => {
         <div className="h-full flex flex-col overflow-hidden">
             {/* Header */}
             <div className="p-6 pb-3 shrink-0">
-                <h2 className="text-2xl font-black text-slate-800 mb-2">每日变动清单</h2>
-                <p className="text-sm text-slate-500">基于 Log Stream 的变动追踪</p>
+                <h2 className="text-2xl font-black text-slate-800 mb-2">Daily Logs</h2>
+                <p className="text-sm text-slate-500">Track changes based on Log Stream</p>
             </div>
 
             {/* Controls */}
@@ -173,7 +173,7 @@ export const DailyLogReport: React.FC = () => {
                 <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
                     <div className="flex items-center gap-2 flex-1">
                         <Calendar size={18} className="text-slate-400" />
-                        <label className="text-sm font-bold text-slate-600">选择日期:</label>
+                        <label className="text-sm font-bold text-slate-600">Select Date:</label>
                         <input
                             type="date"
                             value={selectedDate}
@@ -188,14 +188,14 @@ export const DailyLogReport: React.FC = () => {
                             className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-colors"
                         >
                             <Copy size={14} />
-                            复制
+                            Copy
                         </button>
                         <button
                             onClick={handleExportCSV}
                             className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-bold transition-colors"
                         >
                             <Download size={14} />
-                            导出 CSV
+                            Export CSV
                         </button>
                     </div>
                 </div>
@@ -238,8 +238,8 @@ export const DailyLogReport: React.FC = () => {
                                     <td colSpan={7} className="px-4 py-12 text-center">
                                         <div className="text-slate-300">
                                             <FileText size={48} className="mx-auto mb-3 opacity-20" />
-                                            <p className="text-sm font-bold">该日期无变动记录</p>
-                                            <p className="text-xs mt-1">尝试选择其他日期或检查数据</p>
+                                            <p className="text-sm font-bold">No changes recorded for this date</p>
+                                            <p className="text-xs mt-1">Try selecting another date or check data</p>
                                         </div>
                                     </td>
                                 </tr>

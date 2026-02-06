@@ -1,10 +1,11 @@
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useStore } from '../store';
 import { Drawing, DrawingStatus } from '../types';
 import {
   Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Lock, Unlock
+  Lock, Unlock, X
 } from 'lucide-react';
 import { isAfter } from 'date-fns';
 import { DrawingRow } from './DrawingRow';
@@ -13,8 +14,8 @@ import { DrawingRow } from './DrawingRow';
 const FilterButton = ({ active, onClick, label, icon, color, count }: { active: boolean, onClick: () => void, label: string, icon?: React.ReactNode, color: string, count?: number }) => {
   const colorMap: any = {
     slate: active ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
-    teal: active ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/20' : 'bg-teal-50 text-teal-600 hover:bg-teal-100',
-    cyan: active ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/20' : 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100',
+    amber: active ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'bg-amber-50 text-amber-600 hover:bg-amber-100',
+    blue: active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100',
     emerald: active ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100',
     red: active ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-red-50 text-red-600 hover:bg-red-100 animate-pulse',
   };
@@ -124,6 +125,7 @@ export const DrawingList: React.FC = () => {
   // Search state moved to store: filterQuery
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showTeamSetupModal, setShowTeamSetupModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
 
@@ -133,6 +135,37 @@ export const DrawingList: React.FC = () => {
 
   const project = data.projects.find(p => p.id === activeProjectId);
   const reviewers = project?.conf?.reviewers || data.settings.reviewers;
+
+  // 当 Team Setup 弹窗打开时，自动初始化 defaultAssignees
+  useEffect(() => {
+    if (showTeamSetupModal && project) {
+      const disciplineDefaults = project.conf?.disciplineDefaults || {};
+      const currentDefaultAssignees = project.conf?.defaultAssignees || {};
+      let needsUpdate = false;
+      const updatedAssignees = { ...currentDefaultAssignees };
+
+      // 遍历所有 disciplineDefaults，确保每个有 default lead 的 discipline 都在 defaultAssignees 中
+      Object.keys(disciplineDefaults).forEach(discipline => {
+        const defaultLead = disciplineDefaults[discipline];
+        if (defaultLead && defaultLead.trim() !== '') {
+          // 如果该 discipline 还没有配置 defaultAssignees，或者 defaultLead 不在列表中
+          if (!updatedAssignees[discipline]) {
+            updatedAssignees[discipline] = [defaultLead];
+            needsUpdate = true;
+          } else if (!updatedAssignees[discipline].includes(defaultLead)) {
+            updatedAssignees[discipline] = [...updatedAssignees[discipline], defaultLead];
+            needsUpdate = true;
+          }
+        }
+      });
+
+      if (needsUpdate) {
+        useStore.getState().updateProjectConfig(project.id, {
+          defaultAssignees: updatedAssignees
+        });
+      }
+    }
+  }, [showTeamSetupModal, project?.id]);
 
   const derivedDisciplines = useMemo(() => {
     if (!project || !project.drawings) return [];
@@ -167,8 +200,8 @@ export const DrawingList: React.FC = () => {
           match = !!isOverdue;
         } else if (filter === 'Checked') {
           match = !!isChecked;
-        } else if (filter === 'Checked') {
-          match = !!isChecked;
+        } else if (filter === 'Unchecked') {
+          match = !isChecked;
         } else {
           // 默认为状态筛选
           match = d.status === filter;
@@ -179,6 +212,60 @@ export const DrawingList: React.FC = () => {
       return true;
     });
   }, [project, filterQuery, statusFilters]);
+
+  // 动态计算每个筛选按钮的数量（基于当前筛选结果）
+  const getFilterCount = useCallback((filterName: string) => {
+    if (!project) return 0;
+
+    // 创建一个包含该筛选条件的新 Set
+    const testFilters = new Set(statusFilters);
+    if (testFilters.has(filterName)) {
+      // 如果已经激活，返回当前筛选结果数量
+      return filteredDrawings.length;
+    } else {
+      // 如果未激活，添加该条件并计算
+      testFilters.add(filterName);
+    }
+
+    // 使用相同的筛选逻辑计算
+    return (project.drawings || []).filter(d => {
+      // 搜索框筛选（与主筛选逻辑保持一致）
+      const lowerSearch = filterQuery.toLowerCase();
+      const matchesSearch = !filterQuery ||
+        d.drawingNo.toLowerCase().includes(lowerSearch) ||
+        d.title.toLowerCase().includes(lowerSearch) ||
+        d.discipline.toLowerCase().includes(lowerSearch) ||
+        d.customId.toLowerCase().includes(lowerSearch) ||
+        (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch))) ||
+        (d.remarks && d.remarks.some(r => r.content.toLowerCase().includes(lowerSearch)));
+
+      if (!matchesSearch) return false;
+
+      // 如果没有筛选条件，显示所有
+      if (testFilters.size === 0) return true;
+
+      const isOverdue = d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
+      const isChecked = d.checked === true;
+
+      // 检查是否同时满足所有筛选条件
+      for (const filter of testFilters) {
+        let match = false;
+        if (filter === 'Overdue') {
+          match = !!isOverdue;
+        } else if (filter === 'Checked') {
+          match = !!isChecked;
+        } else if (filter === 'Unchecked') {
+          match = !isChecked;
+        } else {
+          match = d.status === filter;
+        }
+
+        if (!match) return false;
+      }
+      return true;
+    }).length;
+  }, [project, filterQuery, statusFilters, filteredDrawings]);
+
 
   // Reset pagination when filter changes
   React.useEffect(() => {
@@ -258,7 +345,7 @@ export const DrawingList: React.FC = () => {
               <Printer size={14} /> Print List
             </button>
             <button
-              onClick={() => isEditMode && window.confirm("Reset team defaults?") && resetAllAssignees()}
+              onClick={() => isEditMode && setShowTeamSetupModal(true)}
               disabled={!isEditMode}
               className={`px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${!isEditMode ? 'opacity-50 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-50 active:scale-95'}`}
             >
@@ -293,13 +380,14 @@ export const DrawingList: React.FC = () => {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
           <FilterButton active={statusFilters.size === 0} onClick={() => setStatusFilters(new Set())} label="All Units" icon={<Layers size={12} />} color="slate" />
           <div className="w-px h-4 bg-slate-200 mx-1" />
-          <FilterButton active={statusFilters.has('Pending')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Pending') ? n.delete('Pending') : n.add('Pending'); return n; })} label="Pending" color="slate" count={(project.drawings || []).filter(d => d.status === 'Pending').length} />
-          <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="teal" count={(project.drawings || []).filter(d => d.status === 'Reviewing').length} />
-          <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="cyan" count={(project.drawings || []).filter(d => d.status === 'Waiting Reply').length} />
-          <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={(project.drawings || []).filter(d => d.status === 'Approved').length} />
-          <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={(project.drawings || []).filter(d => d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline))).length} />
+          <FilterButton active={statusFilters.has('Pending')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Pending') ? n.delete('Pending') : n.add('Pending'); return n; })} label="Pending" color="slate" count={getFilterCount('Pending')} />
+          <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="amber" count={getFilterCount('Reviewing')} />
+          <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="blue" count={getFilterCount('Waiting Reply')} />
+          <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={getFilterCount('Approved')} />
+          <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={getFilterCount('Overdue')} />
           <div className="w-px h-4 bg-slate-200 mx-1" />
-          <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={(project.drawings || []).filter(d => d.checked).length} />
+          <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={getFilterCount('Checked')} />
+          <FilterButton active={statusFilters.has('Unchecked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Unchecked') ? n.delete('Unchecked') : n.add('Unchecked'); return n; })} label="Unchecked" color="slate" count={getFilterCount('Unchecked')} />
         </div>
       </div>
 
@@ -455,6 +543,110 @@ export const DrawingList: React.FC = () => {
             <div className="mt-4 flex justify-end gap-2">
               <button onClick={() => setShowImportModal(false)} className="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-50 rounded-xl transition-all">Discard</button>
               <button onClick={handleBulkImport} className="px-6 py-2 bg-teal-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-teal-500/20 hover:bg-teal-700 active:scale-95 transition-all">Execute Import</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTeamSetupModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md no-print">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl border border-slate-200 flex flex-col max-h-[80vh] animate-in zoom-in-95">
+            <div className="p-6 border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-50 rounded-xl">
+                    <Layers size={20} className="text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Team Setup</h3>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Configure default assignees for each discipline</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowTeamSetupModal(false)}
+                  className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="space-y-4">
+                {derivedDisciplines.map(discipline => {
+                  const currentDefaults = project?.conf?.defaultAssignees?.[discipline] || [];
+                  const availableReviewers = reviewers.map(r => typeof r === 'string' ? r : r.name);
+
+                  return (
+                    <div key={discipline} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] font-black uppercase text-slate-700 tracking-widest">{discipline}</span>
+                        <span className="text-[8px] font-black text-slate-400 uppercase">{currentDefaults.length} assigned</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {availableReviewers.map(reviewer => {
+                          const isSelected = currentDefaults.includes(reviewer);
+                          return (
+                            <button
+                              key={reviewer}
+                              onClick={() => {
+                                if (!project) return;
+                                const current = project.conf?.defaultAssignees || {};
+                                const disciplineAssignees = current[discipline] || [];
+                                const updated = isSelected
+                                  ? disciplineAssignees.filter(a => a !== reviewer)
+                                  : [...disciplineAssignees, reviewer];
+
+                                useStore.getState().updateProjectConfig(project.id, {
+                                  defaultAssignees: {
+                                    ...current,
+                                    [discipline]: updated
+                                  }
+                                });
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${isSelected
+                                ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                                : 'bg-white text-slate-600 hover:bg-indigo-50 border border-slate-200'
+                                }`}
+                            >
+                              {reviewer}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {derivedDisciplines.length === 0 && (
+                  <div className="text-center py-12 text-slate-400">
+                    <Layers size={48} className="mx-auto mb-4 opacity-20" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No disciplines found</p>
+                    <p className="text-[9px] font-bold text-slate-300 mt-1">Add drawings first</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3">
+              <button
+                onClick={() => setShowTeamSetupModal(false)}
+                className="px-6 py-2.5 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm("Apply team setup to all drawings? This will reset assignees based on discipline defaults.")) {
+                    resetAllAssignees();
+                    setShowTeamSetupModal(false);
+                  }
+                }}
+                className="px-6 py-2.5 bg-indigo-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 active:scale-95 transition-all"
+              >
+                Apply & Reset All
+              </button>
             </div>
           </div>
         </div>

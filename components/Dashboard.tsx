@@ -1,12 +1,12 @@
 
 import React from 'react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell, LabelList 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, LabelList
 } from 'recharts';
 import { useStore } from '../store';
-import { 
-  CheckCircle, Clock, AlertCircle, FileText 
+import {
+  CheckCircle, Clock, AlertCircle, FileText
 } from 'lucide-react';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
@@ -61,14 +61,14 @@ export const Dashboard: React.FC = () => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={disciplineData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} style={{fontSize: '10px', fontWeight: 'bold'}} />
-                <YAxis axisLine={false} tickLine={false} style={{fontSize: '10px'}} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} style={{ fontSize: '10px', fontWeight: 'bold' }} />
+                <YAxis axisLine={false} tickLine={false} style={{ fontSize: '10px' }} />
                 <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                <Legend iconType="circle" wrapperStyle={{fontSize: '10px'}} />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
                 <Bar dataKey="Approved" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]}>
                   <LabelList dataKey="Approved" position="center" style={{ fill: '#fff', fontSize: 10, fontWeight: 900 }} />
                 </Bar>
-                <Bar dataKey="Reviewing" stackId="a" fill="#f59e0b">
+                <Bar dataKey="Reviewing" stackId="a" fill="#eab308">
                   <LabelList dataKey="Reviewing" position="center" style={{ fill: '#fff', fontSize: 10, fontWeight: 900 }} />
                 </Bar>
                 <Bar dataKey="Waiting Reply" stackId="a" fill="#3b82f6">
