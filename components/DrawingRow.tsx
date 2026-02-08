@@ -198,13 +198,19 @@ export const DrawingRow = memo(({
                     const statusChanges = (drawing.statusHistory || []).filter(h => h.content.includes('Status:'));
                     if (statusChanges.length === 0) return '';
                     const last = statusChanges[statusChanges.length - 1];
-                    return format(new Date(last.createdAt), 'yyyy-MM-dd HH:mm');
+                    if (!last.createdAt) return '';
+                    const date = new Date(last.createdAt);
+                    if (isNaN(date.getTime())) return '';
+                    return format(date, 'yyyy-MM-dd HH:mm');
                 })()}>
                     {(() => {
                         const statusChanges = (drawing.statusHistory || []).filter(h => h.content.includes('Status:'));
                         if (statusChanges.length === 0) return <span className="text-slate-200">—</span>;
                         const last = statusChanges[statusChanges.length - 1];
-                        return <span className="font-bold">{format(new Date(last.createdAt), 'MM-dd')}</span>;
+                        if (!last.createdAt) return <span className="text-slate-200">—</span>;
+                        const date = new Date(last.createdAt);
+                        if (isNaN(date.getTime())) return <span className="text-slate-200">—</span>;
+                        return <span className="font-bold">{format(date, 'MM-dd')}</span>;
                     })()}
                 </td>
                 {/* Waiting Time 列 - 显示距离上次状态变化的天数 */}
@@ -213,7 +219,10 @@ export const DrawingRow = memo(({
                         const statusChanges = (drawing.statusHistory || []).filter(h => h.content.includes('Status:'));
                         if (statusChanges.length === 0) return <span className="text-slate-200">—</span>;
                         const lastChange = statusChanges[statusChanges.length - 1];
-                        const days = differenceInCalendarDays(new Date(), new Date(lastChange.createdAt));
+                        if (!lastChange.createdAt) return <span className="text-slate-200">—</span>;
+                        const date = new Date(lastChange.createdAt);
+                        if (isNaN(date.getTime())) return <span className="text-slate-200">—</span>;
+                        const days = differenceInCalendarDays(new Date(), date);
                         let colorClass = 'text-slate-400';
                         if (days >= 14) colorClass = 'text-red-600 font-black';
                         else if (days >= 7) colorClass = 'text-amber-500 font-bold';
@@ -270,10 +279,10 @@ export const DrawingRow = memo(({
                     <button
                         onClick={() => updateDrawing(drawing.id, { checked: !drawing.checked, checkedSynced: false })}
                         className={`w-5 h-5 rounded-lg flex items-center justify-center mx-auto transition-all cursor-pointer hover:scale-110 ${drawing.checked
-                                ? (drawing.checkedSynced
-                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                                    : 'bg-blue-500 text-white shadow-lg shadow-blue-500/20')
-                                : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
+                            ? (drawing.checkedSynced
+                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                : 'bg-blue-500 text-white shadow-lg shadow-blue-500/20')
+                            : 'bg-slate-100 text-slate-300 hover:bg-slate-200'
                             }`}
                         title={drawing.checked ? (drawing.checkedSynced ? 'Checked (Synced)' : 'Checked (Not Synced)') : 'Not Checked'}
                     >
