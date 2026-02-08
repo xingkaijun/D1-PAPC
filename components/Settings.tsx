@@ -9,7 +9,7 @@ import {
 import { format } from 'date-fns';
 
 export const Settings: React.FC = () => {
-  const { data, updateSettings, updateProjectConfig, syncWithWebDAV, saveSettingsToWebDAV, loadFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject, setStorageMode } = useStore();
+  const { data, updateSettings, updateProjectConfig, syncWithWebDAV, saveSettingsToWebDAV, loadProjectFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject, setStorageMode } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const project = data.projects.find(p => p.id === activeProjectId);
@@ -370,7 +370,15 @@ export const Settings: React.FC = () => {
                   <Send size={12} /> WebDAV Sync
                 </button>
                 <button
-                  onClick={loadFromWebDAV}
+                  onClick={async () => {
+                    if (!activeProjectId) return;
+                    try {
+                      await loadProjectFromWebDAV(activeProjectId, project?.conf?.password);
+                      alert('项目数据已从服务器加载');
+                    } catch (e: any) {
+                      alert(`加载失败: ${e.message}`);
+                    }
+                  }}
                   disabled={isLoading || !project}
                   className="p-3 bg-cyan-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-cyan-500/10"
                 >

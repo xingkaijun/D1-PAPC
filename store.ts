@@ -132,7 +132,7 @@ export const useStore = create<AppState>()(
       setFilterQuery: (query) => set({ filterQuery: query }),
 
       toggleEditMode: (password) => {
-        const envPass = import.meta.env.VITE_WEBDAV_PASSWORD; // Reuse for edit lock if set
+        const envPass = import.meta.env.VITE_EDIT_PASSWORD; // 使用专用的编辑密码环境变量
         if (!get().isEditMode) {
           // Entering Edit Mode
           if (envPass && envPass.trim() !== '') {
@@ -250,8 +250,19 @@ export const useStore = create<AppState>()(
                       const holidays = p.conf?.holidays || [];
                       changedDrawing.reviewDeadline = calculateDeadline(new Date(), cycleDays, holidays).toISOString();
                     }
-                    // 状态从 Reviewing 变为其他状态时，清除 Deadline
-                    else if (d.status === 'Reviewing' && updates.status !== 'Reviewing') {
+                    // 状态从 Reviewing 变为 Waiting Reply 或 Approved 时，轮次+1 并清除 Deadline
+                    else if (d.status === 'Reviewing' && (updates.status === 'Waiting Reply' || updates.status === 'Approved')) {
+                      // 轮次自动递增: A -> B -> C -> ... -> Z -> AA -> AB -> ...
+                      const currentRound = changedDrawing.currentRound || 'A';
+                      const nextRound = currentRound.length === 1 && currentRound < 'Z'
+                        ? String.fromCharCode(currentRound.charCodeAt(0) + 1)
+                        : currentRound === 'Z' ? 'AA' : currentRound + 'A';
+                      changedDrawing.currentRound = nextRound;
+                      changeLogs.push(`Round: ${currentRound} -> ${nextRound}`);
+                      changedDrawing.reviewDeadline = undefined;
+                    }
+                    // 状态从 Reviewing 变为 Pending 时，仅清除 Deadline（不递增轮次）
+                    else if (d.status === 'Reviewing' && updates.status === 'Pending') {
                       changedDrawing.reviewDeadline = undefined;
                     }
                   }

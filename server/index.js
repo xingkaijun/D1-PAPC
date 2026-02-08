@@ -65,7 +65,7 @@ const proxyHandler = async (req, res) => {
     return res.status(500).json({ error: "TARGET_USER_ID not configured on server" });
   }
 
-  const subPath = req.params[0] || ''; // content after /api/proxy/
+  const subPath = req.query.path || req.params[0] || ''; // 优先从 query param 读取，兼容 URL 路径
 
   try {
     const token = await getAccessToken();

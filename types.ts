@@ -34,6 +34,7 @@ export interface Drawing {
   category?: 'A' | 'B' | 'C';
   deadline?: string;
   checked?: boolean;
+  checkedSynced?: boolean; // 标记 checked 状态是否已同步到服务器
   logs: DrawingLog[];
   remarks: Remark[];
   statusHistory: Remark[];

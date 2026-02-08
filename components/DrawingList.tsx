@@ -403,13 +403,43 @@ export const DrawingList: React.FC = () => {
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, rnd: w }))} width={columnWidths.rnd || 40}>Rd</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, disc: w }))} width={columnWidths.disc || 120}>Discipline</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, title: w }))} width={columnWidths.title || 250}>Drawing Title</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, lchg: w }))} width={columnWidths.lchg || 80}>Last Change</ResizableHeader>
+              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, wait: w }))} width={columnWidths.wait || 50}>Wait</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, dead: w }))} width={columnWidths.dead || 90}>Deadline</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, days: w }))} width={columnWidths.days || 60}>Days</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ass: w }))} width={columnWidths.ass || 90}>Assignees</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, stat: w }))} width={columnWidths.stat || 100}>Status</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 50}>Total Cmt</ResizableHeader>
               <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, opn: w }))} width={columnWidths.opn || 50}>Open Cmt</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ok: w }))} width={columnWidths.ok || 50}>Check</ResizableHeader>
+              <th className="px-2 py-3 bg-slate-50/50" style={{ width: columnWidths.ok || 70 }}>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-[8px] font-black uppercase tracking-[0.1em]">Check</span>
+                  <button
+                    onClick={async () => {
+                      const store = useStore.getState();
+                      const success = await store.pushProjectToWebDAV(activeProjectId!);
+                      if (success) {
+                        // 将所有 checked 的图纸标记为已同步
+                        const project = store.data.projects.find(p => p.id === activeProjectId);
+                        if (project) {
+                          project.drawings.forEach(d => {
+                            if (d.checked && !d.checkedSynced) {
+                              updateDrawing(d.id, { checkedSynced: true });
+                            }
+                          });
+                        }
+                        alert('Check 状态已同步');
+                      } else {
+                        alert('同步失败');
+                      }
+                    }}
+                    className="px-2 py-0.5 text-[7px] font-black uppercase bg-teal-500 text-white rounded-md hover:bg-teal-600 transition-all shadow-sm"
+                    title="Sync all check statuses"
+                  >
+                    Sync
+                  </button>
+                </div>
+              </th>
               <th className="px-3 py-3 w-10 bg-slate-50/50"></th>
             </tr>
           </thead>
@@ -430,7 +460,7 @@ export const DrawingList: React.FC = () => {
             ))}
             {paginatedDrawings.length === 0 && (
               <tr>
-                <td colSpan={14} className="py-20 text-center text-slate-300 pointer-events-none">
+                <td colSpan={16} className="py-20 text-center text-slate-300 pointer-events-none">
                   <div className="text-[10px] font-black uppercase tracking-widest">No match found</div>
                 </td>
               </tr>
