@@ -367,22 +367,24 @@ export const Settings: React.FC = () => {
                   disabled={isLoading || !project}
                   className="p-3 bg-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-teal-500/10"
                 >
-                  <Send size={12} /> WebDAV Sync
+                  <Send size={12} /> Cloud Sync 云端同步
                 </button>
                 <button
                   onClick={async () => {
                     if (!activeProjectId) return;
+                    const confirmed = window.confirm('⚠️ 警告：拉取云端数据会覆盖掉本地未同步的更改。\n\n确定要继续吗？');
+                    if (!confirmed) return;
                     try {
                       await loadProjectFromWebDAV(activeProjectId, project?.conf?.password);
-                      alert('项目数据已从服务器加载');
+                      alert('✅ 云端拉取成功');
                     } catch (e: any) {
-                      alert(`加载失败: ${e.message}`);
+                      alert(`❌ 拉取失败: ${e.message}`);
                     }
                   }}
                   disabled={isLoading || !project}
                   className="p-3 bg-cyan-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-cyan-500/10"
                 >
-                  <Download size={12} /> WebDAV Fetch
+                  <Download size={12} /> Cloud Fetch 云端拉取
                 </button>
               </div>
 
