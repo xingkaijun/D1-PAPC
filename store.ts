@@ -112,7 +112,7 @@ const DEFAULT_DATA: AppData = {
     roundACycle: 10,
     otherRoundsCycle: 5,
     storage: {
-      type: 'WEBDAV'
+      type: 'ONEDRIVE'
     }
   }
 };

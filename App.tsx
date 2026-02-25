@@ -220,24 +220,9 @@ const App: React.FC = () => {
       // We assume addProject sets it as active? modify if needed
       // Actually addProject in store sets activeProjectId. 
       // We might want to auto-select it?
-      // Let's find the new ID or just wait for list refresh? 
       // For new project, it's local first. 
       // We should probably just close selector?
       setShowProjectSelector(false);
-    }
-  };
-
-  const carouselRef = React.useRef<HTMLDivElement>(null);
-
-  const scrollLeft = () => {
-    if (carouselRef.current) {
-      carouselRef.current.scrollBy({ left: -400, behavior: 'smooth' });
-    }
-  };
-
-  const scrollRight = () => {
-    if (carouselRef.current) {
-      carouselRef.current.scrollBy({ left: 400, behavior: 'smooth' });
     }
   };
 
@@ -253,179 +238,157 @@ const App: React.FC = () => {
         }
       `}</style>
 
-      {/* Project Selector Overlay (Blocking) */}
+      {/* New Project Selector Overlay (Static Prototype) */}
       {showProjectSelector && !isLoading && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-50 overflow-hidden">
-          <div className="bg-white/90 backdrop-blur-2xl w-full max-w-[95vw] h-[90vh] rounded-[3rem] shadow-2xl border border-white/50 flex flex-col overflow-hidden animate-in zoom-in-95 duration-500">
+        <div className="fixed inset-0 z-[10000] flex flex-col bg-[#F4F7F9] overflow-hidden">
 
-            {/* Selector Header */}
-            <div className="p-10 pb-6 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-5">
-                <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 overflow-hidden shrink-0 w-32 h-32 flex items-center justify-center">
+          {/* Top Header */}
+          <div className="bg-white/90 backdrop-blur-xl border-b border-slate-200/60 px-8 py-5 flex items-center justify-between shrink-0 shadow-sm z-10">
+            <div className="flex items-center gap-6">
+              {/* Refined Small Logo */}
+              <div className="flex items-center gap-3">
+
+                <div>
+                  <h1 className="text-xl font-[1000] text-slate-800 tracking-tight uppercase leading-none">
+                    Select <span className="text-teal-600">Project</span>
+                  </h1>
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">
+                    Workspace Selection
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Storage Controls */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleStorageToggle}
+                className="flex items-center gap-2.5 px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-full border border-slate-200 shadow-sm text-[10px] font-[1000] uppercase tracking-widest transition-all"
+                title="Switch Cloud Provider"
+              >
+                <div className={`w-2.5 h-2.5 rounded-full ${isWebDAVConfigured ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-amber-500'}`} />
+                {currentStorageType} {isWebDAVConfigured ? 'READY' : 'OFFLINE'}
+              </button>
+              <button
+                onClick={handleGlobalRefresh}
+                className="p-2.5 bg-white hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-full border border-slate-200 shadow-sm transition-all active:scale-95"
+              >
+                <RefreshCw size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Grid Container (Scrollable Scroll Area) */}
+          <div className="flex-1 overflow-y-auto px-8 py-10 w-full max-w-[1800px] mx-auto">
+
+            {/* Grid Definition */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+
+              {/* Company Logo Card (First Element) */}
+              <div className="group relative flex flex-col items-center justify-center rounded-3xl border border-slate-100 bg-white shadow-lg shadow-slate-200/40 h-[260px] overflow-hidden">
+                <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-white to-slate-50/50">
                   <img
                     src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
                     alt="Pacific Gas Logo"
-                    className="w-full h-auto object-contain"
+                    className="w-[95%] sm:w-[85%] md:w-full max-w-xs h-auto object-contain drop-shadow-md opacity-95 transition-transform duration-700 hover:scale-[1.05]"
                   />
                 </div>
-                <div>
-                  <h1 className="text-2xl font-[1000] text-slate-900 tracking-tighter uppercase mb-2">Select Project</h1>
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Choose a registry to load from {isWebDAVConfigured ? 'WebDAV Cloud' : 'Local Cache'}</p>
-                </div>
               </div>
-              <div className="flex gap-4">
-                <button
-                  onClick={handleStorageToggle}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl border border-slate-200 text-[10px] font-black uppercase tracking-widest transition-all"
-                  title="Switch Cloud Provider"
-                >
-                  <div className={`w-2 h-2 rounded-full ${isWebDAVConfigured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                  {currentStorageType} {isWebDAVConfigured ? 'Ready' : 'Offline'}
-                </button>
-                <button onClick={handleGlobalRefresh} className="p-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl transition-all active:scale-95">
-                  <RefreshCw size={20} />
-                </button>
-              </div>
-            </div>
 
-            {/* Project Carousel Container */}
-            <div className="flex-1 relative w-full overflow-hidden flex flex-col justify-center">
+              {/* Project Items (Dynamic) */}
+              {data.projects.map(p => {
+                const theme = getProjectTheme(p.id, p.name);
+                const total = p.drawings?.length || 0;
+                const approved = p.drawings?.filter(d => d.status === 'Approved').length || 0;
+                const completion = total > 0 ? Math.round((approved / total) * 100) : 0;
 
-              {/* Left Arrow */}
-              <button
-                onClick={scrollLeft}
-                className="absolute left-10 z-10 w-24 h-24 rounded-full bg-white/80 backdrop-blur-md shadow-2xl border border-slate-100 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:scale-110 active:scale-95 transition-all"
-              >
-                <ChevronLeft size={48} strokeWidth={3} />
-              </button>
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSelectProject(p.id)}
+                    className={`group relative flex flex-col rounded-3xl border border-white shadow-lg shadow-slate-200/40 hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 ease-out text-left h-[260px] overflow-hidden ${theme.bg}`}
+                  >
+                    {/* Top Color Banner */}
+                    <div className={`h-2 w-full bg-gradient-to-r opacity-80 ${theme.iconBg}`} />
 
-              {/* Right Arrow */}
-              <button
-                onClick={scrollRight}
-                className="absolute right-10 z-10 w-24 h-24 rounded-full bg-white/80 backdrop-blur-md shadow-2xl border border-slate-100 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:scale-110 active:scale-95 transition-all"
-              >
-                <ChevronRight size={48} strokeWidth={3} />
-              </button>
-
-              {/* Carousel Scroll Area */}
-              <div
-                ref={carouselRef}
-                className="flex items-center gap-12 overflow-x-auto px-40 py-10 scroll-smooth w-full h-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
-                style={{ scrollSnapType: 'x mandatory' }}
-              >
-                {/* Company Logo Card */}
-                {/* Company Logo Card */}
-                <div
-                  className="group shrink-0 relative flex flex-col items-center justify-center rounded-[3rem] border border-slate-100 bg-slate-50 shadow-xl shadow-slate-200/50 w-[450px] h-[65vh] overflow-hidden"
-                  style={{ scrollSnapAlign: 'center' }}
-                >
-                  <div className="w-full h-full flex items-center justify-center p-8">
-                    <img
-                      src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
-                      alt="Pacific Gas Logo"
-                      className="w-full h-auto max-h-[80%] object-contain drop-shadow-md opacity-90 scale-[3]"
-                    />
-                    {/* Bottom Mask to hide cut-off text */}
-                    <div className="absolute bottom-0 left-0 right-0 h-48 bg-slate-50" />
-                  </div>
-                </div>
-
-                {/* Project Items */}
-                {data.projects.map(p => {
-                  const theme = getProjectTheme(p.id, p.name);
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => handleSelectProject(p.id)}
-                      className={`group shrink-0 relative flex flex-col p-12 rounded-[3rem] border shadow-2xl shadow-slate-200/50 hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] hover:scale-[1.02] transition-all text-left w-[450px] h-[65vh] ${theme.bg} ${theme.border}`}
-                      style={{ scrollSnapAlign: 'center' }}
-                    >
-                      <div className="mb-auto w-full">
-                        <div className={`w-28 h-28 rounded-3xl bg-gradient-to-br mb-10 flex items-center justify-center text-5xl font-black shadow-inner ${theme.iconBg} ${theme.iconText}`}>
+                    <div className="p-6 flex flex-col h-full w-full">
+                      <div className="flex justify-between items-start mb-6 w-full gap-2">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black shadow-inner shrink-0 ${theme.iconBg} ${theme.iconText} bg-opacity-20`}>
                           {p.name.substring(0, 2).toUpperCase()}
                         </div>
-                        <h3 className="text-3xl font-[1000] text-slate-800 uppercase tracking-tight mb-4 group-hover:text-teal-700 transition-colors leading-none break-words">{p.name}</h3>
-
-                        {/* Stats Grid */}
-                        {(p.drawings?.length || 0) > 0 ? (
-                          <div className="mt-8 space-y-6">
-                            {/* Progress Bar */}
-                            <div>
-                              <div className="flex justify-between items-end mb-2">
-                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Completion</span>
-                                <span className="text-2xl font-[1000] text-teal-600">
-                                  {Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%
-                                </span>
-                              </div>
-                              <div className="w-full h-3 bg-white/50 rounded-full overflow-hidden border border-white/50">
-                                <div
-                                  className="h-full bg-teal-500 rounded-full transition-all duration-1000 ease-out shadow-sm"
-                                  style={{ width: `${Math.round((p.drawings?.filter(d => d.status === 'Approved').length || 0) / (p.drawings?.length || 1) * 100)}%` }}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <div className="bg-white/60 p-4 rounded-2xl border border-white/50">
-                                <span className="block text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Total Items</span>
-                                <span className="block text-xl font-[1000] text-slate-700">{p.drawings?.length}</span>
-                              </div>
-                              <div className="bg-teal-50/80 p-4 rounded-2xl border border-teal-100/50">
-                                <span className="block text-[9px] font-black uppercase text-teal-600/70 tracking-wider mb-1">Approved</span>
-                                <span className="block text-xl font-[1000] text-teal-600">
-                                  {p.drawings?.filter(d => d.status === 'Approved').length || 0}
-                                </span>
-                              </div>
-                            </div>
+                        {total > 0 && (
+                          <div className="bg-white/60 text-slate-500 text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-lg border border-slate-100 flex items-center gap-1.5 shadow-sm">
+                            <div className={`w-1.5 h-1.5 rounded-full ${completion === 100 ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
+                            {completion === 100 ? 'Completed' : 'Active'}
                           </div>
-                        ) : (
-                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-4 bg-white/50 p-3 rounded-xl inline-block border border-white/50">
-                            Ready to Load
-                          </p>
                         )}
                       </div>
 
-                      <div className="mt-8 flex items-center justify-between border-t border-slate-900/5 pt-6">
-                        <span className="text-[10px] font-bold text-slate-400/80 uppercase tracking-wider">
-                          Updated: {p.lastUpdated ? format(new Date(p.lastUpdated), 'yyyy-MM-dd') : 'N/A'}
-                        </span>
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-300 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-sm">
-                          <ChevronDown size={20} className="-rotate-90" />
+                      <h3 className={`text-xl font-[1000] uppercase tracking-tight mb-2 transition-colors line-clamp-2 ${theme.iconText}`}>
+                        {p.name}
+                      </h3>
+
+                      {total > 0 ? (
+                        <div className="mt-auto w-full">
+                          <div className="flex justify-between items-end mb-1.5">
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Progress</span>
+                            <span className={`text-sm font-[1000] ${theme.iconText}`}>{completion}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                            <div
+                              className={`h-full rounded-full transition-all duration-1000 ease-out ${theme.iconBg} bg-opacity-80`}
+                              style={{ width: `${completion}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-900/5">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                              Assets: {total}
+                            </span>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                              {p.lastUpdated ? format(new Date(p.lastUpdated), 'MM/dd') : 'New'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-
-                {/* New Project Card (Moved to End) */}
-                <button
-                  onClick={handleAddProject}
-                  className="group shrink-0 relative flex flex-col items-center justify-center gap-6 p-10 rounded-[3rem] border-4 border-dashed border-slate-200 hover:border-teal-400 hover:bg-teal-50/50 transition-all w-[450px] h-[65vh]"
-                  style={{ scrollSnapAlign: 'center' }}
-                >
-                  <div className="w-32 h-32 rounded-full bg-slate-100 group-hover:bg-teal-100 flex items-center justify-center text-slate-300 group-hover:text-teal-600 transition-colors">
-                    <PlusCircle size={64} />
-                  </div>
-                  <span className="text-sm font-[1000] uppercase tracking-widest text-slate-400 group-hover:text-teal-600">Create New Registry</span>
-                </button>
-
-                {data.projects.length === 0 && (
-                  <div className="shrink-0 w-[300px] flex items-center justify-center opacity-30 px-10">
-                    <div className="text-center">
-                      <h3 className="text-2xl font-[1000] text-slate-300 uppercase tracking-tighter mb-2">No Projects</h3>
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Add one to start</p>
+                      ) : (
+                        <div className="mt-auto w-full">
+                          <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-4 bg-white/50 p-3 rounded-xl inline-block border border-white/50">
+                            Ready to Load
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
-              </div>
+                  </button>
+                );
+              })}
+
+              {/* Create New Project Card (Last Element) */}
+              <button
+                onClick={handleAddProject}
+                className="group relative flex flex-col items-center justify-center gap-4 p-8 rounded-3xl border-2 border-dashed border-slate-300 hover:border-teal-400 bg-slate-50/50 hover:bg-teal-50/30 transition-all h-[260px]"
+              >
+                <div className="w-16 h-16 rounded-full bg-white shadow-sm border border-slate-100 group-hover:bg-teal-50 flex items-center justify-center text-slate-300 group-hover:text-teal-500 transition-colors">
+                  <PlusCircle size={32} />
+                </div>
+                <span className="text-xs font-[1000] uppercase tracking-widest text-slate-400 group-hover:text-teal-600 text-center">Create<br />Workspace</span>
+              </button>
+
             </div>
 
-            {/* Footer Actions */}
-            <div className="p-8 border-t border-slate-100 bg-slate-50/50 flex justify-center">
-              <button onClick={handleOfflineMode} className="text-slate-400 hover:text-slate-600 text-[10px] font-black uppercase tracking-widest underline decoration-2 decoration-slate-200 underline-offset-4 hover:decoration-slate-400 transition-all">
-                Enter Offline Mode (Use Cached Data)
-              </button>
-            </div>
+            {/* No Projects State Handled by New Project Card now */}
+
+          </div>
+
+          {/* Fixed Footer for Selector */}
+          <div className="mt-auto pb-8 pt-4 w-full flex flex-col items-center justify-center gap-3 z-20 shrink-0 bg-gradient-to-t from-[#F4F7F9] to-transparent">
+            <button onClick={handleOfflineMode} className="text-slate-400 hover:text-slate-600 text-[10px] font-black uppercase tracking-widest underline decoration-2 decoration-slate-200 underline-offset-4 hover:decoration-slate-400 transition-all">
+              Skip / Enter Offline Mode (Local Cache)
+            </button>
+            {data.projects.length === 0 && (
+              <span className="text-[9px] font-bold text-amber-500 bg-amber-50 px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">
+                Note: No projects found. Cloud sync might be required.
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -435,31 +398,19 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/20 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-3xl border-2 border-teal-200 shadow-2xl p-8 max-w-md mx-4">
             <div className="flex flex-col items-center gap-4">
-              {/* Spinner */}
               <div className="relative w-16 h-16">
                 <div className="absolute inset-0 border-4 border-teal-100 rounded-full"></div>
                 <div className="absolute inset-0 border-4 border-teal-600 rounded-full border-t-transparent animate-spin"></div>
                 <Cloud className="absolute inset-0 m-auto text-teal-600 animate-pulse" size={28} />
               </div>
-
-              {/* Loading Text */}
               <div className="text-center">
-                <h3 className="text-lg font-[1000] text-slate-900 uppercase tracking-wider mb-2">
-                  Syncing Data
-                </h3>
-                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">
-                  Synchronizing with Server...
-                </p>
+                <h3 className="text-lg font-[1000] text-slate-900 uppercase tracking-wider mb-2">Syncing Data</h3>
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Synchronizing with Server...</p>
               </div>
-
-              {/* Progress Indicator */}
               <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                 <div className="h-full bg-gradient-to-r from-teal-500 to-teal-600 rounded-full animate-pulse w-full"></div>
               </div>
-
-              <p className="text-xs text-slate-400 text-center mt-2">
-                Uploading/Downloading latest project data
-              </p>
+              <p className="text-xs text-slate-400 text-center mt-2">Uploading/Downloading latest project data</p>
             </div>
           </div>
         </div>
@@ -479,17 +430,17 @@ const App: React.FC = () => {
                 />
               </div>
               <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-teal-500 rounded-full border-2 border-white shadow-sm" />
-            </div>
+            </div >
             <div className="flex flex-col">
               <h1 className="text-lg font-[1000] text-slate-900 tracking-tighter leading-none uppercase">
                 PLAN APPROVAL <span className="text-teal-600">PLATFORM</span>
               </h1>
               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Technical Intelligence System</span>
             </div>
-          </div>
+          </div >
 
           {/* Main Navigation Tabs */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-100/50 backdrop-blur-sm p-1.5 rounded-full border border-slate-200/50">
+          < nav className="hidden md:flex items-center gap-1 bg-slate-100/50 backdrop-blur-sm p-1.5 rounded-full border border-slate-200/50" >
             <button
               onClick={() => setActiveTab('drawings')}
               className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
@@ -531,8 +482,8 @@ const App: React.FC = () => {
               <BookOpen size={14} strokeWidth={2.5} className={activeTab === 'manual' ? 'text-teal-500' : 'text-slate-400'} />
               <span>Guide</span>
             </button>
-          </nav>
-        </div>
+          </nav >
+        </div >
 
         <div className="flex items-center space-x-4">
           <div className="h-8 w-px bg-slate-200/80 mx-1"></div>
@@ -554,10 +505,10 @@ const App: React.FC = () => {
             {/* Dropdown Removed as requested */}
           </div>
         </div>
-      </header>
+      </header >
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col overflow-hidden px-6 py-4">
+      < main className="flex-1 flex flex-col overflow-hidden px-6 py-4" >
         <div className="max-w-[1800px] mx-auto w-full flex-1 flex flex-col gap-4 overflow-hidden">
           {activeTab === 'drawings' && <CommandBar />}
 
@@ -573,10 +524,10 @@ const App: React.FC = () => {
             {activeTab === 'manual' && <Manual />}
           </div>
         </div>
-      </main>
+      </main >
 
       {/* Footer */}
-      <footer className="bg-white/40 backdrop-blur-md border-t border-slate-200/50 px-8 py-3 text-[8px] font-[1000] uppercase tracking-[0.3em] text-slate-400 flex flex-col md:flex-row justify-between no-print items-center shrink-0">
+      < footer className="bg-white/40 backdrop-blur-md border-t border-slate-200/50 px-8 py-3 text-[8px] font-[1000] uppercase tracking-[0.3em] text-slate-400 flex flex-col md:flex-row justify-between no-print items-center shrink-0" >
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <span className="text-slate-300 font-bold tracking-normal">© 2025</span>
@@ -608,8 +559,8 @@ const App: React.FC = () => {
             <span className="tracking-widest">PA-V3.1-LTD</span>
           </div>
         </div>
-      </footer>
-    </div>
+      </footer >
+    </div >
   );
 };
 
