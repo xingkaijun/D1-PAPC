@@ -302,7 +302,7 @@ export const DrawingRow = memo(({
                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                 <h4 className="text-[8px] font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center gap-2"><History size={12} /> Log Stream</h4>
                                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2 scrollbar-thin">
-                                    {drawing.statusHistory.slice().reverse().map(h => (
+                                    {(drawing.statusHistory || []).slice().reverse().map(h => (
                                         <div key={h.id} className="text-[9px] px-3 py-1.5 bg-slate-50 rounded-lg flex justify-between items-center">
                                             <span className="font-bold text-slate-600">{h.content}</span>
                                             <span className="font-mono text-slate-400">{format(new Date(h.createdAt), 'MM-dd HH:mm')}</span>
@@ -313,7 +313,7 @@ export const DrawingRow = memo(({
                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                 <h4 className="text-[8px] font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center gap-2"><StickyNote size={12} className="text-teal-500" /> Internal Notes ({liveRemarkCount})</h4>
                                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2 scrollbar-thin">
-                                    {drawing.remarks.map(r => {
+                                    {(drawing.remarks || []).map(r => {
                                         const lower = r.content.toLowerCase();
                                         let bgClass = 'bg-blue-50 text-blue-700'; // Default text (Blue)
                                         let iconClass = 'text-blue-400';
@@ -339,7 +339,7 @@ export const DrawingRow = memo(({
                                             </div>
                                         );
                                     })}
-                                    {drawing.remarks.length === 0 && (
+                                    {(!drawing.remarks || drawing.remarks.length === 0) && (
                                         <div className="py-10 text-center text-slate-300 text-[8px] font-black uppercase tracking-widest italic">No remarks recorded via command bar</div>
                                     )}
                                 </div>
