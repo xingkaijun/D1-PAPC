@@ -180,8 +180,14 @@ export class OneDriveProxyProvider implements IStorageProvider {
         }
 
         // 2. Load Main Data
-        const mainRes = await this.callProxy(`${folderName}/PA_${folderName}.json`, { action: 'content' });
-        const mainData = await mainRes.json();
+        let mainData: any = {};
+        try {
+            const mainRes = await this.callProxy(`${folderName}/PA_${folderName}.json`, { action: 'content' });
+            mainData = await mainRes.json();
+        } catch (e: any) {
+            // New project may not have main data file yet.
+            if (!String(e?.message || '').includes('404')) throw e;
+        }
 
         return {
             ...project,
