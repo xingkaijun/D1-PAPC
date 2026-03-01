@@ -8,6 +8,18 @@ import { WebDAVProvider } from './services/storage/WebDAVProvider';
 import { OneDriveProxyProvider } from './services/storage/OneDriveProxyProvider';
 
 let _storageProvider: IStorageProvider | null = null;
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+const ensureDrawingHasId = (drawing: Drawing): Drawing => {
+  if (drawing.id && String(drawing.id).trim() !== '') return drawing;
+  return { ...drawing, id: generateId() };
+};
+
+const normalizeProjectDrawingIds = (project: Project): Project => ({
+  ...project,
+  drawings: (project.drawings || []).map(ensureDrawingHasId),
+});
+
 const getProvider = (settings: AppSettings): IStorageProvider => {
   const type = settings.storage?.type || 'WEBDAV';
   if (!_storageProvider ||
@@ -190,6 +202,7 @@ export const useStore = create<AppState>()(
       addDrawing: (drawing) => set((state) => {
         const { activeProjectId, data } = state;
         if (!activeProjectId) return state;
+        const drawingWithId = ensureDrawingHasId(drawing);
 
         return {
           data: {
@@ -197,18 +210,18 @@ export const useStore = create<AppState>()(
             projects: data.projects.map((p) => {
               if (p.id !== activeProjectId) return p;
 
-              const updatedDrawings = [...p.drawings, drawing];
+              const updatedDrawings = [...p.drawings, drawingWithId];
 
               // Auto-calculate deadline if new drawing has receivedDate
-              if (drawing.receivedDate && p.conf) {
-                const disc = drawing.discipline;
+              if (drawingWithId.receivedDate && p.conf) {
+                const disc = drawingWithId.discipline;
                 const defaults = p.conf.disciplineDefaults[disc];
-                if (defaults && drawing.category) {
+                if (defaults && drawingWithId.category) {
                   // Simple calculation
-                  const startDate = new Date(drawing.receivedDate);
-                  const days = drawing.category === 'A' ? p.conf.roundACycle : p.conf.otherRoundsCycle;
+                  const startDate = new Date(drawingWithId.receivedDate);
+                  const days = drawingWithId.category === 'A' ? p.conf.roundACycle : p.conf.otherRoundsCycle;
                   const deadline = calculateDeadline(startDate, days, p.conf.holidays);
-                  drawing.deadline = format(deadline, 'yyyy-MM-dd');
+                  drawingWithId.deadline = format(deadline, 'yyyy-MM-dd');
                 }
               }
 
@@ -413,10 +426,11 @@ export const useStore = create<AppState>()(
       bulkImportDrawings: (drawings) => set((state) => {
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
+        const normalizedDrawings = drawings.map(ensureDrawingHasId);
         return {
           data: {
             ...state.data,
-            projects: state.data.projects.map(p => p.id === activeProjectId ? { ...p, drawings: [...p.drawings, ...drawings] } : p)
+            projects: state.data.projects.map(p => p.id === activeProjectId ? { ...p, drawings: [...p.drawings, ...normalizedDrawings] } : p)
           }
         };
       }),
@@ -633,7 +647,7 @@ export const useStore = create<AppState>()(
         set({ isLoading: true });
         try {
           const provider = getProvider(data.settings);
-          const fullProject = await provider.loadProjectData(projectStub, passwordInput);
+          const fullProject = normalizeProjectDrawingIds(await provider.loadProjectData(projectStub, passwordInput));
 
           // Inject defaults
           const globalSettings = data.settings;
@@ -730,6 +744,17 @@ export const useStore = create<AppState>()(
     {
       name: 'marine-drawings-v3-storage-webdav',
       partialize: (state) => ({ data: state.data, activeProjectId: state.activeProjectId }),
+      version: 1,
+      migrate: (persistedState: any) => {
+        if (!persistedState?.data?.projects) return persistedState;
+        return {
+          ...persistedState,
+          data: {
+            ...persistedState.data,
+            projects: persistedState.data.projects.map((p: Project) => normalizeProjectDrawingIds(p)),
+          },
+        };
+      },
     }
   )
 );
