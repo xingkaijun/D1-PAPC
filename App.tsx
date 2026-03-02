@@ -7,6 +7,7 @@ import { DrawingList } from './components/DrawingList';
 import { Settings } from './components/Settings';
 import { CommandBar } from './components/CommandBar';
 import { DailyLogReport } from './components/DailyLogReport';
+import { ReviewTracker } from './components/ReviewTracker';
 import { format } from 'date-fns';
 
 const PROJECT_THEMES = [
@@ -49,11 +50,12 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
-  Calendar
+  Calendar,
+  ClipboardCheck
 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'dailylog' | 'settings' | 'manual'>('drawings');
+  const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'dailylog' | 'settings' | 'manual' | 'tracker'>('drawings');
   const {
     data,
     activeProjectId,
@@ -467,6 +469,13 @@ const App: React.FC = () => {
               <span>Log</span>
             </button>
             <button
+              onClick={() => setActiveTab('tracker')}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'tracker' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+            >
+              <ClipboardCheck size={14} strokeWidth={2.5} className={activeTab === 'tracker' ? 'text-teal-500' : 'text-slate-400'} />
+              <span>Tracker</span>
+            </button>
+            <button
               onClick={() => isEditMode && setActiveTab('settings')}
               disabled={!isEditMode}
               className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
@@ -521,6 +530,7 @@ const App: React.FC = () => {
             )}
             {activeTab === 'settings' && <Settings />}
             {activeTab === 'dailylog' && <DailyLogReport />}
+            {activeTab === 'tracker' && <ReviewTracker />}
             {activeTab === 'manual' && <Manual />}
           </div>
         </div>

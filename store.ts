@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig } from './types';
+import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData } from './types';
 // Fix: Removed missing isWeekend from date-fns imports
 import { addDays, format, isSameDay } from 'date-fns';
 import { IStorageProvider } from './services/storage/IStorageProvider';
@@ -85,6 +85,11 @@ interface AppState {
   clearError: () => void;
   restoreProject: (project: Project) => void;
   toggleRemarkStatus: (drawingId: string, remarkId: string) => void;
+
+  // 审核追踪
+  reviewTracker: ReviewTrackerData;
+  loadReviewTracker: (projectId: string) => Promise<void>;
+  toggleAssigneeDone: (drawingId: string, assignee: string) => Promise<void>;
 }
 
 const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
@@ -139,6 +144,7 @@ export const useStore = create<AppState>()(
       viewMode: 'list',
       filterQuery: '',
       isEditMode: false,
+      reviewTracker: {},
 
       setViewMode: (mode) => set({ viewMode: mode }),
       setFilterQuery: (query) => set({ filterQuery: query }),
@@ -740,6 +746,54 @@ export const useStore = create<AppState>()(
           }
         };
       }),
+
+      // === 审核追踪 ===
+      loadReviewTracker: async (projectId: string) => {
+        const { data } = get();
+        const project = data.projects.find(p => p.id === projectId);
+        if (!project) return;
+        try {
+          const provider = getProvider(data.settings);
+          const tracker = await provider.loadReviewTracker(project);
+          set({ reviewTracker: tracker || {} });
+        } catch (e) { console.warn('loadReviewTracker failed', e); }
+      },
+
+      toggleAssigneeDone: async (drawingId: string, assignee: string) => {
+        const { data, reviewTracker } = get();
+        const project = data.projects.find(p => p.id === get().activeProjectId);
+        if (!project) return;
+
+        // 1. 乐观更新本地
+        const current = reviewTracker[drawingId]?.[assignee];
+        const newDone = !current?.done;
+        const localUpdated: ReviewTrackerData = {
+          ...reviewTracker,
+          [drawingId]: {
+            ...(reviewTracker[drawingId] || {}),
+            [assignee]: { done: newDone, doneAt: newDone ? new Date().toISOString() : undefined }
+          }
+        };
+        set({ reviewTracker: localUpdated });
+
+        // 2. 从服务器拉取最新版本并合并
+        try {
+          const provider = getProvider(data.settings);
+          const remote = await provider.loadReviewTracker(project);
+
+          // 3. 字段级合并：以 remote 为基础，只覆盖本次变更的字段
+          const merged: ReviewTrackerData = { ...remote };
+          if (!merged[drawingId]) merged[drawingId] = {};
+          merged[drawingId][assignee] = localUpdated[drawingId][assignee];
+
+          // 4. 写回服务器
+          await provider.saveReviewTracker(project, merged);
+          set({ reviewTracker: merged });
+        } catch (e) {
+          console.warn('toggleAssigneeDone sync failed', e);
+          // 本地更新仍保留（离线可用）
+        }
+      },
     }),
     {
       name: 'marine-drawings-v3-storage-webdav',

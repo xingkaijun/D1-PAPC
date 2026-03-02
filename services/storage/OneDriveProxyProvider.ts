@@ -474,4 +474,24 @@ export class OneDriveProxyProvider implements IStorageProvider {
             throw e;
         }
     }
+
+
+    async loadReviewTracker(project: Project): Promise<Record<string, Record<string, { done: boolean; doneAt?: string }>>> {
+        try {
+            const res = await this.callProxy(`${project.name}/review-tracker.json`, { action: 'content' });
+            return await res.json();
+        } catch (e) { console.warn('loadReviewTracker failed', e); }
+        return {};
+    }
+
+    async saveReviewTracker(project: Project, data: Record<string, Record<string, { done: boolean; doneAt?: string }>>): Promise<boolean> {
+        try {
+            await this.callProxy(`${project.name}/review-tracker.json`, {
+                method: 'PUT',
+                action: 'content',
+                body: data
+            });
+            return true;
+        } catch (e) { console.warn('saveReviewTracker failed', e); return false; }
+    }
 }

@@ -126,3 +126,12 @@ export interface AppData {
   settings: AppSettings;
   projects: Project[];
 }
+
+// 审核追踪：每个 assignee 的完成状态
+export interface ReviewTrackerEntry {
+  done: boolean;
+  doneAt?: string; // ISO timestamp
+}
+
+// key = drawingId, value = { assigneeName: ReviewTrackerEntry }
+export type ReviewTrackerData = Record<string, Record<string, ReviewTrackerEntry>>;

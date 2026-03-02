@@ -398,4 +398,35 @@ export class WebDAVProvider implements IStorageProvider {
         console.warn("deleteSnapshot not supported in WebDAV");
         return false;
     }
+
+    async loadReviewTracker(project: Project): Promise<Record<string, Record<string, { done: boolean; doneAt?: string }>>> {
+        const { targetUrl } = this.getEffectiveConfig();
+        if (!targetUrl) return {};
+        try {
+            const baseUrl = targetUrl.endsWith('/') ? targetUrl : `${targetUrl}/`;
+            const url = `${baseUrl}${project.name}/review-tracker.json`;
+            const res = await fetch(url, { headers: this.getAuthHeaders() });
+            if (res.ok) return await res.json();
+        } catch (e) { console.warn("loadReviewTracker failed", e); }
+        return {};
+    }
+
+    async saveReviewTracker(project: Project, data: Record<string, Record<string, { done: boolean; doneAt?: string }>>): Promise<boolean> {
+        const { targetUrl } = this.getEffectiveConfig();
+        if (!targetUrl) return false;
+        try {
+            const baseUrl = targetUrl.endsWith('/') ? targetUrl : `${targetUrl}/`;
+            const folderUrl = `${baseUrl}${project.name}/`;
+            // 确保文件夹存在
+            const checkFolder = await fetch(folderUrl, { method: 'PROPFIND', headers: { ...this.getAuthHeaders(), 'Depth': '0' } });
+            if (checkFolder.status === 404) await fetch(folderUrl, { method: 'MKCOL', headers: this.getAuthHeaders() });
+
+            await fetch(`${folderUrl}review-tracker.json`, {
+                method: 'PUT',
+                headers: { ...this.getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify(data, null, 2)
+            });
+            return true;
+        } catch (e) { console.warn("saveReviewTracker failed", e); return false; }
+    }
 }

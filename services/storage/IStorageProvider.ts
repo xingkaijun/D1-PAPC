@@ -60,4 +60,14 @@ export interface IStorageProvider {
      * Delete a snapshot
      */
     deleteSnapshot(project: Project, snapshotId: string): Promise<boolean>;
+
+    /**
+     * Load review tracker data
+     */
+    loadReviewTracker(project: Project): Promise<Record<string, Record<string, { done: boolean; doneAt?: string }>>>;
+
+    /**
+     * Save review tracker data
+     */
+    saveReviewTracker(project: Project, data: Record<string, Record<string, { done: boolean; doneAt?: string }>>): Promise<boolean>;
 }
