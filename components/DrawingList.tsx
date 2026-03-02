@@ -5,7 +5,7 @@ import { useStore } from '../store';
 import { Drawing, DrawingStatus } from '../types';
 import {
   Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Lock, Unlock, X
+  Lock, Unlock, X, Cloud
 } from 'lucide-react';
 import { isAfter } from 'date-fns';
 import { DrawingRow } from './DrawingRow';
@@ -120,8 +120,9 @@ const PaginationControls = ({
 
 
 export const DrawingList: React.FC = () => {
-  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode } = useStore();
+  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, pushProjectToWebDAV } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [isSyncing, setIsSyncing] = useState(false);
   // Search state moved to store: filterQuery
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
   const [showImportModal, setShowImportModal] = useState(false);
@@ -324,149 +325,174 @@ export const DrawingList: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Search and Filters (no-print) */}
-      <div className="px-5 py-3 border-b border-slate-100 flex flex-col gap-3 no-print bg-white shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
-            <input
-              type="text"
-              placeholder="Search drawings or show:tag..."
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:bg-white focus:ring-4 focus:ring-teal-500/5 transition-all text-[10px] font-black uppercase tracking-tight"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => window.print()}
-              className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all"
-            >
-              <Printer size={14} /> Print List
-            </button>
-            <button
-              onClick={() => isEditMode && setShowTeamSetupModal(true)}
-              disabled={!isEditMode}
-              className={`px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${!isEditMode ? 'opacity-50 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-50 active:scale-95'}`}
-            >
-              <Layers size={14} /> Team Setup
-            </button>
-            <button
-              onClick={() => isEditMode && setShowImportModal(true)}
-              disabled={!isEditMode}
-              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-teal-500/10 ${!isEditMode ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'}`}
-            >
-              <FileUp size={14} /> Bulk Load
-            </button>
-            <button
-              onClick={() => {
-                if (isEditMode) {
-                  toggleEditMode();
-                } else {
-                  const pwd = prompt("Enter Administrator Password to Edit:");
-                  if (pwd !== null) {
-                    const success = toggleEditMode(pwd);
-                    if (!success) alert("Incorrect Password");
-                  }
-                }
-              }}
-              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${isEditMode ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'}`}
-            >
-              {isEditMode ? <Unlock size={14} /> : <Lock size={14} />}
-              {isEditMode ? 'Unlocked' : 'Edit'}
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          <FilterButton active={statusFilters.size === 0} onClick={() => setStatusFilters(new Set())} label="All Units" icon={<Layers size={12} />} color="slate" />
-          <div className="w-px h-4 bg-slate-200 mx-1" />
-          <FilterButton active={statusFilters.has('Pending')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Pending') ? n.delete('Pending') : n.add('Pending'); return n; })} label="Pending" color="slate" count={getFilterCount('Pending')} />
-          <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="amber" count={getFilterCount('Reviewing')} />
-          <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="blue" count={getFilterCount('Waiting Reply')} />
-          <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={getFilterCount('Approved')} />
-          <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={getFilterCount('Overdue')} />
-          <div className="w-px h-4 bg-slate-200 mx-1" />
-          <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={getFilterCount('Checked')} />
-          <FilterButton active={statusFilters.has('Unchecked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Unchecked') ? n.delete('Unchecked') : n.add('Unchecked'); return n; })} label="Unchecked" color="slate" count={getFilterCount('Unchecked')} />
-        </div>
-      </div>
-
-      {/* Main Table (Visible on Screen) */}
-      <div className="overflow-auto flex-1 relative scrollbar-thin scrollbar-thumb-slate-200 no-print">
-        <table className="w-full text-left border-collapse table-fixed min-w-[1400px]">
-          <thead className="sticky top-0 z-40">
-            <tr className="text-slate-400 uppercase text-[8px] font-black tracking-[0.1em] border-b border-slate-100 shadow-sm">
-              <th className="px-3 py-3 w-10 bg-slate-50/80 backdrop-blur-md"></th>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, id: w }))} width={columnWidths.id || 70}>ID</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, no: w }))} width={columnWidths.no || 110}>Code</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ver: w }))} width={columnWidths.ver || 50}>Ver</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, rnd: w }))} width={columnWidths.rnd || 40}>Rd</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, disc: w }))} width={columnWidths.disc || 120}>Discipline</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, title: w }))} width={columnWidths.title || 250}>Drawing Title</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, lchg: w }))} width={columnWidths.lchg || 80}>Last Change</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, wait: w }))} width={columnWidths.wait || 50}>Wait</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, dead: w }))} width={columnWidths.dead || 90}>Deadline</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, days: w }))} width={columnWidths.days || 60}>Days</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ass: w }))} width={columnWidths.ass || 90}>Assignees</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, stat: w }))} width={columnWidths.stat || 100}>Status</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 50}>Total Cmt</ResizableHeader>
-              <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, opn: w }))} width={columnWidths.opn || 50}>Open Cmt</ResizableHeader>
-              <th className="px-2 py-3 bg-slate-50/50" style={{ width: columnWidths.ok || 70 }}>
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[8px] font-black uppercase tracking-[0.1em]">Check</span>
-                  <button
-                    onClick={async () => {
-                      const store = useStore.getState();
-                      const success = await store.pushProjectToWebDAV(activeProjectId!);
-                      if (success) {
-                        // 将所有 checked 的图纸标记为已同步
-                        const project = store.data.projects.find(p => p.id === activeProjectId);
-                        if (project) {
-                          project.drawings.forEach(d => {
-                            if (d.checked && !d.checkedSynced) {
-                              updateDrawing(d.id, { checkedSynced: true });
-                            }
-                          });
-                        }
-                        alert('Check 状态已同步');
-                      } else {
-                        alert('同步失败');
+      {/* Main scrollable area - everything scrolls together */}
+      <div className="overflow-auto flex-1 no-print" style={{ position: 'relative' }}>
+        <div style={{ minWidth: '1400px' }}>
+          {/* Search and Filters - scrolls away */}
+          <div className="px-5 py-3 border-b border-slate-100 flex flex-col gap-3 bg-white">
+            <div className="flex items-center justify-between">
+              <div className="relative w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
+                <input
+                  type="text"
+                  placeholder="Search drawings or show:tag..."
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:bg-white focus:ring-4 focus:ring-teal-500/5 transition-all text-[10px] font-black uppercase tracking-tight"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    if (!activeProjectId || isSyncing) return;
+                    setIsSyncing(true);
+                    try {
+                      await pushProjectToWebDAV(activeProjectId);
+                    } catch (e) {
+                      console.warn('Sync failed', e);
+                    } finally {
+                      setIsSyncing(false);
+                    }
+                  }}
+                  disabled={isSyncing}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${isSyncing
+                    ? 'bg-teal-50 text-teal-400 border border-teal-200 cursor-wait'
+                    : 'bg-teal-600 text-white hover:bg-teal-700 shadow-teal-500/20'
+                    }`}
+                  title="同步项目数据到服务器"
+                >
+                  <Cloud size={14} className={isSyncing ? 'animate-pulse' : ''} />
+                  {isSyncing ? 'Syncing...' : 'Sync to Cloud'}
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all"
+                >
+                  <Printer size={14} /> Print List
+                </button>
+                <button
+                  onClick={() => isEditMode && setShowTeamSetupModal(true)}
+                  disabled={!isEditMode}
+                  className={`px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${!isEditMode ? 'opacity-50 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-50 active:scale-95'}`}
+                >
+                  <Layers size={14} /> Team Setup
+                </button>
+                <button
+                  onClick={() => isEditMode && setShowImportModal(true)}
+                  disabled={!isEditMode}
+                  className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-teal-500/10 ${!isEditMode ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'}`}
+                >
+                  <FileUp size={14} /> Bulk Load
+                </button>
+                <button
+                  onClick={() => {
+                    if (isEditMode) {
+                      toggleEditMode();
+                    } else {
+                      const pwd = prompt("Enter Administrator Password to Edit:");
+                      if (pwd !== null) {
+                        const success = toggleEditMode(pwd);
+                        if (!success) alert("Incorrect Password");
                       }
-                    }}
-                    className="px-2 py-0.5 text-[7px] font-black uppercase bg-teal-500 text-white rounded-md hover:bg-teal-600 transition-all shadow-sm"
-                    title="Sync all check statuses"
-                  >
-                    Sync
-                  </button>
-                </div>
-              </th>
-              <th className="px-3 py-3 w-10 bg-slate-50/50"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50/50">
-            {paginatedDrawings.map((drawing) => (
-              <DrawingRow
-                key={drawing.id}
-                drawing={drawing}
-                activeProjectId={activeProjectId!}
-                isExpanded={expandedRows.has(drawing.id)}
-                onToggleExpand={handleToggleExpand}
-                updateDrawing={updateDrawing}
-                deleteDrawing={deleteDrawing}
-                toggleRemarkStatus={toggleRemarkStatus}
-                reviewers={reviewers}
-                derivedDisciplines={derivedDisciplines}
-              />
-            ))}
-            {paginatedDrawings.length === 0 && (
-              <tr>
-                <td colSpan={16} className="py-20 text-center text-slate-300 pointer-events-none">
-                  <div className="text-[10px] font-black uppercase tracking-widest">No match found</div>
-                </td>
+                    }
+                  }}
+                  className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${isEditMode ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'}`}
+                >
+                  {isEditMode ? <Unlock size={14} /> : <Lock size={14} />}
+                  {isEditMode ? 'Unlocked' : 'Edit'}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              <FilterButton active={statusFilters.size === 0} onClick={() => setStatusFilters(new Set())} label="All Units" icon={<Layers size={12} />} color="slate" />
+              <div className="w-px h-4 bg-slate-200 mx-1" />
+              <FilterButton active={statusFilters.has('Pending')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Pending') ? n.delete('Pending') : n.add('Pending'); return n; })} label="Pending" color="slate" count={getFilterCount('Pending')} />
+              <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="amber" count={getFilterCount('Reviewing')} />
+              <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="blue" count={getFilterCount('Waiting Reply')} />
+              <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={getFilterCount('Approved')} />
+              <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={getFilterCount('Overdue')} />
+              <div className="w-px h-4 bg-slate-200 mx-1" />
+              <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={getFilterCount('Checked')} />
+              <FilterButton active={statusFilters.has('Unchecked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Unchecked') ? n.delete('Unchecked') : n.add('Unchecked'); return n; })} label="Unchecked" color="slate" count={getFilterCount('Unchecked')} />
+            </div>
+          </div>
+
+          {/* Table */}
+          <table className="w-full text-left border-collapse table-fixed">
+            <thead className="sticky top-0 z-40">
+              <tr className="text-slate-400 uppercase text-[8px] font-black tracking-[0.1em] border-b border-slate-100 shadow-sm">
+                <th className="px-3 py-3 w-10 bg-slate-50/80 backdrop-blur-md"></th>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, id: w }))} width={columnWidths.id || 70}>ID</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, no: w }))} width={columnWidths.no || 110}>Code</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ver: w }))} width={columnWidths.ver || 50}>Ver</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, rnd: w }))} width={columnWidths.rnd || 40}>Rd</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, disc: w }))} width={columnWidths.disc || 120}>Discipline</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, title: w }))} width={columnWidths.title || 250}>Drawing Title</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, lchg: w }))} width={columnWidths.lchg || 80}>Last Change</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, wait: w }))} width={columnWidths.wait || 50}>Wait</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, dead: w }))} width={columnWidths.dead || 90}>Deadline</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, days: w }))} width={columnWidths.days || 60}>Days</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ass: w }))} width={columnWidths.ass || 90}>Assignees</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, stat: w }))} width={columnWidths.stat || 100}>Status</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 50}>Total Cmt</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, opn: w }))} width={columnWidths.opn || 50}>Open Cmt</ResizableHeader>
+                <th className="px-2 py-3 bg-slate-50/50" style={{ width: columnWidths.ok || 70 }}>
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-[8px] font-black uppercase tracking-[0.1em]">Check</span>
+                    <button
+                      onClick={async () => {
+                        const store = useStore.getState();
+                        const success = await store.pushProjectToWebDAV(activeProjectId!);
+                        if (success) {
+                          // 将所有 checked 的图纸标记为已同步
+                          const project = store.data.projects.find(p => p.id === activeProjectId);
+                          if (project) {
+                            project.drawings.forEach(d => {
+                              if (d.checked && !d.checkedSynced) {
+                                updateDrawing(d.id, { checkedSynced: true });
+                              }
+                            });
+                          }
+                          alert('Check 状态已同步');
+                        } else {
+                          alert('同步失败');
+                        }
+                      }}
+                      className="px-2 py-0.5 text-[7px] font-black uppercase bg-teal-500 text-white rounded-md hover:bg-teal-600 transition-all shadow-sm"
+                      title="Sync all check statuses"
+                    >
+                      Sync
+                    </button>
+                  </div>
+                </th>
+                <th className="px-3 py-3 w-10 bg-slate-50/50"></th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-50/50">
+              {paginatedDrawings.map((drawing) => (
+                <DrawingRow
+                  key={drawing.id}
+                  drawing={drawing}
+                  activeProjectId={activeProjectId!}
+                  isExpanded={expandedRows.has(drawing.id)}
+                  onToggleExpand={handleToggleExpand}
+                  updateDrawing={updateDrawing}
+                  deleteDrawing={deleteDrawing}
+                  toggleRemarkStatus={toggleRemarkStatus}
+                  reviewers={reviewers}
+                  derivedDisciplines={derivedDisciplines}
+                />
+              ))}
+              {paginatedDrawings.length === 0 && (
+                <tr>
+                  <td colSpan={16} className="py-20 text-center text-slate-300 pointer-events-none">
+                    <div className="text-[10px] font-black uppercase tracking-widest">No match found</div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <PaginationControls

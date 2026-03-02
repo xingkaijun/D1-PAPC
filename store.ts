@@ -89,7 +89,7 @@ interface AppState {
   // 审核追踪
   reviewTracker: ReviewTrackerData;
   loadReviewTracker: (projectId: string) => Promise<void>;
-  toggleAssigneeDone: (drawingId: string, assignee: string) => Promise<void>;
+  toggleAssigneeDone: (drawingId: string, assignee: string) => void;
 }
 
 const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
@@ -452,7 +452,7 @@ export const useStore = create<AppState>()(
       },
 
       pushProjectToWebDAV: async (projectId: string) => {
-        const { data } = get();
+        const { data, reviewTracker } = get();
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return false;
 
@@ -460,6 +460,10 @@ export const useStore = create<AppState>()(
         try {
           const provider = getProvider(data.settings);
           const success = await provider.saveProject(project);
+          // 同时保存 reviewTracker 数据
+          if (Object.keys(reviewTracker).length > 0) {
+            await provider.saveReviewTracker(project, reviewTracker);
+          }
           set({ isLoading: false });
           return success;
         } catch (err: any) {
@@ -749,50 +753,36 @@ export const useStore = create<AppState>()(
 
       // === 审核追踪 ===
       loadReviewTracker: async (projectId: string) => {
-        const { data } = get();
+        const { data, reviewTracker: localTracker } = get();
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return;
         try {
           const provider = getProvider(data.settings);
-          const tracker = await provider.loadReviewTracker(project);
-          set({ reviewTracker: tracker || {} });
+          const remote = await provider.loadReviewTracker(project);
+          // 合并：本地优先，确保未同步的本地标记不被覆盖
+          const merged: ReviewTrackerData = {};
+          const allIds = new Set([...Object.keys(remote || {}), ...Object.keys(localTracker)]);
+          for (const id of allIds) {
+            merged[id] = { ...(remote?.[id] || {}), ...(localTracker[id] || {}) };
+          }
+          set({ reviewTracker: merged });
         } catch (e) { console.warn('loadReviewTracker failed', e); }
       },
 
-      toggleAssigneeDone: async (drawingId: string, assignee: string) => {
-        const { data, reviewTracker } = get();
-        const project = data.projects.find(p => p.id === get().activeProjectId);
-        if (!project) return;
-
-        // 1. 乐观更新本地
-        const current = reviewTracker[drawingId]?.[assignee];
+      toggleAssigneeDone: (drawingId: string, assignee: string) => {
+        // 纯本地更新，同步交给手动 Sync 或定时 auto-sync
+        const current = get().reviewTracker[drawingId]?.[assignee];
         const newDone = !current?.done;
-        const localUpdated: ReviewTrackerData = {
-          ...reviewTracker,
-          [drawingId]: {
-            ...(reviewTracker[drawingId] || {}),
-            [assignee]: { done: newDone, doneAt: newDone ? new Date().toISOString() : undefined }
+
+        set(state => ({
+          reviewTracker: {
+            ...state.reviewTracker,
+            [drawingId]: {
+              ...(state.reviewTracker[drawingId] || {}),
+              [assignee]: { done: newDone, doneAt: newDone ? new Date().toISOString() : undefined }
+            }
           }
-        };
-        set({ reviewTracker: localUpdated });
-
-        // 2. 从服务器拉取最新版本并合并
-        try {
-          const provider = getProvider(data.settings);
-          const remote = await provider.loadReviewTracker(project);
-
-          // 3. 字段级合并：以 remote 为基础，只覆盖本次变更的字段
-          const merged: ReviewTrackerData = { ...remote };
-          if (!merged[drawingId]) merged[drawingId] = {};
-          merged[drawingId][assignee] = localUpdated[drawingId][assignee];
-
-          // 4. 写回服务器
-          await provider.saveReviewTracker(project, merged);
-          set({ reviewTracker: merged });
-        } catch (e) {
-          console.warn('toggleAssigneeDone sync failed', e);
-          // 本地更新仍保留（离线可用）
-        }
+        }));
       },
     }),
     {
