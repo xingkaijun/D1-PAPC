@@ -249,13 +249,21 @@ export const ReviewTracker: React.FC = () => {
                 <div className="flex items-center gap-2">
                     {/* 同步按钮 */}
                     <button
-                        onClick={handleSync}
-                        disabled={isSyncing}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-[1000] uppercase tracking-wider border shadow-sm transition-all active:scale-95 ${isSyncing
-                            ? 'bg-teal-50 text-teal-400 border-teal-200 cursor-wait'
-                            : 'bg-teal-600 text-white border-teal-600 hover:bg-teal-700 shadow-teal-500/20'
+                        onClick={async () => {
+                            if (!isEditMode) {
+                                alert("Permission Denied: Edit Mode is required to sync to cloud.");
+                                return;
+                            }
+                            await handleSync();
+                        }}
+                        disabled={isSyncing || !isEditMode}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-[1000] uppercase tracking-wider border shadow-sm transition-all active:scale-95 ${!isEditMode
+                            ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                            : isSyncing
+                                ? 'bg-teal-50 text-teal-400 border-teal-200 cursor-wait'
+                                : 'bg-teal-600 text-white border-teal-600 hover:bg-teal-700 shadow-teal-500/20'
                             }`}
-                        title="同步项目数据到服务器"
+                        title={!isEditMode ? "Unlock Edit Mode to Sync" : "同步项目数据到服务器"}
                     >
                         <Cloud size={14} className={isSyncing ? 'animate-pulse' : ''} />
                         {isSyncing ? 'Syncing...' : 'Sync to Cloud'}

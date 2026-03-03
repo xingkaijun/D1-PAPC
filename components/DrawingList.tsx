@@ -344,6 +344,10 @@ export const DrawingList: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={async () => {
+                    if (!isEditMode) {
+                      alert("Permission Denied: Edit Mode is required to sync to cloud.");
+                      return;
+                    }
                     if (!activeProjectId || isSyncing) return;
                     setIsSyncing(true);
                     try {
@@ -354,12 +358,14 @@ export const DrawingList: React.FC = () => {
                       setIsSyncing(false);
                     }
                   }}
-                  disabled={isSyncing}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${isSyncing
-                    ? 'bg-teal-50 text-teal-400 border border-teal-200 cursor-wait'
-                    : 'bg-teal-600 text-white hover:bg-teal-700 shadow-teal-500/20'
-                    }`}
-                  title="同步项目数据到服务器"
+                  disabled={isSyncing || !isEditMode}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${!isEditMode
+                    ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                    : isSyncing
+                      ? 'bg-teal-50 text-teal-400 border border-teal-200 cursor-wait'
+                      : 'bg-teal-600 text-white hover:bg-teal-700 shadow-teal-500/20'}
+                    `}
+                  title={!isEditMode ? "Unlock Edit Mode to Sync" : "同步项目数据到服务器"}
                 >
                   <Cloud size={14} className={isSyncing ? 'animate-pulse' : ''} />
                   {isSyncing ? 'Syncing...' : 'Sync to Cloud'}
@@ -441,6 +447,10 @@ export const DrawingList: React.FC = () => {
                     <span className="text-[8px] font-black uppercase tracking-[0.1em]">Check</span>
                     <button
                       onClick={async () => {
+                        if (!isEditMode) {
+                          alert("Permission Denied: Edit Mode is required to sync check statuses.");
+                          return;
+                        }
                         const store = useStore.getState();
                         const success = await store.pushProjectToWebDAV(activeProjectId!);
                         if (success) {
@@ -458,8 +468,9 @@ export const DrawingList: React.FC = () => {
                           alert('同步失败');
                         }
                       }}
-                      className="px-2 py-0.5 text-[7px] font-black uppercase bg-teal-500 text-white rounded-md hover:bg-teal-600 transition-all shadow-sm"
-                      title="Sync all check statuses"
+                      disabled={!isEditMode}
+                      className={`px-2 py-0.5 text-[7px] font-black uppercase rounded-md transition-all shadow-sm ${isEditMode ? 'bg-teal-500 text-white hover:bg-teal-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-60'}`}
+                      title={isEditMode ? "Sync all check statuses" : "Unlock Edit Mode to Sync"}
                     >
                       Sync
                     </button>
