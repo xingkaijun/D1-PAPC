@@ -429,7 +429,7 @@ const App: React.FC = () => {
       )}
 
       {/* Navigation Header */}
-      <header className="bg-white/80 backdrop-blur-2xl border-b border-slate-200/60 px-6 py-4 flex items-center justify-between sticky top-0 z-[60] no-print shrink-0 shadow-sm">
+      <header className="bg-white/80 backdrop-blur-2xl border-b border-slate-200/60 px-6 py-4 flex items-center justify-between z-[60] no-print shrink-0 shadow-sm">
         <div className="flex items-center space-x-10">
           {/* Logo Section */}
           <div className="flex items-center space-x-4 group cursor-pointer" onClick={() => setActiveTab('drawings')}>
@@ -527,8 +527,8 @@ const App: React.FC = () => {
       </header >
 
       {/* Main Container */}
-      < main className="flex-1 flex flex-col overflow-hidden px-6 py-4" >
-        <div className="max-w-[1800px] mx-auto w-full flex-1 flex flex-col gap-4 overflow-hidden">
+      < main className="flex-1 flex flex-col overflow-auto px-6 py-4" >
+        <div className="max-w-[1800px] mx-auto w-full flex-1 flex flex-col gap-4">
           {activeTab === 'drawings' && <CommandBar />}
 
           <div className="flex-1 bg-white rounded-[2rem] border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden flex flex-col">
