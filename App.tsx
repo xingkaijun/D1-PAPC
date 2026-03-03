@@ -184,7 +184,6 @@ const App: React.FC = () => {
   // ... (handleProjectSwitch remains same)
 
   // 3. Auto-Save Logic (Configurable Interval)
-  // 3. Auto-Save Logic (Configurable Interval)
   useEffect(() => {
     if (!isWebDAVConfigured || !activeProjectId || showProjectSelector) return;
 
@@ -196,12 +195,23 @@ const App: React.FC = () => {
     if (intervalMinutes <= 0) return; // Disable auto-sync if set to 0
 
     const interval = setInterval(async () => {
-      console.log(`Auto-saving current project (Interval: ${intervalMinutes}m)...`);
-      await pushProjectToWebDAV(activeProjectId);
+      // 只有拥有编辑权限 (isEditMode) 时，才将本地数据推送到服务端覆写
+      if (isEditMode) {
+        console.log(`[Edit Mode] Auto-saving current project to server (Interval: ${intervalMinutes}m)...`);
+        await pushProjectToWebDAV(activeProjectId);
+      } else {
+        // 全局只读模式下，不仅禁止推送（避免覆盖），同时从服务端静默拉取最新数据
+        // 获取配置中的项目密码（如果该项目受密码保护）
+        console.log(`[Read-Only Mode] Auto-fetching latest data from server (Interval: ${intervalMinutes}m)...`);
+        const projectConfPw = activeProject?.conf?.password;
+        await loadProjectFromWebDAV(activeProjectId, projectConfPw).catch(e => {
+          console.warn('Auto-fetch in read-only mode failed:', e.message);
+        });
+      }
     }, intervalMinutes * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [activeProjectId, isWebDAVConfigured, showProjectSelector, data.settings.autoSyncInterval, data.projects]);
+  }, [activeProjectId, isWebDAVConfigured, showProjectSelector, data.settings.autoSyncInterval, data.projects, isEditMode]);
 
 
   const handleGlobalRefresh = async () => {
