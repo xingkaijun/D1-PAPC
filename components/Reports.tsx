@@ -62,7 +62,7 @@ const PageFooter: React.FC<{ pageNumber: number, totalPages: number, projectName
 const ReportPage: React.FC<{ children: React.ReactNode, pageNumber: number, totalPages: number, projectName: string }> = ({ children, pageNumber, totalPages, projectName }) => (
   <div className="mx-auto my-8 bg-white w-[210mm] h-[297mm] shadow-[0_0_50px_-12px_rgba(0,0,0,0.12)] border border-slate-200 p-[15mm] flex flex-col relative box-border break-after-page print:m-0 print:border-none print:shadow-none mb-12 shrink-0">
     <PageHeader projectName={projectName} />
-    <div className="flex-1 flex flex-col overflow-hidden min-h-0 print:overflow-visible print:h-auto print:flex-none">
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0 print:overflow-visible print:h-auto print:flex-none print:block">
       {children}
     </div>
     <PageFooter pageNumber={pageNumber} totalPages={totalPages} projectName={projectName} />
@@ -418,6 +418,25 @@ export const Reports: React.FC = () => {
           .break-after-page {
             break-after: page !important;
             page-break-after: always !important;
+          }
+          
+          /* 确保 Recharts 图表容器在打印时保留尺寸 */
+          .recharts-responsive-container {
+            overflow: visible !important;
+          }
+          
+          .recharts-wrapper {
+            overflow: visible !important;
+          }
+          
+          svg.recharts-surface {
+            overflow: visible !important;
+          }
+          
+          /* 防止固定高度容器被 flex 压缩 */
+          [class*="h-\\["] {
+            flex-shrink: 0 !important;
+            min-height: auto !important;
           }
         }
       `;
