@@ -415,8 +415,8 @@ export const DailyLogReport: React.FC = () => {
                 <div className="flex justify-between items-end border-b-2 border-slate-900 pb-4 mb-6">
                     <div className="flex items-center">
                         <img
-                            src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
-                            alt="Pacific Gas Logo"
+                            src="https://i.postimg.cc/7LVr6n5m/PG-Logo.jpg"
+                            alt="PG SHIPMANAGEMENT PTE. LTD. Logo"
                             className="h-16 w-auto object-contain"
                         />
                     </div>

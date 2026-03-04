@@ -30,13 +30,13 @@ const PageHeader: React.FC<{ projectName: string }> = ({ projectName }) => (
     <div className="flex items-center gap-5">
       <div className="bg-white p-1 rounded-lg shadow-sm border border-slate-100 overflow-hidden shrink-0">
         <img
-          src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
-          alt="Pacific Gas Logo"
+          src="https://i.postimg.cc/7LVr6n5m/PG-Logo.jpg"
+          alt="PG SHIPMANAGEMENT PTE. LTD. Logo"
           className="h-10 w-auto object-contain"
         />
       </div>
       <div>
-        <div className="text-[9px] font-[1000] text-teal-600 uppercase tracking-[0.2em] mb-0.5">PACIFIC GAS PTE. LTD.</div>
+        <div className="text-[9px] font-[1000] text-teal-600 uppercase tracking-[0.2em] mb-0.5">PG SHIPMANAGEMENT</div>
         <h1 className="text-2xl font-[1000] text-slate-900 uppercase tracking-tighter leading-none">Plan Approval Report</h1>
         <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.2em] mt-2">Project Registry: {projectName}</p>
       </div>
@@ -51,7 +51,7 @@ const PageHeader: React.FC<{ projectName: string }> = ({ projectName }) => (
 const PageFooter: React.FC<{ pageNumber: number, totalPages: number, projectName: string }> = ({ pageNumber, totalPages, projectName }) => (
   <div className="mt-auto pt-6 border-t border-slate-100 flex justify-between items-center relative shrink-0">
     <div className="text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">
-      CONFIDENTIAL • {projectName} • INTERNAL USE ONLY
+      {projectName} • INTERNAL USE ONLY
     </div>
     <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
       Page {pageNumber} of {totalPages}

@@ -300,8 +300,8 @@ const App: React.FC = () => {
               <div className="group relative flex flex-col items-center justify-center rounded-3xl border border-slate-100 bg-white shadow-lg shadow-slate-200/40 h-[260px] overflow-hidden">
                 <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-white to-slate-50/50">
                   <img
-                    src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
-                    alt="Pacific Gas Logo"
+                    src="https://i.postimg.cc/7LVr6n5m/PG-Logo.jpg"
+                    alt="PG SHIPMANAGEMENT PTE. LTD. Logo"
                     className="w-[95%] sm:w-[85%] md:w-full max-w-xs h-auto object-contain drop-shadow-md opacity-95 transition-transform duration-700 hover:scale-[1.05]"
                   />
                 </div>
@@ -436,8 +436,8 @@ const App: React.FC = () => {
             <div className="relative">
               <div className="bg-white p-1 rounded-xl shadow-md border border-slate-100 transition-transform group-hover:scale-105 active:scale-95 overflow-hidden">
                 <img
-                  src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
-                  alt="Pacific Gas Logo"
+                  src="https://i.postimg.cc/7LVr6n5m/PG-Logo.jpg"
+                  alt="PG SHIPMANAGEMENT PTE. LTD. Logo"
                   className="h-8 w-auto object-contain"
                 />
               </div>
@@ -551,7 +551,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <span className="text-slate-300 font-bold tracking-normal">© 2025</span>
-            <span className="text-slate-900 tracking-[0.4em]">PACIFIC GAS PTE. LTD.</span>
+            <span className="text-slate-900 tracking-[0.4em]">PG SHIPMANAGEMENT</span>
           </div>
           <div className="hidden md:flex items-center gap-2">
             <Layers size={12} className="text-teal-500/30" />

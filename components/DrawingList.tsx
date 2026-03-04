@@ -521,7 +521,7 @@ export const DrawingList: React.FC = () => {
         <div className="flex justify-between items-end border-b-2 border-black pb-4 mb-4">
           <div className="flex items-center gap-4">
             <img
-              src="https://i.postimg.cc/sf8Qvb1Q/PACIFIC-GAS-logo-(yuan-se-tou-ming-di-04.png"
+              src="https://i.postimg.cc/7LVr6n5m/PG-Logo.jpg"
               alt="Logo"
               className="h-12 object-contain grayscale"
             />
@@ -584,7 +584,7 @@ export const DrawingList: React.FC = () => {
 
         {/* Print Footer */}
         <div className="mt-8 pt-4 border-t border-black flex justify-between text-[8px] uppercase font-bold text-gray-500">
-          <div>Pacific Gas Pte. Ltd.</div>
+          <div>PG SHIPMANAGEMENT PTE. LTD.</div>
           <div>Page <span className="page-number"></span></div>
         </div>
       </div>
