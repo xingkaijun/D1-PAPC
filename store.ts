@@ -259,8 +259,26 @@ export const useStore = create<AppState>()(
                   if (updates.status && d.status !== updates.status) {
                     changeLogs.push(`Status: ${d.status} -> ${updates.status}`);
 
-                    // 状态变为 Reviewing 时自动生成 Deadline
-                    if (updates.status === 'Reviewing' && d.status !== 'Reviewing') {
+                    // 从 Waiting Reply 再次进入 Reviewing 时：先递增轮次，再计算新轮次的 Deadline
+                    if (updates.status === 'Reviewing' && d.status === 'Waiting Reply') {
+                      // 轮次自动递增: A -> B -> C -> ... -> Z -> AA -> AB -> ...
+                      const currentRound = changedDrawing.currentRound || 'A';
+                      const nextRound = currentRound.length === 1 && currentRound < 'Z'
+                        ? String.fromCharCode(currentRound.charCodeAt(0) + 1)
+                        : currentRound === 'Z' ? 'AA' : currentRound + 'A';
+                      changedDrawing.currentRound = nextRound;
+                      changeLogs.push(`Round: ${currentRound} -> ${nextRound}`);
+
+                      // 用递增后的轮次计算 Deadline
+                      const isRoundA = nextRound.toUpperCase() === 'A';
+                      const cycleDays = isRoundA
+                        ? (p.conf?.roundACycle || 14)
+                        : (p.conf?.otherRoundsCycle || 7);
+                      const holidays = p.conf?.holidays || [];
+                      changedDrawing.reviewDeadline = calculateDeadline(new Date(), cycleDays, holidays).toISOString();
+                    }
+                    // 从 Pending 首次进入 Reviewing 时：仅计算 Deadline，不递增轮次
+                    else if (updates.status === 'Reviewing' && d.status !== 'Reviewing') {
                       const round = changedDrawing.currentRound || 'A';
                       const isRoundA = round.toUpperCase() === 'A';
                       const cycleDays = isRoundA
@@ -269,18 +287,11 @@ export const useStore = create<AppState>()(
                       const holidays = p.conf?.holidays || [];
                       changedDrawing.reviewDeadline = calculateDeadline(new Date(), cycleDays, holidays).toISOString();
                     }
-                    // 状态从 Reviewing 变为 Waiting Reply 或 Approved 时，轮次+1 并清除 Deadline
+                    // 从 Reviewing 变为 Waiting Reply 或 Approved 时：仅清除 Deadline，不递增轮次
                     else if (d.status === 'Reviewing' && (updates.status === 'Waiting Reply' || updates.status === 'Approved')) {
-                      // 轮次自动递增: A -> B -> C -> ... -> Z -> AA -> AB -> ...
-                      const currentRound = changedDrawing.currentRound || 'A';
-                      const nextRound = currentRound.length === 1 && currentRound < 'Z'
-                        ? String.fromCharCode(currentRound.charCodeAt(0) + 1)
-                        : currentRound === 'Z' ? 'AA' : currentRound + 'A';
-                      changedDrawing.currentRound = nextRound;
-                      changeLogs.push(`Round: ${currentRound} -> ${nextRound}`);
                       changedDrawing.reviewDeadline = undefined;
                     }
-                    // 状态从 Reviewing 变为 Pending 时，仅清除 Deadline（不递增轮次）
+                    // 从 Reviewing 变为 Pending 时：仅清除 Deadline
                     else if (d.status === 'Reviewing' && updates.status === 'Pending') {
                       changedDrawing.reviewDeadline = undefined;
                     }
