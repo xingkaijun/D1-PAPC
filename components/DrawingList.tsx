@@ -544,6 +544,14 @@ export const DrawingList: React.FC = () => {
             <div className="text-[10px] font-bold uppercase tracking-wider mt-1">
               Generated: {new Date().toLocaleDateString()}
             </div>
+            <div className="text-[9px] font-bold text-gray-500 mt-1">
+              {statusFilters.size > 0 || filterQuery
+                ? [
+                  statusFilters.size > 0 && `Filter: ${Array.from(statusFilters).join(' + ')}`,
+                  filterQuery && `Search: "${filterQuery}"`
+                ].filter(Boolean).join(' | ')
+                : 'All Drawings'}
+            </div>
           </div>
         </div>
 
