@@ -7,7 +7,7 @@ import {
   Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as ChevronRightIcon,
   Lock, Unlock, X, Cloud
 } from 'lucide-react';
-import { isAfter } from 'date-fns';
+import { isAfter, differenceInCalendarDays } from 'date-fns';
 import { DrawingRow } from './DrawingRow';
 
 // Reusable Button Component for Filter
@@ -191,7 +191,9 @@ export const DrawingList: React.FC = () => {
       // 多选筛选逻辑
       if (statusFilters.size === 0) return true;
 
-      const isOverdue = d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
+      const overdueDays = d.reviewDeadline ? differenceInCalendarDays(new Date(d.reviewDeadline), new Date()) : null;
+      const isOverdue = d.status === 'Reviewing' && overdueDays !== null && overdueDays < 0;
+      const isWarning = d.status === 'Reviewing' && overdueDays !== null && overdueDays >= 0 && overdueDays <= 3;
       const isChecked = d.checked === true;
 
       // 检查是否同时满足所有筛选条件 (AND 逻辑)
@@ -199,6 +201,8 @@ export const DrawingList: React.FC = () => {
         let match = false;
         if (filter === 'Overdue') {
           match = !!isOverdue;
+        } else if (filter === 'Warning') {
+          match = !!isWarning;
         } else if (filter === 'Checked') {
           match = !!isChecked;
         } else if (filter === 'Unchecked') {
@@ -245,7 +249,9 @@ export const DrawingList: React.FC = () => {
       // 如果没有筛选条件，显示所有
       if (testFilters.size === 0) return true;
 
-      const isOverdue = d.status === 'Reviewing' && d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
+      const overdueDays = d.reviewDeadline ? differenceInCalendarDays(new Date(d.reviewDeadline), new Date()) : null;
+      const isOverdue = d.status === 'Reviewing' && overdueDays !== null && overdueDays < 0;
+      const isWarning = d.status === 'Reviewing' && overdueDays !== null && overdueDays >= 0 && overdueDays <= 3;
       const isChecked = d.checked === true;
 
       // 检查是否同时满足所有筛选条件
@@ -253,6 +259,8 @@ export const DrawingList: React.FC = () => {
         let match = false;
         if (filter === 'Overdue') {
           match = !!isOverdue;
+        } else if (filter === 'Warning') {
+          match = !!isWarning;
         } else if (filter === 'Checked') {
           match = !!isChecked;
         } else if (filter === 'Unchecked') {
@@ -416,6 +424,7 @@ export const DrawingList: React.FC = () => {
               <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="amber" count={getFilterCount('Reviewing')} />
               <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="blue" count={getFilterCount('Waiting Reply')} />
               <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={getFilterCount('Approved')} />
+              <FilterButton active={statusFilters.has('Warning')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Warning') ? n.delete('Warning') : n.add('Warning'); return n; })} label="Warning" color="amber" icon={<Layers size={12} />} count={getFilterCount('Warning')} />
               <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={getFilterCount('Overdue')} />
               <div className="w-px h-4 bg-slate-200 mx-1" />
               <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={getFilterCount('Checked')} />
