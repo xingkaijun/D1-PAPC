@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { Calendar, Download, Copy, FileText, Printer, Check } from 'lucide-react';
+import { Calendar, Download, Copy, FileText, Printer, Check, Table2, ClipboardCheck } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
 
 export const DailyLogReport: React.FC = () => {
@@ -9,6 +9,8 @@ export const DailyLogReport: React.FC = () => {
 
     const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+    const [showTransmittalTable, setShowTransmittalTable] = useState(false);
+    const [tableCopied, setTableCopied] = useState(false);
 
     // 数据聚合引擎
     const dailyChanges = useMemo(() => {
@@ -281,6 +283,35 @@ export const DailyLogReport: React.FC = () => {
         link.click();
     };
 
+    // 复制 Transmittal 表格到剪贴板（保留 HTML 格式，粘贴到 Excel/邮件可保留表格结构）
+    const handleCopyTable = async () => {
+        const tableEl = document.getElementById('transmittal-copy-table');
+        if (!tableEl) return;
+        try {
+            const htmlContent = tableEl.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            await navigator.clipboard.write([
+                new ClipboardItem({
+                    'text/html': blob,
+                    'text/plain': new Blob([tableEl.innerText], { type: 'text/plain' })
+                })
+            ]);
+            setTableCopied(true);
+            setTimeout(() => setTableCopied(false), 2000);
+        } catch {
+            // 回退方案：使用 Selection API
+            const range = document.createRange();
+            range.selectNodeContents(tableEl);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+            document.execCommand('copy');
+            sel?.removeAllRanges();
+            setTableCopied(true);
+            setTimeout(() => setTableCopied(false), 2000);
+        }
+    };
+
     if (!activeProject) {
         return (
             <div className="p-8 text-center text-slate-400">
@@ -336,6 +367,16 @@ export const DailyLogReport: React.FC = () => {
                             >
                                 <Download size={14} />
                                 Export CSV
+                            </button>
+                            <button
+                                onClick={() => setShowTransmittalTable(!showTransmittalTable)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${showTransmittalTable
+                                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                        : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
+                                    }`}
+                            >
+                                <Table2 size={14} />
+                                {showTransmittalTable ? 'Hide Table' : 'Transmittal'}
                             </button>
                         </div>
                     </div>
@@ -407,6 +448,71 @@ export const DailyLogReport: React.FC = () => {
                         </table>
                     </div>
                 </div>
+
+                {/* 可复制的 Transmittal 表格区域 */}
+                {showTransmittalTable && (
+                    <div className="px-6 pb-6 shrink-0">
+                        <div className="bg-white rounded-xl border border-amber-200 overflow-hidden">
+                            {/* 表格标题栏 */}
+                            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
+                                <div className="flex items-center gap-2">
+                                    <Table2 size={16} className="text-amber-600" />
+                                    <span className="text-sm font-black text-amber-800">Transmittal Record — {selectedDate}</span>
+                                    <span className="text-xs font-bold text-amber-500 ml-2">({transmittalDrawings.length} items)</span>
+                                </div>
+                                <button
+                                    onClick={handleCopyTable}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${tableCopied
+                                            ? 'bg-emerald-500 text-white'
+                                            : 'bg-amber-100 hover:bg-amber-200 text-amber-700'
+                                        }`}
+                                >
+                                    {tableCopied ? <><ClipboardCheck size={12} /> Copied!</> : <><Copy size={12} /> Copy Table</>}
+                                </button>
+                            </div>
+
+                            {/* 纯净表格 - 框选可直接复制 */}
+                            <div className="overflow-auto max-h-[400px]">
+                                <table id="transmittal-copy-table" className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                                    <thead className="bg-slate-50 sticky top-0">
+                                        <tr>
+                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">No.</th>
+                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">ID</th>
+                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">Drawing No.</th>
+                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">Title</th>
+                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Round</th>
+                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Open Cmt</th>
+                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Total Cmt</th>
+                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Approved</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {transmittalDrawings.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={8} className="border border-slate-300 px-3 py-8 text-center text-xs font-bold text-slate-400">
+                                                    No drawings processed (Waiting Reply / Approved) on this date.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            transmittalDrawings.map((dwg, idx) => (
+                                                <tr key={dwg.id} className="hover:bg-amber-50/50 transition-colors">
+                                                    <td className="border border-slate-300 px-3 py-1.5 text-center text-slate-500">{idx + 1}</td>
+                                                    <td className="border border-slate-300 px-3 py-1.5 font-bold uppercase">{dwg.customId}</td>
+                                                    <td className="border border-slate-300 px-3 py-1.5 font-mono text-teal-700">{dwg.drawingNo}</td>
+                                                    <td className="border border-slate-300 px-3 py-1.5">{dwg.title}</td>
+                                                    <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{dwg.round}</td>
+                                                    <td className="border border-slate-300 px-3 py-1.5 text-center">{dwg.openComments}</td>
+                                                    <td className="border border-slate-300 px-3 py-1.5 text-center">{dwg.totalComments}</td>
+                                                    <td className="border border-slate-300 px-3 py-1.5 text-center">{dwg.isApproved ? '✓' : ''}</td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* 隐藏的打印区域 - 图纸流转单 */}
