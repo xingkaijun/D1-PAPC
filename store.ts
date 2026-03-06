@@ -17,7 +17,10 @@ const ensureDrawingHasId = (drawing: Drawing): Drawing => {
 
 const normalizeProjectDrawingIds = (project: Project): Project => ({
   ...project,
-  drawings: (project.drawings || []).map(ensureDrawingHasId),
+  drawings: (project.drawings || []).map(d => ({
+    ...ensureDrawingHasId(d),
+    currentRound: d.currentRound || 'A'
+  })),
 });
 
 const getProvider = (settings: AppSettings): IStorageProvider => {
@@ -208,7 +211,7 @@ export const useStore = create<AppState>()(
       addDrawing: (drawing) => set((state) => {
         const { activeProjectId, data } = state;
         if (!activeProjectId) return state;
-        const drawingWithId = ensureDrawingHasId(drawing);
+        const drawingWithId = { ...ensureDrawingHasId(drawing), currentRound: drawing.currentRound || 'A' };
 
         return {
           data: {
@@ -279,7 +282,11 @@ export const useStore = create<AppState>()(
                     }
                     // 从 Pending 首次进入 Reviewing 时：仅计算 Deadline，不递增轮次
                     else if (updates.status === 'Reviewing' && d.status !== 'Reviewing') {
-                      const round = changedDrawing.currentRound || 'A';
+                      // 确保 currentRound 有初始值
+                      if (!changedDrawing.currentRound) {
+                        changedDrawing.currentRound = 'A';
+                      }
+                      const round = changedDrawing.currentRound;
                       const isRoundA = round.toUpperCase() === 'A';
                       const cycleDays = isRoundA
                         ? (p.conf?.roundACycle || 14)
