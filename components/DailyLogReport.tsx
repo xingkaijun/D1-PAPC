@@ -371,8 +371,8 @@ export const DailyLogReport: React.FC = () => {
                             <button
                                 onClick={() => setShowTransmittalTable(!showTransmittalTable)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${showTransmittalTable
-                                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                                        : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
+                                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
                                     }`}
                             >
                                 <Table2 size={14} />
@@ -463,47 +463,65 @@ export const DailyLogReport: React.FC = () => {
                                 <button
                                     onClick={handleCopyTable}
                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${tableCopied
-                                            ? 'bg-emerald-500 text-white'
-                                            : 'bg-amber-100 hover:bg-amber-200 text-amber-700'
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-amber-100 hover:bg-amber-200 text-amber-700'
                                         }`}
                                 >
                                     {tableCopied ? <><ClipboardCheck size={12} /> Copied!</> : <><Copy size={12} /> Copy Table</>}
                                 </button>
                             </div>
 
-                            {/* 纯净表格 - 框选可直接复制 */}
+                            {/* 纯净表格 - 使用 inline style 确保复制到 Excel/邮件后保留边框 */}
                             <div className="overflow-auto max-h-[400px]">
-                                <table id="transmittal-copy-table" className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                                    <thead className="bg-slate-50 sticky top-0">
+                                <table id="transmittal-copy-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: 'Arial, sans-serif' }}>
+                                    {/* 信息表头：项目名、日期、总份数 */}
+                                    <thead>
                                         <tr>
-                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">No.</th>
-                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">ID</th>
-                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">Drawing No.</th>
-                                            <th className="border border-slate-300 px-3 py-2 text-left text-xs font-bold text-slate-600">Title</th>
-                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Round</th>
-                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Open Cmt</th>
-                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Total Cmt</th>
-                                            <th className="border border-slate-300 px-3 py-2 text-center text-xs font-bold text-slate-600">Approved</th>
+                                            <td colSpan={8} style={{ border: '1px solid #cbd5e1', padding: '8px 10px', backgroundColor: '#f8fafc', fontWeight: 'bold', fontSize: '14px' }}>
+                                                Document Transmittal Record
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colSpan={4} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
+                                                <strong>Project:</strong> {activeProject.name}
+                                            </td>
+                                            <td colSpan={2} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
+                                                <strong>Date:</strong> {selectedDate}
+                                            </td>
+                                            <td colSpan={2} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
+                                                <strong>Total:</strong> {transmittalDrawings.length} items
+                                            </td>
+                                        </tr>
+                                        {/* 列标题 */}
+                                        <tr>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'center', fontSize: '11px' }}>No.</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'left', fontSize: '11px' }}>ID</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'left', fontSize: '11px' }}>Drawing No.</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'left', fontSize: '11px' }}>Title</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'center', fontSize: '11px' }}>Round</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'center', fontSize: '11px' }}>Open Cmt</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'center', fontSize: '11px' }}>Total Cmt</th>
+                                            <th style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#e2e8f0', fontWeight: 'bold', textAlign: 'center', fontSize: '11px' }}>Approved</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {transmittalDrawings.length === 0 ? (
                                             <tr>
-                                                <td colSpan={8} className="border border-slate-300 px-3 py-8 text-center text-xs font-bold text-slate-400">
+                                                <td colSpan={8} style={{ border: '1px solid #cbd5e1', padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
                                                     No drawings processed (Waiting Reply / Approved) on this date.
                                                 </td>
                                             </tr>
                                         ) : (
                                             transmittalDrawings.map((dwg, idx) => (
-                                                <tr key={dwg.id} className="hover:bg-amber-50/50 transition-colors">
-                                                    <td className="border border-slate-300 px-3 py-1.5 text-center text-slate-500">{idx + 1}</td>
-                                                    <td className="border border-slate-300 px-3 py-1.5 font-bold uppercase">{dwg.customId}</td>
-                                                    <td className="border border-slate-300 px-3 py-1.5 font-mono text-teal-700">{dwg.drawingNo}</td>
-                                                    <td className="border border-slate-300 px-3 py-1.5">{dwg.title}</td>
-                                                    <td className="border border-slate-300 px-3 py-1.5 text-center font-bold">{dwg.round}</td>
-                                                    <td className="border border-slate-300 px-3 py-1.5 text-center">{dwg.openComments}</td>
-                                                    <td className="border border-slate-300 px-3 py-1.5 text-center">{dwg.totalComments}</td>
-                                                    <td className="border border-slate-300 px-3 py-1.5 text-center">{dwg.isApproved ? '✓' : ''}</td>
+                                                <tr key={dwg.id}>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', fontWeight: 'bold', textTransform: 'uppercase' as const }}>{dwg.customId}</td>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', fontFamily: 'monospace' }}>{dwg.drawingNo}</td>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px' }}>{dwg.title}</td>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', textAlign: 'center', fontWeight: 'bold' }}>{dwg.round}</td>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', textAlign: 'center' }}>{dwg.openComments}</td>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', textAlign: 'center' }}>{dwg.totalComments}</td>
+                                                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 10px', textAlign: 'center' }}>{dwg.isApproved ? '✓' : ''}</td>
                                                 </tr>
                                             ))
                                         )}
