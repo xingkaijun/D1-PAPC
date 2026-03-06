@@ -120,7 +120,7 @@ const PaginationControls = ({
 
 
 export const DrawingList: React.FC = () => {
-  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, pushProjectToWebDAV } = useStore();
+  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, pushProjectToWebDAV, reviewTracker } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   // Search state moved to store: filterQuery
@@ -205,8 +205,13 @@ export const DrawingList: React.FC = () => {
           match = !!isWarning;
         } else if (filter === 'Checked') {
           match = !!isChecked;
-        } else if (filter === 'Unchecked') {
-          match = !isChecked;
+        } else if (filter === 'Ready') {
+          if (d.status !== 'Reviewing' || !d.assignees || d.assignees.length === 0) {
+            match = false;
+          } else {
+            const trackerEntry = reviewTracker[d.id] || {};
+            match = d.assignees.every(a => trackerEntry[a]?.done);
+          }
         } else {
           // 默认为状态筛选
           match = d.status === filter;
@@ -263,8 +268,13 @@ export const DrawingList: React.FC = () => {
           match = !!isWarning;
         } else if (filter === 'Checked') {
           match = !!isChecked;
-        } else if (filter === 'Unchecked') {
-          match = !isChecked;
+        } else if (filter === 'Ready') {
+          if (d.status !== 'Reviewing' || !d.assignees || d.assignees.length === 0) {
+            match = false;
+          } else {
+            const trackerEntry = reviewTracker[d.id] || {};
+            match = d.assignees.every(a => trackerEntry[a]?.done);
+          }
         } else {
           match = d.status === filter;
         }
@@ -422,6 +432,7 @@ export const DrawingList: React.FC = () => {
               <div className="w-px h-4 bg-slate-200 mx-1" />
               <FilterButton active={statusFilters.has('Pending')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Pending') ? n.delete('Pending') : n.add('Pending'); return n; })} label="Pending" color="slate" count={getFilterCount('Pending')} />
               <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="amber" count={getFilterCount('Reviewing')} />
+              <FilterButton active={statusFilters.has('Ready')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Ready') ? n.delete('Ready') : n.add('Ready'); return n; })} label="Ready" color="emerald" count={getFilterCount('Ready')} />
               <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="blue" count={getFilterCount('Waiting Reply')} />
               <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={getFilterCount('Approved')} />
               <FilterButton active={statusFilters.has('Warning')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Warning') ? n.delete('Warning') : n.add('Warning'); return n; })} label="Warning" color="amber" icon={<Layers size={12} />} count={getFilterCount('Warning')} />
