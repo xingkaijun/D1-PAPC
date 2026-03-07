@@ -113,6 +113,15 @@ export class CloudflareApiRepository implements DataRepository {
     return true;
   }
 
+  async sendHeartbeat(projectId: string): Promise<void> {
+    await this.request(`projects/${encodeURIComponent(projectId)}/heartbeat`, { method: 'PUT' });
+  }
+
+  async getHeartbeat(projectId: string): Promise<string | null> {
+    const res = await this.request<{ adminLastSeen: string | null }>(`projects/${encodeURIComponent(projectId)}/heartbeat`);
+    return res.adminLastSeen;
+  }
+
   async testConnection(_settings: AppSettings): Promise<{ success: boolean; message: string }> {
     await this.request('health');
     return { success: true, message: 'Connected to Cloudflare API' };

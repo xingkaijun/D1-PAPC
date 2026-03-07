@@ -13,7 +13,8 @@ export const ReviewTracker: React.FC = () => {
         saveProject,
         updateDrawing,
         isEditMode,
-        toggleEditMode
+        toggleEditMode,
+        adminPresence
     } = useStore();
 
     const currentProject = data.projects.find(p => p.id === activeProjectId);
@@ -21,8 +22,8 @@ export const ReviewTracker: React.FC = () => {
     const [filterText, setFilterText] = useState('');
     const [showReady, setShowReady] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
-    // 每张图纸的 approved 标记（本地状态，用于一键发送时判断）
-    const [approvedMarks, setApprovedMarks] = useState<Record<string, boolean>>({});
+    // approved 标记：通过 reviewTracker 持久化（使用特殊 key '__approved__'）
+    const isApprovedMark = (drawingId: string) => reviewTracker[drawingId]?.['__approved__']?.done ?? false;
 
     // 进入页面时自动加载追踪数据
     useEffect(() => {
@@ -98,7 +99,7 @@ export const ReviewTracker: React.FC = () => {
         const count = readyDrawings.length;
         if (count === 0) return;
 
-        const approvedCount = readyDrawings.filter(d => approvedMarks[d.id]).length;
+        const approvedCount = readyDrawings.filter(d => isApprovedMark(d.id)).length;
         const waitingCount = count - approvedCount;
 
         const msg = `将 ${count} 张 Ready 图纸状态更新：\n` +
@@ -109,21 +110,18 @@ export const ReviewTracker: React.FC = () => {
         if (!window.confirm(msg)) return;
 
         readyDrawings.forEach(d => {
-            const newStatus = approvedMarks[d.id] ? 'Approved' : 'Waiting Reply';
+            const newStatus = isApprovedMark(d.id) ? 'Approved' : 'Waiting Reply';
             updateDrawing(d.id, { status: newStatus });
-        });
-
-        // 清理已处理的 approved 标记
-        setApprovedMarks(prev => {
-            const next = { ...prev };
-            readyDrawings.forEach(d => delete next[d.id]);
-            return next;
+            // 清理 approved 标记（如有）
+            if (isApprovedMark(d.id)) {
+                toggleAssigneeDone(d.id, '__approved__');
+            }
         });
     };
 
     const toggleApproved = (drawingId: string) => {
         if (!isEditMode) return;
-        setApprovedMarks(prev => ({ ...prev, [drawingId]: !prev[drawingId] }));
+        toggleAssigneeDone(drawingId, '__approved__');
     };
 
     if (!currentProject) {
@@ -140,7 +138,7 @@ export const ReviewTracker: React.FC = () => {
         const assignees = drawing.assignees || [];
         const doneCount = assignees.filter(a => trackerEntry[a]?.done).length;
         const allDone = assignees.length > 0 && doneCount === assignees.length;
-        const isApproved = approvedMarks[drawing.id];
+        const isApproved = isApprovedMark(drawing.id);
 
         return (
             <div
@@ -243,6 +241,14 @@ export const ReviewTracker: React.FC = () => {
                         </span>
                         <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full border border-emerald-100">
                             Ready: {stats.allDoneCount}
+                        </span>
+                        {/* 管理员在线指示 */}
+                        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${adminPresence.isOnline
+                            ? 'bg-green-50 text-green-600 border-green-100'
+                            : 'bg-slate-50 text-slate-400 border-slate-100'
+                            }`}>
+                            <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                            {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
                         </span>
                     </div>
                 </div>

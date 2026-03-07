@@ -961,6 +961,23 @@ export default {
           }
         }
 
+        if (segments.length === 3 && segments[2] === 'heartbeat') {
+          if (request.method === 'PUT') {
+            await db.prepare(
+              `INSERT INTO project_settings (project_id, setting_key, setting_value)
+               VALUES (?, 'admin_last_seen', ?)
+               ON CONFLICT(project_id, setting_key) DO UPDATE SET setting_value=excluded.setting_value`
+            ).bind(projectId, new Date().toISOString()).run();
+            return json(env, 200, { success: true });
+          }
+          if (request.method === 'GET') {
+            const row = await db.prepare(
+              `SELECT setting_value FROM project_settings WHERE project_id = ? AND setting_key = 'admin_last_seen'`
+            ).bind(projectId).first<{ setting_value: string }>();
+            return json(env, 200, { adminLastSeen: row?.setting_value || null });
+          }
+        }
+
         const isSnapshotEnd = segments.length >= 3 && segments[2] === 'snapshots';
         if (isSnapshotEnd) {
           if (segments.length === 3 && request.method === 'GET') {

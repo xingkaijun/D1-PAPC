@@ -59,4 +59,12 @@ export const appRepository = {
   testConnection(settings: AppSettings, options?: { url?: string; user?: string; pass?: string; proxyUrl?: string }): Promise<{ success: boolean; message: string }> {
     return apiRepository.testConnection(settings);
   },
+
+  sendHeartbeat(projectId: string): Promise<void> {
+    return apiRepository.sendHeartbeat(projectId);
+  },
+
+  getHeartbeat(projectId: string): Promise<string | null> {
+    return apiRepository.getHeartbeat(projectId);
+  },
 };

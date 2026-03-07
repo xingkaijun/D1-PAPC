@@ -78,6 +78,10 @@ interface AppState {
   _deletedDrawingIds: Set<string>;
   _dirtyConf: boolean;
   _dirtyTracker: boolean;
+
+  // 管理员在线状态
+  adminPresence: { isOnline: boolean; lastSeen?: string };
+  _heartbeatTimer: ReturnType<typeof setInterval> | null;
 }
 
 const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
@@ -131,6 +135,8 @@ export const useStore = create<AppState>()(
       _deletedDrawingIds: new Set<string>(),
       _dirtyConf: false,
       _dirtyTracker: false,
+      adminPresence: { isOnline: false },
+      _heartbeatTimer: null,
 
       setViewMode: (mode) => set({ viewMode: mode }),
       setFilterQuery: (query) => set({ filterQuery: query }),
@@ -142,15 +148,38 @@ export const useStore = create<AppState>()(
           if (envPass && envPass.trim() !== '') {
             if (password === envPass) {
               set({ isEditMode: true });
+              // 启动心跳
+              const pid = get().activeProjectId;
+              if (pid) {
+                appRepository.sendHeartbeat(pid).catch(() => { });
+                const timer = setInterval(() => {
+                  const currentPid = get().activeProjectId;
+                  if (currentPid) appRepository.sendHeartbeat(currentPid).catch(() => { });
+                }, 30000);
+                set({ _heartbeatTimer: timer });
+              }
               return true;
             }
             return false;
           } else {
             set({ isEditMode: true });
+            // 启动心跳
+            const pid = get().activeProjectId;
+            if (pid) {
+              appRepository.sendHeartbeat(pid).catch(() => { });
+              const timer = setInterval(() => {
+                const currentPid = get().activeProjectId;
+                if (currentPid) appRepository.sendHeartbeat(currentPid).catch(() => { });
+              }, 30000);
+              set({ _heartbeatTimer: timer });
+            }
             return true;
           }
         } else {
-          set({ isEditMode: false });
+          // Exiting Edit Mode — stop heartbeat
+          const timer = get()._heartbeatTimer;
+          if (timer) clearInterval(timer);
+          set({ isEditMode: false, _heartbeatTimer: null });
           return true;
         }
       },
@@ -750,6 +779,16 @@ export const useStore = create<AppState>()(
             _dirtyConf: false,
             _dirtyTracker: false,
           }));
+
+          // 读取管理员在线状态（非阻塞）
+          appRepository.getHeartbeat(projectId).then(lastSeen => {
+            if (lastSeen) {
+              const diff = Date.now() - new Date(lastSeen).getTime();
+              set({ adminPresence: { isOnline: diff < 60000, lastSeen } });
+            } else {
+              set({ adminPresence: { isOnline: false } });
+            }
+          }).catch(() => { });
         } catch (err: any) {
           set({ isLoading: false, error: err.message });
           throw err;
