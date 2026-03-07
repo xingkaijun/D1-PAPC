@@ -355,20 +355,22 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
   for (const drawing of project.drawings) {
     const id = toStringValue(drawing.id) || crypto.randomUUID();
     stmts.push(db.prepare(
-      `INSERT INTO drawings (id, project_id, custom_id, drawing_no, discipline, title, status, version, current_round, review_deadline, manual_comments_count, manual_open_comments_count, checked, checked_synced)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO drawings (id, project_id, custom_id, drawing_no, discipline, title, status, version, current_round, review_deadline, manual_comments_count, manual_open_comments_count, checked, checked_synced, received_date, category, deadline)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          custom_id=excluded.custom_id, drawing_no=excluded.drawing_no, discipline=excluded.discipline, title=excluded.title,
          status=excluded.status, version=excluded.version, current_round=excluded.current_round, review_deadline=excluded.review_deadline,
          manual_comments_count=excluded.manual_comments_count, manual_open_comments_count=excluded.manual_open_comments_count,
-         checked=excluded.checked, checked_synced=excluded.checked_synced`
+         checked=excluded.checked, checked_synced=excluded.checked_synced,
+         received_date=excluded.received_date, category=excluded.category, deadline=excluded.deadline`
     ).bind(
       id, projectId, toStringValue(drawing.customId) || '', toStringValue(drawing.drawingNo) || '',
       toStringValue(drawing.discipline) || '', toStringValue(drawing.title) || '',
       toStringValue(drawing.status) || 'Pending', toStringValue(drawing.version) || '',
       toStringValue(drawing.currentRound) || 'A', toStringValue(drawing.reviewDeadline) || null,
       toNumberValue(drawing.manualCommentsCount, 0), toNumberValue(drawing.manualOpenCommentsCount, 0),
-      toBooleanValue(drawing.checked) ? 1 : 0, toBooleanValue(drawing.checkedSynced) ? 1 : 0
+      toBooleanValue(drawing.checked) ? 1 : 0, toBooleanValue(drawing.checkedSynced) ? 1 : 0,
+      toStringValue(drawing.receivedDate) || null, toStringValue(drawing.category) || null, toStringValue(drawing.deadline) || null
     ));
 
     // Assignees
@@ -386,6 +388,20 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
         stmts.push(db.prepare(`INSERT INTO drawing_status_history (id, drawing_id, content, created_at) VALUES (?, ?, ?, ?)`).bind(
           toStringValue(history.id) || crypto.randomUUID(), id,
           toStringValue(history.content) || '', toStringValue(history.createdAt) || new Date().toISOString()
+        ));
+      }
+    }
+
+    // Remarks (Internal Notes)
+    stmts.push(db.prepare(`DELETE FROM drawing_remarks WHERE drawing_id = ?`).bind(id));
+    if (Array.isArray(drawing.remarks)) {
+      for (const remark of drawing.remarks) {
+        stmts.push(db.prepare(
+          `INSERT INTO drawing_remarks (id, project_id, drawing_id, content, created_at, resolved) VALUES (?, ?, ?, ?, ?, ?)`
+        ).bind(
+          toStringValue(remark.id) || crypto.randomUUID(), projectId, id,
+          toStringValue(remark.content) || '', toStringValue(remark.createdAt) || new Date().toISOString(),
+          toBooleanValue(remark.resolved) ? 1 : 0
         ));
       }
     }
@@ -785,20 +801,22 @@ export default {
             for (const drawing of body.updatedDrawings) {
               const id = toStringValue(drawing.id) || crypto.randomUUID();
               stmts.push(db.prepare(
-                `INSERT INTO drawings (id, project_id, custom_id, drawing_no, discipline, title, status, version, current_round, review_deadline, manual_comments_count, manual_open_comments_count, checked, checked_synced)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `INSERT INTO drawings (id, project_id, custom_id, drawing_no, discipline, title, status, version, current_round, review_deadline, manual_comments_count, manual_open_comments_count, checked, checked_synced, received_date, category, deadline)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(id) DO UPDATE SET
                    custom_id=excluded.custom_id, drawing_no=excluded.drawing_no, discipline=excluded.discipline, title=excluded.title,
                    status=excluded.status, version=excluded.version, current_round=excluded.current_round, review_deadline=excluded.review_deadline,
                    manual_comments_count=excluded.manual_comments_count, manual_open_comments_count=excluded.manual_open_comments_count,
-                   checked=excluded.checked, checked_synced=excluded.checked_synced`
+                   checked=excluded.checked, checked_synced=excluded.checked_synced,
+                   received_date=excluded.received_date, category=excluded.category, deadline=excluded.deadline`
               ).bind(
                 id, projectId, toStringValue(drawing.customId) || '', toStringValue(drawing.drawingNo) || '',
                 toStringValue(drawing.discipline) || '', toStringValue(drawing.title) || '',
                 toStringValue(drawing.status) || 'Pending', toStringValue(drawing.version) || '',
                 toStringValue(drawing.currentRound) || 'A', toStringValue(drawing.reviewDeadline) || null,
                 toNumberValue(drawing.manualCommentsCount, 0), toNumberValue(drawing.manualOpenCommentsCount, 0),
-                toBooleanValue(drawing.checked) ? 1 : 0, toBooleanValue(drawing.checkedSynced) ? 1 : 0
+                toBooleanValue(drawing.checked) ? 1 : 0, toBooleanValue(drawing.checkedSynced) ? 1 : 0,
+                toStringValue(drawing.receivedDate) || null, toStringValue(drawing.category) || null, toStringValue(drawing.deadline) || null
               ));
 
               // Assignees
@@ -819,6 +837,20 @@ export default {
                   ));
                 }
               }
+
+              // Remarks (Internal Notes)
+              stmts.push(db.prepare(`DELETE FROM drawing_remarks WHERE drawing_id = ?`).bind(id));
+              if (Array.isArray(drawing.remarks)) {
+                for (const remark of drawing.remarks) {
+                  stmts.push(db.prepare(
+                    `INSERT INTO drawing_remarks (id, project_id, drawing_id, content, created_at, resolved) VALUES (?, ?, ?, ?, ?, ?)`
+                  ).bind(
+                    toStringValue(remark.id) || crypto.randomUUID(), projectId, id,
+                    toStringValue(remark.content) || '', toStringValue(remark.createdAt) || new Date().toISOString(),
+                    toBooleanValue(remark.resolved) ? 1 : 0
+                  ));
+                }
+              }
             }
           }
 
@@ -827,6 +859,7 @@ export default {
             for (const delId of body.deletedDrawingIds) {
               stmts.push(db.prepare(`DELETE FROM drawing_assignees WHERE drawing_id = ?`).bind(delId));
               stmts.push(db.prepare(`DELETE FROM drawing_status_history WHERE drawing_id = ?`).bind(delId));
+              stmts.push(db.prepare(`DELETE FROM drawing_remarks WHERE drawing_id = ?`).bind(delId));
               stmts.push(db.prepare(`DELETE FROM drawings WHERE project_id = ? AND id = ?`).bind(projectId, delId));
             }
           }

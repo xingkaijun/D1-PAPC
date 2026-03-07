@@ -77,10 +77,24 @@ SELECT
           'manualCommentsCount', COALESCE(d.manual_comments_count, 0),
           'manualOpenCommentsCount', COALESCE(d.manual_open_comments_count, 0),
           'reviewDeadline', d.review_deadline,
+          'receivedDate', d.received_date,
+          'category', d.category,
+          'deadline', d.deadline,
           'checked', d.checked,
           'checkedSynced', d.checked_synced,
           'logs', json('[]'),
-          'remarks', json('[]'),
+          'remarks', COALESCE((
+            SELECT json_group_array(
+              json_object(
+                'id', rm.id,
+                'content', COALESCE(rm.content, ''),
+                'createdAt', COALESCE(rm.created_at, ''),
+                'resolved', rm.resolved
+              )
+            )
+            FROM drawing_remarks rm
+            WHERE rm.drawing_id = d.id
+          ), json('[]')),
           'statusHistory', COALESCE((
             SELECT json_group_array(
               json_object(
