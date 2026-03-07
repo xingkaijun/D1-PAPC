@@ -826,20 +826,35 @@ export const useStore = create<AppState>()(
       },
 
       toggleAssigneeDone: (drawingId: string, assignee: string) => {
-        // 纯本地更新，同步交给手动 Sync 或定时 auto-sync
         const current = get().reviewTracker[drawingId]?.[assignee];
         const newDone = !current?.done;
+        const doneAt = newDone ? new Date().toISOString() : undefined;
 
+        // 1. 立即更新本地状态（不再需要标记 _dirtyTracker）
         set(state => ({
-          _dirtyTracker: true,
           reviewTracker: {
             ...state.reviewTracker,
             [drawingId]: {
               ...(state.reviewTracker[drawingId] || {}),
-              [assignee]: { done: newDone, doneAt: newDone ? new Date().toISOString() : undefined }
+              [assignee]: { done: newDone, doneAt }
             }
           }
         }));
+
+        // 2. 异步保存到服务端（fire-and-forget）
+        const { data, activeProjectId } = get();
+        if (activeProjectId) {
+          const project = data.projects.find(p => p.id === activeProjectId);
+          if (project) {
+            const singleUpdate = { [drawingId]: { [assignee]: { done: newDone, doneAt } } };
+            appRepository.saveReviewTracker(data.settings, project, singleUpdate)
+              .then(() => console.log(`[Tracker] Saved: ${drawingId}/${assignee} = ${newDone}`))
+              .catch(err => {
+                console.error('[Tracker] Save failed:', err);
+                // 可以在这里添加 Toast 提示，或者重新标记为 dirty，目前保持简单
+              });
+          }
+        }
       },
     }),
     {

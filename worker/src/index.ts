@@ -133,7 +133,7 @@ const splitCsv = (value: string | undefined): string[] =>
 
 const withCors = (headers: Headers, env: Env): Headers => {
   headers.set('Access-Control-Allow-Origin', env.ALLOW_CORS_ORIGIN || '*');
-  headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   return headers;
 };
