@@ -1009,8 +1009,10 @@ export default {
               else if (status === 'waiting reply') discMap[disc].waitingReply++;
               else discMap[disc].pending++;
               const remarks = d.remarks || [];
-              discMap[disc].totalComments += remarks.length;
-              discMap[disc].openComments += remarks.filter((r: any) => !r.resolved).length;
+              const manualTotal = d.manualCommentsCount ? Number(d.manualCommentsCount) : 0;
+              const manualOpen = d.manualOpenCommentsCount ? Number(d.manualOpenCommentsCount) : 0;
+              discMap[disc].totalComments += remarks.length + manualTotal;
+              discMap[disc].openComments += remarks.filter((r: any) => !r.resolved).length + manualOpen;
             }
             const stats = Object.values(discMap);
 
