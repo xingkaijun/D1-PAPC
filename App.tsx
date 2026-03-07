@@ -67,6 +67,7 @@ const App: React.FC = () => {
     saveProject,
     fetchGlobalSettings,
     isEditMode,
+    adminPresence,
 
   } = useStore();
 
@@ -409,7 +410,7 @@ const App: React.FC = () => {
                   className="h-8 w-auto object-contain"
                 />
               </div>
-              <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-teal-500 rounded-full border-2 border-white shadow-sm" />
+              <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${adminPresence.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
             </div >
             <div className="flex flex-col">
               <h1 className="text-lg font-[1000] text-slate-900 tracking-tighter leading-none uppercase">
