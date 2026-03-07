@@ -178,6 +178,61 @@ var saveProjectData = /* @__PURE__ */ __name(async (db, projectId, project, revi
       }
     }
   }
+  if (project.conf) {
+    const conf = project.conf;
+    const settingsMap = {
+      displayName: conf.displayName,
+      password: conf.password,
+      holidays: Array.isArray(conf.holidays) ? JSON.stringify(conf.holidays) : "[]",
+      roundACycle: conf.roundACycle,
+      otherRoundsCycle: conf.otherRoundsCycle,
+      autoSyncInterval: conf.autoSyncInterval
+    };
+    for (const [key, val] of Object.entries(settingsMap)) {
+      if (val !== void 0 && val !== null) {
+        stmts.push(db.prepare(
+          `INSERT INTO project_settings (project_id, setting_key, setting_value)
+           VALUES (?, ?, ?)
+           ON CONFLICT(project_id, setting_key) DO UPDATE SET setting_value=excluded.setting_value`
+        ).bind(projectId, key, String(val)));
+      }
+    }
+    if (conf.disciplineDefaults && typeof conf.disciplineDefaults === "object") {
+      stmts.push(db.prepare(`DELETE FROM discipline_defaults WHERE project_id = ?`).bind(projectId));
+      for (const [discipline, reviewerId] of Object.entries(conf.disciplineDefaults)) {
+        if (reviewerId) {
+          stmts.push(db.prepare(
+            `INSERT INTO discipline_defaults (project_id, discipline, reviewer_id)
+             VALUES (?, ?, ?)`
+          ).bind(projectId, discipline, String(reviewerId)));
+        }
+      }
+    }
+    if (conf.defaultAssignees && typeof conf.defaultAssignees === "object") {
+      stmts.push(db.prepare(`DELETE FROM discipline_default_assignees WHERE project_id = ?`).bind(projectId));
+      for (const [discipline, reviewerIds] of Object.entries(conf.defaultAssignees)) {
+        if (Array.isArray(reviewerIds)) {
+          for (const revId of reviewerIds) {
+            stmts.push(db.prepare(
+              `INSERT INTO discipline_default_assignees (project_id, discipline, reviewer_id)
+               VALUES (?, ?, ?)`
+            ).bind(projectId, discipline, String(revId)));
+          }
+        }
+      }
+    }
+    if (Array.isArray(conf.reviewers) && conf.reviewers.length > 0) {
+      for (const rev of conf.reviewers) {
+        if (rev.id) {
+          stmts.push(db.prepare(
+            `INSERT INTO reviewers (id, display_name)
+             VALUES (?, ?)
+             ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name`
+          ).bind(rev.id, rev.name || rev.id));
+        }
+      }
+    }
+  }
   if (reviewTracker && typeof reviewTracker === "object" && Object.keys(reviewTracker).length > 0) {
     stmts.push(...buildReviewTrackerStatements(db, projectId, reviewTracker));
   }
@@ -428,9 +483,19 @@ var src_default = {
       if (segments[0] === "projects" && segments[1]) {
         const projectId = decodeURIComponent(segments[1]);
         if (segments.length === 2 && request.method === "POST") {
+          const body = await request.json();
           const project = await getProjectDetail(db, projectId);
           if (!project) {
             return json(env, 404, { error: `Project not found: ${projectId}` });
+          }
+          const projectPassword = project.conf?.password;
+          if (projectPassword && projectPassword.trim() !== "") {
+            if (!body.password) {
+              return text(env, 401, "PASSWORD_REQUIRED");
+            }
+            if (body.password !== projectPassword) {
+              return text(env, 401, "INVALID_PASSWORD");
+            }
           }
           return json(env, 200, project);
         }
@@ -516,7 +581,7 @@ var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "drainBody");
 var middleware_ensure_req_body_drained_default = drainBody;
 
-// .wrangler/tmp/bundle-wK42pD/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-TjZ8f2/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default
 ];
@@ -547,7 +612,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-wK42pD/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-TjZ8f2/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

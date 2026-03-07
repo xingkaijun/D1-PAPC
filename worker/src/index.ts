@@ -391,6 +391,73 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
     }
   }
 
+  // Persist Project Configuration (conf)
+  if (project.conf) {
+    const conf = project.conf;
+
+    // 1. project_settings
+    const settingsMap: Record<string, any> = {
+      displayName: conf.displayName,
+      password: conf.password,
+      holidays: Array.isArray(conf.holidays) ? JSON.stringify(conf.holidays) : '[]',
+      roundACycle: conf.roundACycle,
+      otherRoundsCycle: conf.otherRoundsCycle,
+      autoSyncInterval: conf.autoSyncInterval
+    };
+
+    for (const [key, val] of Object.entries(settingsMap)) {
+      if (val !== undefined && val !== null) {
+        stmts.push(db.prepare(
+          `INSERT INTO project_settings (project_id, setting_key, setting_value)
+           VALUES (?, ?, ?)
+           ON CONFLICT(project_id, setting_key) DO UPDATE SET setting_value=excluded.setting_value`
+        ).bind(projectId, key, String(val)));
+      }
+    }
+
+    // 2. discipline_defaults
+    if (conf.disciplineDefaults && typeof conf.disciplineDefaults === 'object') {
+      stmts.push(db.prepare(`DELETE FROM discipline_defaults WHERE project_id = ?`).bind(projectId));
+      for (const [discipline, reviewerId] of Object.entries(conf.disciplineDefaults)) {
+        if (reviewerId) {
+          stmts.push(db.prepare(
+            `INSERT INTO discipline_defaults (project_id, discipline, reviewer_id)
+             VALUES (?, ?, ?)`
+          ).bind(projectId, discipline, String(reviewerId)));
+        }
+      }
+    }
+
+    // 3. discipline_default_assignees
+    if (conf.defaultAssignees && typeof conf.defaultAssignees === 'object') {
+      stmts.push(db.prepare(`DELETE FROM discipline_default_assignees WHERE project_id = ?`).bind(projectId));
+      for (const [discipline, reviewerIds] of Object.entries(conf.defaultAssignees)) {
+        if (Array.isArray(reviewerIds)) {
+          for (const revId of reviewerIds) {
+            stmts.push(db.prepare(
+              `INSERT INTO discipline_default_assignees (project_id, discipline, reviewer_id)
+               VALUES (?, ?, ?)`
+            ).bind(projectId, discipline, String(revId)));
+          }
+        }
+      }
+    }
+
+    // 4. Update global reviewers if provided (since they are shared)
+    if (Array.isArray(conf.reviewers) && conf.reviewers.length > 0) {
+      // Small optimization: only update if we have reviewers
+      for (const rev of conf.reviewers) {
+        if (rev.id) {
+          stmts.push(db.prepare(
+            `INSERT INTO reviewers (id, display_name)
+             VALUES (?, ?)
+             ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name`
+          ).bind(rev.id, rev.name || rev.id));
+        }
+      }
+    }
+  }
+
   // Update Review Tracker if provided
   if (reviewTracker && typeof reviewTracker === 'object' && Object.keys(reviewTracker).length > 0) {
     stmts.push(...buildReviewTrackerStatements(db, projectId, reviewTracker));
@@ -683,10 +750,23 @@ export default {
         const projectId = decodeURIComponent(segments[1]);
 
         if (segments.length === 2 && request.method === 'POST') {
+          const body = await request.json() as any;
           const project = await getProjectDetail(db, projectId);
           if (!project) {
             return json(env, 404, { error: `Project not found: ${projectId}` });
           }
+
+          // Password validation
+          const projectPassword = (project.conf as any)?.password;
+          if (projectPassword && projectPassword.trim() !== '') {
+            if (!body.password) {
+              return text(env, 401, 'PASSWORD_REQUIRED');
+            }
+            if (body.password !== projectPassword) {
+              return text(env, 401, 'INVALID_PASSWORD');
+            }
+          }
+
           return json(env, 200, project as JsonValue);
         }
 

@@ -440,13 +440,28 @@
       }
 
       let html = `<table><thead><tr>`;
-      const cols = Object.keys(data.rows[0]);
+      let cols = Object.keys(data.rows[0]);
+
+      const promoteCols = ['id', 'project_id', '_custom_id', 'custom_id', 'drawing_id'];
+      cols.sort((a, b) => {
+        const ia = promoteCols.indexOf(a);
+        const ib = promoteCols.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return 0;
+      });
+
       cols.forEach(c => html += `<th>${c}</th>`);
       html += `<th>操作</th></tr></thead><tbody>`;
 
       data.rows.forEach(row => {
         html += `<tr>`;
-        cols.forEach(c => html += `<td>${String(row[c] || '').replace(/</g, '&lt;')}</td>`);
+        cols.forEach(c => {
+          let valStr = String(row[c] || '').replace(/</g, '&lt;');
+          if (c === '_custom_id' || c === 'custom_id') valStr = `<strong style="color:var(--primary)">${valStr}</strong>`;
+          html += `<td>${valStr}</td>`;
+        });
         const idVal = row.id || row.project_id; // Best effort for composite but we prefer 'id'
         html += `<td>
       <div class="actions">
