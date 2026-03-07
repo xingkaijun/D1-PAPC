@@ -126,6 +126,10 @@ SELECT
       SELECT ps.setting_value FROM project_settings ps
       WHERE ps.project_id = p.id AND ps.setting_key = 'displayName'
     ),
+    'autoSyncInterval', (
+      SELECT CAST(ps.setting_value AS INTEGER) FROM project_settings ps
+      WHERE ps.project_id = p.id AND ps.setting_key = 'autoSyncInterval'
+    ),
     'defaultAssignees', COALESCE((
       SELECT json_group_object(
         sub.discipline,
