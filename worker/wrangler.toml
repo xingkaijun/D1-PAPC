@@ -1,0 +1,18 @@
+name = "papc-d1-api"
+main = "src/index.ts"
+compatibility_date = "2026-03-07"
+
+[vars]
+ALLOW_CORS_ORIGIN = "*"
+# Optional. Leave empty to disable bearer auth during early local testing.
+API_TOKEN = ""
+
+[[d1_databases]]
+binding = "PAPC_DB"
+database_name = "papc-review-db-final"
+database_id = "35adae30-8160-4c7a-972f-e7cf4deb6457"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallbacks = []

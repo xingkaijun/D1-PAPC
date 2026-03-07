@@ -7,123 +7,32 @@ import {
   User, Calendar, ShieldCheck, Activity, HeartPulse
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { downloadProjectBackup, parseProjectBackup } from '../services/data/localProjectFile';
 
 export const Settings: React.FC = () => {
-  const { data, updateSettings, updateProjectConfig, syncWithWebDAV, saveSettingsToWebDAV, loadProjectFromWebDAV, fetchAllProjectsFromWebDAV, testWebDAVConnection, isLoading, activeProjectId, error, clearError, restoreProject, setStorageMode } = useStore();
+  const { data, updateSettings, updateProjectConfig, saveActiveProject, loadProject, fetchProjectList, isLoading, activeProjectId, error, clearError, restoreProject, reviewTracker } = useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const project = data.projects.find(p => p.id === activeProjectId);
 
   // Use project config if available, otherwise global defaults (as template/fallback)
   const activeSettings = project?.conf || data.settings;
-  const globalSettings = data.settings; // For WebDAV only
+
+  const globalSettings = data.settings;
+
+  // Local UI inputs
+  const [newReviewer, setNewReviewer] = useState('');
+  const [newHoliday, setNewHoliday] = useState('');
 
   const activeDisciplines = React.useMemo(() => {
     if (!project) return [];
     return Array.from(new Set(project.drawings.map(d => d.discipline))).filter(Boolean).sort();
   }, [project]);
 
-  // Global Settings for WebDAV
-  // Storage Settings
-  const [storageType, setStorageType] = useState<'WEBDAV' | 'ONEDRIVE'>(globalSettings.storage?.type || 'WEBDAV');
-  const [webdavUrl, setWebdavUrl] = useState(globalSettings.webdavUrl || globalSettings.storage?.webdav?.url || '');
-  const [webdavUser, setWebdavUser] = useState(globalSettings.webdavUser || globalSettings.storage?.webdav?.username || '');
-  const [webdavPass, setWebdavPass] = useState(globalSettings.webdavPass || globalSettings.storage?.webdav?.password || '');
-  const defaultProxyUrl = import.meta.env.DEV ? 'http://localhost:3001/api/proxy' : '/api/proxy';
-  const [onedriveProxyUrl, setOnedriveProxyUrl] = useState(globalSettings.storage?.onedrive?.proxyUrl || defaultProxyUrl);
-
-  const [pushPass, setPushPass] = useState(globalSettings.pushPassword || '');
-
-  // Local UI inputs
-  const [newReviewer, setNewReviewer] = useState('');
-  const [newHoliday, setNewHoliday] = useState('');
-
-  // Test connection result state
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-
-
-  const handleSaveStorage = async () => {
-    // Save to Store
-    setStorageMode({
-      type: storageType,
-      webdav: {
-        url: webdavUrl,
-        username: webdavUser,
-        password: webdavPass
-      },
-      onedrive: {
-        proxyUrl: onedriveProxyUrl
-      }
-    });
-
-    // Also update legacy fields for backward compatibility if staying on WebDAV
-    if (storageType === 'WEBDAV') {
-      updateSettings({
-        webdavUrl, webdavUser, webdavPass
-      });
-    }
-
-    if (storageType === 'WEBDAV') {
-      if (webdavUrl && webdavUser && webdavPass) {
-        try {
-          await fetchAllProjectsFromWebDAV(); // Or fetchProjectListFromWebDAV
-          alert('WebDAV Configuration Saved & Server Scanned!');
-        } catch (e: any) {
-          alert(`Saved, but scan failed: ${e.message}`);
-        }
-      } else {
-        alert('WebDAV Saved (Incomplete Credentials)');
-      }
-    } else {
-      // OneDrive
-      try {
-        // Trigger a list fetch to test/scan
-        await fetchAllProjectsFromWebDAV(); // This maps to fetchProjectList
-        alert('OneDrive Configuration Saved & Connected!');
-      } catch (e: any) {
-        alert(`Saved, but connection failed: ${e.message}`);
-      }
-    }
-  };
-
-  const handleTestWebDAV = async () => {
-    // Use environment variables if input fields are empty
-    const envUrl = import.meta.env.VITE_WEBDAV_URL;
-    const envUser = import.meta.env.VITE_WEBDAV_USER;
-    const envPass = import.meta.env.VITE_WEBDAV_PASSWORD;
-
-    const testUrl = webdavUrl || envUrl;
-    const testUser = webdavUser || envUser;
-    const testPass = webdavPass || envPass;
-
-    if (storageType === 'WEBDAV') {
-      if (!testUrl) {
-        setTestResult({ success: false, message: 'Server URL is required' });
-        return;
-      }
-    } else {
-      if (!onedriveProxyUrl) {
-        setTestResult({ success: false, message: 'Proxy URL is required' });
-        return;
-      }
-    }
-
-    const result = await testWebDAVConnection(testUrl, testUser, testPass, onedriveProxyUrl);
-    setTestResult(result);
-
-    // Auto-clear after 5 seconds
-    setTimeout(() => setTestResult(null), 5000);
-  };
-
   const handleExecutePush = async () => {
-    // Pass empty string for compatibility or remove param in store if updated
-    const success = await syncWithWebDAV('');
-    // Attempt to save settings too
-    // Deprecated per user request: await saveSettingsToWebDAV();
-
+    const success = await saveActiveProject('');
     if (success) {
-      alert("Project & Global Config successfully synced to WebDAV.");
+      alert("Project successfully synced to Cloud.");
     }
   };
 
@@ -199,18 +108,7 @@ export const Settings: React.FC = () => {
       alert("No active project to backup.");
       return;
     }
-    const timestamp = format(new Date(), 'yyyyMMddHHmm');
-    const hullName = project.name.replace(/[^a-z0-9]/gi, '_');
-    const filename = `PA_${hullName}_${timestamp}.json`;
-
-    const projectData = JSON.stringify(project, null, 2);
-    const blob = new Blob([projectData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadProjectBackup(project, reviewTracker);
   };
 
   const handleLocalRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -221,12 +119,16 @@ export const Settings: React.FC = () => {
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        const restoredProject = JSON.parse(content);
-        if (!restoredProject.id || !restoredProject.name || !Array.isArray(restoredProject.drawings)) {
-          throw new Error("Invalid project file structure.");
+        const payload = parseProjectBackup(content);
+        restoreProject(payload.project);
+
+        // 恢复 Review Tracker（如果导出中包含）
+        if (payload.reviewTracker && Object.keys(payload.reviewTracker).length > 0) {
+          useStore.setState({ reviewTracker: payload.reviewTracker });
         }
-        restoreProject(restoredProject);
-        alert(`Project "${restoredProject.name}" has been restored locally.`);
+
+        const trackerInfo = payload._backupVersion && payload._backupVersion >= 2 ? ' (含 Tracker)' : '';
+        alert(`Project "${payload.project.name}" has been restored locally.${trackerInfo}`);
       } catch (err) {
         alert("Restoration failed: " + (err instanceof Error ? err.message : "Malformed JSON file"));
       }
@@ -257,173 +159,82 @@ export const Settings: React.FC = () => {
       <div className="max-w-7xl mx-auto space-y-6 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-          {/* Storage Configuration */}
+          {/* Cloud Sync and Backup */}
           <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:border-teal-400 transition-colors">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
               <Database className="text-teal-600" size={16} />
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Storage Provider</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Data Management</h2>
             </div>
             <div className="p-5 flex-1 space-y-4">
+              <div className="pt-2 space-y-3">
+                <div className="text-[9px] font-black uppercase text-slate-400 ml-1">Hull: <span className="text-teal-600">{project?.name || 'Unset'}</span></div>
 
-              {/* Type Selector */}
-              <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button
-                  onClick={() => setStorageType('WEBDAV')}
-                  className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${storageType === 'WEBDAV' ? 'bg-white shadow text-teal-700' : 'text-slate-400 hover:text-slate-600'}`}
-                >WebDAV</button>
-                <button
-                  onClick={() => setStorageType('ONEDRIVE')}
-                  className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wide transition-all ${storageType === 'ONEDRIVE' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
-                >OneDrive (Proxy)</button>
-              </div>
 
-              {storageType === 'WEBDAV' ? (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                  <div>
-                    <label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1 tracking-widest flex items-center gap-1">
-                      <LinkIcon size={10} /> Server URL
-                    </label>
-                    <input
-                      type="text" value={webdavUrl} onChange={(e) => setWebdavUrl(e.target.value)}
-                      placeholder="https://your-webdav-server.com/dav/"
-                      className="w-full p-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] focus:bg-white transition-all"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text" value={webdavUser} onChange={(e) => setWebdavUser(e.target.value)}
-                        placeholder="Username"
-                        className="p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] focus:bg-white transition-all"
-                      />
-                      <input
-                        type="password" value={webdavPass} onChange={(e) => setWebdavPass(e.target.value)}
-                        placeholder="Password"
-                        className="p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] focus:bg-white transition-all"
-                      />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleExecutePush}
+                    disabled={isLoading || !project}
+                    className="p-3 bg-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-teal-500/10"
+                  >
+                    <Send size={12} /> Save to Cloud 云端保存
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!activeProjectId) return;
+                      const confirmed = window.confirm('⚠️ 警告：拉取云端数据会覆盖掉本地未同步的更改。\n\n确定要继续吗？');
+                      if (!confirmed) return;
+                      try {
+                        await loadProject(activeProjectId, project?.conf?.password);
+                        alert('✅ 云端拉取成功');
+                      } catch (e: any) {
+                        alert(`❌ 拉取失败: ${e.message}`);
+                      }
+                    }}
+                    disabled={isLoading || !project}
+                    className="p-3 bg-cyan-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-cyan-500/10"
+                  >
+                    <Download size={12} /> Cloud Fetch 云端拉取
+                  </button>
+                </div>
+
+                <div className="h-px bg-slate-100 my-1" />
+
+                {/* Visual Indicator of Config Scope */}
+                {project ? (
+                  <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
+                    <div className="text-[9px] font-black uppercase text-indigo-600 tracking-widest flex items-center justify-center gap-1">
+                      <ShieldCheck size={10} /> Editing: {project.name} Config
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                  <div>
-                    <label className="text-[9px] font-black uppercase text-slate-400 mb-1 block ml-1 tracking-widest flex items-center gap-1">
-                      <LinkIcon size={10} /> Proxy URL
-                    </label>
-                    <input
-                      type="text" value={onedriveProxyUrl} onChange={(e) => setOnedriveProxyUrl(e.target.value)}
-                      placeholder={import.meta.env.DEV ? 'http://localhost:3001/api/proxy' : '/api/proxy'}
-                      className="w-full p-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] focus:bg-white transition-all"
-                    />
-                    <p className="text-[8px] font-bold text-slate-400 pl-1">
-                      Requires local authentication proxy running.
-                    </p>
+                ) : (
+                  <div className="p-2 bg-slate-50 border border-slate-100 rounded-xl text-center">
+                    <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Global Default Config</div>
                   </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleLocalBackup}
+                    disabled={!project}
+                    className="p-3 bg-white border border-slate-900 text-slate-900 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Save size={12} /> Local Backup
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Upload size={12} /> Local Restore
+                  </button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleLocalRestore}
+                    accept=".json"
+                    className="hidden"
+                  />
                 </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <button onClick={handleSaveStorage} disabled={isLoading} className="w-full py-2 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase hover:bg-black transition-colors flex items-center justify-center gap-1.5">
-                  {isLoading ? <RefreshCw className="animate-spin" size={10} /> : <Save size={10} />}
-                  {isLoading ? 'Scanning...' : 'Save & Connect'}
-                </button>
-                <button onClick={handleTestWebDAV} disabled={isLoading} className="w-full py-2 bg-slate-100 text-slate-600 rounded-xl text-[9px] font-black uppercase hover:bg-slate-200 transition-colors flex items-center justify-center gap-1.5">
-                  <RefreshCw className={isLoading ? "animate-spin" : ""} size={10} /> Test Connection
-                </button>
-              </div>
-
-              {/* Test Result Display */}
-              {testResult && (
-                <div className={`mt-2 p-3 rounded-xl border animate-in fade-in slide-in-from-top-1 ${testResult.success
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  : 'bg-red-50 border-red-200 text-red-700'
-                  }`}>
-                  <div className="flex items-center gap-2">
-                    {testResult.success ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                    <span className="text-[9px] font-black uppercase tracking-wide">{testResult.message}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Environment Variable Hint */}
-              {storageType === 'WEBDAV' && !webdavUrl && import.meta.env.VITE_WEBDAV_URL && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-xl">
-                  <p className="text-[8px] font-bold text-blue-600 uppercase tracking-tight flex items-center gap-1.5">
-                    <Info size={10} /> Using env: {import.meta.env.VITE_WEBDAV_URL}
-                  </p>
-                </div>
-              )}
-
-            </div>
-
-
-
-            <div className="pt-2 space-y-3">
-              <div className="text-[9px] font-black uppercase text-slate-400 ml-1">Hull: <span className="text-teal-600">{project?.name || 'Unset'}</span></div>
-
-
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleExecutePush}
-                  disabled={isLoading || !project}
-                  className="p-3 bg-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-teal-500/10"
-                >
-                  <Send size={12} /> Cloud Sync 云端同步
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!activeProjectId) return;
-                    const confirmed = window.confirm('⚠️ 警告：拉取云端数据会覆盖掉本地未同步的更改。\n\n确定要继续吗？');
-                    if (!confirmed) return;
-                    try {
-                      await loadProjectFromWebDAV(activeProjectId, project?.conf?.password);
-                      alert('✅ 云端拉取成功');
-                    } catch (e: any) {
-                      alert(`❌ 拉取失败: ${e.message}`);
-                    }
-                  }}
-                  disabled={isLoading || !project}
-                  className="p-3 bg-cyan-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-cyan-500/10"
-                >
-                  <Download size={12} /> Cloud Fetch 云端拉取
-                </button>
-              </div>
-
-              <div className="h-px bg-slate-100 my-1" />
-
-              {/* Visual Indicator of Config Scope */}
-              {project ? (
-                <div className="p-2 bg-indigo-50 border border-indigo-100 rounded-xl text-center">
-                  <div className="text-[9px] font-black uppercase text-indigo-600 tracking-widest flex items-center justify-center gap-1">
-                    <ShieldCheck size={10} /> Editing: {project.name} Config
-                  </div>
-                </div>
-              ) : (
-                <div className="p-2 bg-slate-50 border border-slate-100 rounded-xl text-center">
-                  <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Global Default Config</div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleLocalBackup}
-                  disabled={!project}
-                  className="p-3 bg-white border border-slate-900 text-slate-900 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Save size={12} /> Local Backup
-                </button>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Upload size={12} /> Local Restore
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleLocalRestore}
-                  accept=".json"
-                  className="hidden"
-                />
               </div>
             </div>
           </section>

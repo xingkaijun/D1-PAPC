@@ -120,7 +120,7 @@ const PaginationControls = ({
 
 
 export const DrawingList: React.FC = () => {
-  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, pushProjectToWebDAV, reviewTracker } = useStore();
+  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, saveProject, reviewTracker } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   // Search state moved to store: filterQuery
@@ -369,7 +369,7 @@ export const DrawingList: React.FC = () => {
                     if (!activeProjectId || isSyncing) return;
                     setIsSyncing(true);
                     try {
-                      await pushProjectToWebDAV(activeProjectId);
+                      await saveProject(activeProjectId);
                     } catch (e) {
                       console.warn('Sync failed', e);
                     } finally {
@@ -472,7 +472,7 @@ export const DrawingList: React.FC = () => {
                           return;
                         }
                         const store = useStore.getState();
-                        const success = await store.pushProjectToWebDAV(activeProjectId!);
+                        const success = await store.saveProject(activeProjectId!);
                         if (success) {
                           // 将所有 checked 的图纸标记为已同步
                           const project = store.data.projects.find(p => p.id === activeProjectId);

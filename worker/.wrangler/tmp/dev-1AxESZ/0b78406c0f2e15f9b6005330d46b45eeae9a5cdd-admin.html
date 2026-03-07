@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAPC D1 后台管理</title>
+  <style>
+    :root {
+      --bg: #1e1e2d;
+      --bg-panel: #27293d;
+      --text: #e0e0e0;
+      --text-muted: #9e9ea7;
+      --border: #3b3d54;
+      --primary: #e14eca;
+      --primary-hover: #c43eb0;
+      --danger: #ff4d4f;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin-top: 0;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background-color: var(--primary-hover);
+    }
+
+    button.danger {
+      background-color: var(--danger);
+    }
+
+    input,
+    select,
+    textarea {
+      background-color: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    #login-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    .login-box {
+      background: var(--bg-panel);
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      text-align: center;
+    }
+
+    .login-box input {
+      margin: 20px 0;
+    }
+
+    #sidebar {
+      width: 240px;
+      background-color: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      font-weight: bold;
+      font-size: 1.2em;
+      text-align: center;
+    }
+
+    #table-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    #table-list li {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #table-list li:hover,
+    #table-list li.active {
+      background-color: rgba(225, 78, 202, 0.1);
+      color: var(--primary);
+      border-left: 3px solid var(--primary);
+      padding-left: 17px;
+    }
+
+    .badge {
+      background: var(--border);
+      padding: 2px 6px;
+      border-radius: 12px;
+      font-size: 0.8em;
+    }
+
+    #main {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--bg-panel);
+    }
+
+    #toolbar {
+      display: flex;
+      gap: 12px;
+    }
+
+    #content {
+      flex-grow: 1;
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      background-color: var(--bg-panel);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    th {
+      background-color: rgba(255, 255, 255, 0.05);
+      font-weight: 500;
+    }
+
+    tr:hover {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 0.85em;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--bg-panel);
+      padding: 24px;
+      border-radius: 8px;
+      width: 500px;
+      max-width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      font-size: 1.2em;
+      margin-bottom: 16px;
+      font-weight: bold;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--text-muted);
+      font-size: 0.9em;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    /* Setup view like SQL or Audit */
+    .sql-box textarea {
+      height: 120px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="login-overlay">
+    <div class="login-box">
+      <h2>D1 控制台</h2>
+      <input type="password" id="login-pwd" placeholder="输入 ADMIN_PASSWORD" onkeydown="if(event.key==='Enter') login()">
+      <button onclick="login()">登录</button>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div style="margin-bottom:8px;">PAPC D1 DB</div>
+      <select id="projectFilter" onchange="if(currentTable) { currentPage=1; renderTableData(); }"
+        style="width:100%; font-size:0.8em; padding:4px; background:var(--bg); border:1px solid var(--border); color:var(--text);">
+        <option value="">-- 全平台 (不筛选) --</option>
+      </select>
+    </div>
+    <ul id="table-list"></ul>
+    <div style="padding: 20px; border-top: 1px solid var(--border);">
+      <button onclick="showSqlConsole()" style="width:100%; margin-bottom:10px; background:var(--border)">SQL
+        控制台</button>
+      <button onclick="logout()" style="width:100%; background:var(--border)">退出</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="header">
+      <h2 id="view-title">Dashboard</h2>
+      <div id="toolbar"></div>
+    </div>
+    <div id="content"></div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="edit-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header" id="modal-title">编辑行</div>
+      <div id="modal-form"></div>
+      <div class="modal-footer">
+        <button style="background:var(--border)" onclick="closeModal()">取消</button>
+        <button onclick="saveRow()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('d1_admin_token') || '';
+    let currentTable = '';
+    let currentSchema = [];
+    let currentPage = 1;
+
+    if (token) {
+      document.getElementById('login-overlay').style.display = 'none';
+      init();
+    }
+
+    async function apiCall(path, options = {}) {
+      options.headers = { ...options.headers, 'Authorization': `Bearer ${token}` };
+      const res = await fetch(`/admin/api${path}`, options);
+      if (res.status === 401) {
+        localStorage.removeItem('d1_admin_token');
+        document.getElementById('login-overlay').style.display = 'flex';
+        throw new Error('Unauthorized');
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'API Error');
+      return data;
+    }
+
+    async function login() {
+      const pwd = document.getElementById('login-pwd').value;
+      try {
+        const res = await fetch('/admin/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd })
+        });
+        const data = await res.json();
+        if (res.ok && data.token) {
+          token = data.token;
+          localStorage.setItem('d1_admin_token', token);
+          document.getElementById('login-overlay').style.display = 'none';
+          init();
+        } else {
+          alert('密码错误');
+        }
+      } catch (e) {
+        alert('登录失败: ' + e.message);
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('d1_admin_token');
+      location.reload();
+    }
+
+    async function init() {
+      try {
+        const data = await apiCall('/tables');
+        const ul = document.getElementById('table-list');
+        ul.innerHTML = '';
+
+        // Fetch projects for filter
+        try {
+          const projData = await apiCall('/tables/projects?page=1');
+          const select = document.getElementById('projectFilter');
+          select.innerHTML = '<option value="">-- 全平台 (不筛选) --</option>';
+          if (projData && projData.rows) {
+            projData.rows.forEach(p => {
+              select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+            });
+          }
+        } catch (err) { console.warn('Failed to load projects filter', err); }
+
+        // Custom views
+        ul.innerHTML += `<li onclick="showAuditLog()" id="nav-audit_log">审核日志 (audit_log)<span class="badge">👀</span></li>`;
+
+        data.tables.forEach(t => {
+          if (t.name === 'audit_log') return; // Handled specially
+          const li = document.createElement('li');
+          li.id = `nav-${t.name}`;
+          li.innerHTML = `${t.name} <span class="badge">${t.count}</span>`;
+          li.onclick = () => loadTable(t.name);
+          ul.appendChild(li);
+        });
+
+        if (data.tables.length > 0) {
+          loadTable(data.tables[0].name);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function setActiveNav(id) {
+      document.querySelectorAll('#table-list li').forEach(li => li.classList.remove('active'));
+      const target = document.getElementById('nav-' + id);
+      if (target) target.classList.add('active');
+    }
+
+    async function loadTable(name) {
+      currentTable = name;
+      currentPage = 1;
+      setActiveNav(name);
+      document.getElementById('view-title').innerText = `表: ${name}`;
+      document.getElementById('content').innerHTML = '加载中...';
+
+      // Toolbar
+      document.getElementById('toolbar').innerHTML = `
+    <input type="text" id="searchInput" placeholder="搜索..." onkeydown="if(event.key==='Enter') renderTableData()" style="width:200px">
+    <button onclick="renderTableData()">刷新</button>
+    <button onclick="openAddModal()">添加行</button>
+  `;
+
+      try {
+        const schemaData = await apiCall(`/tables/${name}/schema`);
+        currentSchema = schemaData.schema;
+        await renderTableData();
+      } catch (e) {
+        document.getElementById('content').innerText = '加载失败: ' + e.message;
+      }
+    }
+
+    async function renderTableData() {
+      const search = document.getElementById('searchInput')?.value || '';
+      const proj = document.getElementById('projectFilter')?.value || '';
+
+      // Custom API endpoint for full tables, append search and projectId
+      const url = `/tables/${currentTable}?page=${currentPage}&search=${encodeURIComponent(search)}&projectId=${encodeURIComponent(proj)}`;
+      const data = await apiCall(url);
+
+      if (data.rows.length === 0) {
+        document.getElementById('content').innerHTML = '<p>暂无数据</p>';
+        return;
+      }
+
+      let html = `<table><thead><tr>`;
+      const cols = Object.keys(data.rows[0]);
+      cols.forEach(c => html += `<th>${c}</th>`);
+      html += `<th>操作</th></tr></thead><tbody>`;
+
+      data.rows.forEach(row => {
+        html += `<tr>`;
+        cols.forEach(c => html += `<td>${String(row[c] || '').replace(/</g, '&lt;')}</td>`);
+        const idVal = row.id || row.project_id; // Best effort for composite but we prefer 'id'
+        html += `<td>
+      <div class="actions">
+        <button class="btn-sm" onclick='openEditModal(${JSON.stringify(row).replace(/'/g, "&#39;")})'>编辑</button>
+        <button class="btn-sm danger" onclick="deleteRow('${idVal}')">删(软)</button>
+      </div>
+    </td></tr>`;
+      });
+      html += `</tbody></table>`;
+
+      html += `<div style="margin-top:16px; display:flex; gap:8px;">
+    <button onclick="currentPage--; renderTableData()" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+    <span style="align-self:center">第 ${currentPage} 页 (共 ${Math.ceil(data.total / 50)} 页)</span>
+    <button onclick="currentPage++; renderTableData()" ${currentPage * 50 >= data.total ? 'disabled' : ''}>下一页</button>
+  </div>`;
+
+      document.getElementById('content').innerHTML = html;
+    }
+
+    function openAddModal() {
+      document.getElementById('modal-title').innerText = `添加至 ${currentTable}`;
+      renderForm({});
+      document.getElementById('edit-modal').dataset.mode = 'add';
+      document.getElementById('edit-modal').classList.add('show');
+    }
+
+    function openEditModal(row) {
+      document.getElementById('modal-title').innerText = `编辑行 (ID: ${row.id || 'N/A'})`;
+      renderForm(row);
+      document.getElementById('edit-modal').dataset.mode = 'edit';
+      document.getElementById('edit-modal').dataset.id = row.id || row.project_id;
+      document.getElementById('edit-modal').classList.add('show');
+    }
+
+    function renderForm(row) {
+      const form = document.getElementById('modal-form');
+      let html = '';
+      currentSchema.forEach(col => {
+        const val = row[col.name] !== undefined ? row[col.name] : '';
+        const readOnly = (col.name === 'id' && col.type === 'INTEGER') ? 'readonly' : '';
+        html += `
+      <div class="form-group">
+        <label>${col.name} <span style="font-size:0.8em;color:gray">(${col.type})</span></label>
+        <input type="text" id="form-${col.name}" value="${String(val).replace(/"/g, '&quot;')}" ${readOnly}>
+      </div>
+    `;
+      });
+      form.innerHTML = html;
+    }
+
+    function closeModal() {
+      document.getElementById('edit-modal').classList.remove('show');
+    }
+
+    async function saveRow() {
+      const payload = {};
+      currentSchema.forEach(col => {
+        // Skip auto-increment IDs on add
+        if (document.getElementById('edit-modal').dataset.mode === 'add' && col.name === 'id' && col.type === 'INTEGER') return;
+        payload[col.name] = document.getElementById(`form-${col.name}`).value;
+      });
+
+      const mode = document.getElementById('edit-modal').dataset.mode;
+      try {
+        if (mode === 'add') {
+          await apiCall(`/tables/${currentTable}`, { method: 'POST', body: JSON.stringify(payload) });
+        } else {
+          const rowId = document.getElementById('edit-modal').dataset.id;
+          await apiCall(`/tables/${currentTable}/${rowId}`, { method: 'PUT', body: JSON.stringify(payload) });
+        }
+        closeModal();
+        renderTableData();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function deleteRow(id) {
+      if (!id) return alert('缺少主键不支持直接删除，请使用 SQL');
+      if (!confirm(`确定要删除记录(标记 _deleted=1) ID: ${id} 吗？`)) return;
+      try {
+        await apiCall(`/tables/${currentTable}/${id}`, { method: 'DELETE' });
+        renderTableData();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function showSqlConsole() {
+      setActiveNav('sql');
+      document.getElementById('view-title').innerText = `SQL 控制台`;
+      document.getElementById('toolbar').innerHTML = '';
+
+      document.getElementById('content').innerHTML = `
+    <div class="sql-box">
+      <textarea id="sql-query" placeholder="SELECT * FROM projects LIMIT 10;"></textarea>
+      <button onclick="runSql()" style="margin-top:12px;">执行 SQL (禁 DDL)</button>
+    </div>
+    <div id="sql-result" style="margin-top:24px;"></div>
+  `;
+    }
+
+    async function runSql() {
+      const query = document.getElementById('sql-query').value;
+      if (!query) return;
+      try {
+        document.getElementById('sql-result').innerHTML = '执行中...';
+        const data = await apiCall('/sql', { method: 'POST', body: JSON.stringify({ query }) });
+
+        if (data.results && data.results.length > 0) {
+          let html = `<table><thead><tr>`;
+          const cols = Object.keys(data.results[0]);
+          cols.forEach(c => html += `<th>${c}</th>`);
+          html += `</tr></thead><tbody>`;
+          data.results.forEach(row => {
+            html += `<tr>`;
+            cols.forEach(c => html += `<td>${String(row[c] || '').replace(/</g, '&lt;')}</td>`);
+            html += `</tr>`;
+          });
+          html += `</tbody></table>`;
+          document.getElementById('sql-result').innerHTML = html;
+        } else {
+          document.getElementById('sql-result').innerHTML = `<p>执行成功，影响/返回 0 行或无数据返回</p>`;
+        }
+      } catch (e) {
+        document.getElementById('sql-result').innerHTML = `<p style="color:var(--danger)">错误: ${e.message}</p>`;
+      }
+    }
+
+    async function showAuditLog() {
+      currentTable = 'audit_log';
+      currentPage = 1;
+      setActiveNav('audit_log');
+      document.getElementById('view-title').innerText = `审核日志`;
+
+      document.getElementById('toolbar').innerHTML = `
+    <button onclick="renderTableData()">刷新</button>
+  `;
+      try {
+        const schemaData = await apiCall(`/tables/audit_log/schema`);
+        currentSchema = schemaData.schema;
+        await renderTableData();
+      } catch (e) {
+        document.getElementById('content').innerText = '加载失败: ' + e.message;
+      }
+    }
+  </script>
+
+</body>
+
+</html>

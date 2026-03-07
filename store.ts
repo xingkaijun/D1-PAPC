@@ -3,11 +3,7 @@ import { persist } from 'zustand/middleware';
 import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData } from './types';
 // Fix: Removed missing isWeekend from date-fns imports
 import { addDays, format, isSameDay } from 'date-fns';
-import { IStorageProvider } from './services/storage/IStorageProvider';
-import { WebDAVProvider } from './services/storage/WebDAVProvider';
-import { OneDriveProxyProvider } from './services/storage/OneDriveProxyProvider';
-
-let _storageProvider: IStorageProvider | null = null;
+import { appRepository } from './services/data/AppRepository';
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const ensureDrawingHasId = (drawing: Drawing): Drawing => {
@@ -22,19 +18,6 @@ const normalizeProjectDrawingIds = (project: Project): Project => ({
     currentRound: d.currentRound || 'A'
   })),
 });
-
-const getProvider = (settings: AppSettings): IStorageProvider => {
-  const type = settings.storage?.type || 'WEBDAV';
-  if (!_storageProvider ||
-    (type === 'WEBDAV' && !(_storageProvider instanceof WebDAVProvider)) ||
-    (type === 'ONEDRIVE' && !(_storageProvider instanceof OneDriveProxyProvider))) {
-
-    if (type === 'ONEDRIVE') _storageProvider = new OneDriveProxyProvider();
-    else _storageProvider = new WebDAVProvider();
-  }
-  _storageProvider.configure(settings);
-  return _storageProvider;
-};
 
 // Fix: Local implementation of isWeekend to resolve missing export error from date-fns
 const isWeekend = (date: Date) => {
@@ -61,17 +44,14 @@ interface AppState {
   batchUpdateDrawings: (updates: { id: string; changes: Partial<Drawing> }[]) => void;
   resetAllAssignees: () => void;
   bulkImportDrawings: (drawings: Drawing[]) => void;
-  syncWithWebDAV: (password: string) => Promise<boolean>;
-  loadFromWebDAV: () => Promise<void>;
-  pushProjectToWebDAV: (projectId: string) => Promise<boolean>;
-  saveSettingsToWebDAV: () => Promise<boolean>;
-  fetchGlobalSettingsFromWebDAV: () => Promise<void>;
-  fetchAllProjectsFromWebDAV: () => Promise<void>;
-  fetchProjectListFromWebDAV: () => Promise<void>;
-  loadProjectFromWebDAV: (projectId: string, passwordInput?: string) => Promise<void>;
+  saveActiveProject: (password: string) => Promise<boolean>;
+    saveProject: (projectId: string) => Promise<boolean>;
+    fetchGlobalSettings: () => Promise<void>;
+    fetchProjectList: () => Promise<void>;
+  loadProject: (projectId: string, passwordInput?: string) => Promise<void>;
   refreshSnapshots: (projectId: string) => Promise<void>;
   refreshAllSnapshots: (projectId: string) => Promise<void>;
-  testWebDAVConnection: (url: string, user: string, pass: string, proxyUrl?: string) => Promise<{ success: boolean; message: string }>;
+  testConnection: (url: string, user: string, pass: string, proxyUrl?: string) => Promise<{ success: boolean; message: string }>;
   takeSnapshot: (projectId: string) => Promise<void>;
   deleteSnapshot: (projectId: string, snapshotId: string) => Promise<void>;
   restoreSnapshot: (snapshotId: string) => Promise<boolean>;
@@ -83,7 +63,6 @@ interface AppState {
   setFilterQuery: (query: string) => void;
   isEditMode: boolean;
   toggleEditMode: (password?: string) => boolean;
-  setStorageMode: (config: AppSettings['storage']) => void;
   updateProjectConfig: (projectId: string, updates: Partial<ProjectConfig>) => void;
   clearError: () => void;
   restoreProject: (project: Project) => void;
@@ -119,10 +98,7 @@ const DEFAULT_DATA: AppData = {
   lastUpdated: new Date().toISOString(),
   projects: [],
   settings: {
-    webdavUrl: '', // Legacy
-    webdavUser: '', // Legacy
-    webdavPass: '', // Legacy
-    reviewers: [
+                reviewers: [
       { id: 'engineer_a', name: 'Engineer A' },
       { id: 'engineer_b', name: 'Engineer B' },
       { id: 'senior_eng_c', name: 'Senior Eng C' }
@@ -131,9 +107,6 @@ const DEFAULT_DATA: AppData = {
     holidays: [], // YYYY-MM-DD strings
     roundACycle: 10,
     otherRoundsCycle: 5,
-    storage: {
-      type: 'ONEDRIVE'
-    }
   }
 };
 
@@ -459,29 +432,21 @@ export const useStore = create<AppState>()(
         };
       }),
 
-      setStorageMode: (config) => set((state) => ({
-        data: { ...state.data, settings: { ...state.data.settings, storage: { ...state.data.settings.storage, ...config } } }
-      })),
 
-      syncWithWebDAV: async (password: string) => {
+      saveActiveProject: async (password: string) => {
         const { activeProjectId } = get();
         if (!activeProjectId) return false;
-        return get().pushProjectToWebDAV(activeProjectId);
+        return get().saveProject(activeProjectId);
       },
 
-      pushProjectToWebDAV: async (projectId: string) => {
+      saveProject: async (projectId: string) => {
         const { data, reviewTracker } = get();
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return false;
 
         set({ isLoading: true, error: null });
         try {
-          const provider = getProvider(data.settings);
-          const success = await provider.saveProject(project);
-          // 同时保存 reviewTracker 数据
-          if (Object.keys(reviewTracker).length > 0) {
-            await provider.saveReviewTracker(project, reviewTracker);
-          }
+          const success = await appRepository.saveProject(data.settings, project, reviewTracker);
           set({ isLoading: false });
           return success;
         } catch (err: any) {
@@ -491,13 +456,11 @@ export const useStore = create<AppState>()(
         }
       },
 
-      saveSettingsToWebDAV: async () => { return true; },
-
-      fetchGlobalSettingsFromWebDAV: async () => {
+      
+      fetchGlobalSettings: async () => {
         const { data } = get();
         try {
-          const provider = getProvider(data.settings);
-          const settings = await provider.fetchGlobalSettings();
+          const settings = await appRepository.fetchGlobalSettings(data.settings);
           if (settings) {
             set(state => ({
               data: {
@@ -512,12 +475,11 @@ export const useStore = create<AppState>()(
         } catch (e) { console.warn("Settings fetch failed", e); }
       },
 
-      fetchProjectListFromWebDAV: async () => {
+      fetchProjectList: async () => {
         const { data } = get();
         set({ isLoading: true, error: null });
         try {
-          const provider = getProvider(data.settings);
-          const remoteProjects = await provider.fetchProjectList();
+          const remoteProjects = await appRepository.fetchProjectList(data.settings);
 
           set(state => {
             const currentProjects = state.data.projects;
@@ -526,9 +488,22 @@ export const useStore = create<AppState>()(
             remoteProjects.forEach(rp => {
               const existingIndex = mergedProjects.findIndex(p => p.name === rp.name);
               if (existingIndex > -1) {
-                mergedProjects[existingIndex] = { ...mergedProjects[existingIndex], webdavPath: rp.webdavPath };
+                mergedProjects[existingIndex] = { ...mergedProjects[existingIndex], webdavPath: rp.webdavPath, id: rp.id };
               } else {
-                mergedProjects.push(rp);
+                mergedProjects.push({
+                  id: rp.id,
+                  name: rp.name,
+                  webdavPath: rp.webdavPath,
+                  drawings: [],
+                  snapshots: [],
+                  conf: {
+                    reviewers: state.data.settings.reviewers,
+                    disciplineDefaults: state.data.settings.disciplineDefaults,
+                    holidays: state.data.settings.holidays,
+                    roundACycle: state.data.settings.roundACycle,
+                    otherRoundsCycle: state.data.settings.otherRoundsCycle
+                  }
+                });
               }
             });
 
@@ -551,8 +526,7 @@ export const useStore = create<AppState>()(
 
         // No loading state for background refresh usually, but let's keep silent or localized
         try {
-          const provider = getProvider(data.settings);
-          const snapshots = await provider.loadSnapshots(project);
+          const snapshots = await appRepository.loadSnapshots(data.settings, project, false);
 
           set(state => ({
             data: {
@@ -571,8 +545,7 @@ export const useStore = create<AppState>()(
         if (!project) return;
 
         try {
-          const provider = getProvider(data.settings);
-          const snapshots = await provider.loadAllSnapshots(project);
+          const snapshots = await appRepository.loadSnapshots(data.settings, project, true);
 
           set(state => ({
             data: {
@@ -592,14 +565,13 @@ export const useStore = create<AppState>()(
 
         set({ isLoading: true });
         try {
-          const provider = getProvider(data.settings);
           // Auto-generate note via prompt or default
           const note = prompt("Snapshot Note (Optional):") || "Manual Snapshot";
 
-          await provider.createSnapshot(project, note);
+          await appRepository.createSnapshot(data.settings, project, note);
 
           // Refresh list immediately
-          const snapshots = await provider.loadSnapshots(project);
+          const snapshots = await appRepository.loadSnapshots(data.settings, project, false);
 
           set(state => ({
             isLoading: false,
@@ -620,11 +592,10 @@ export const useStore = create<AppState>()(
 
         set({ isLoading: true });
         try {
-          const provider = getProvider(data.settings);
-          await provider.deleteSnapshot(project, snapshotId);
+          await appRepository.deleteSnapshot(data.settings, project, snapshotId);
 
           // Refresh list
-          const snapshots = await provider.loadSnapshots(project);
+          const snapshots = await appRepository.loadSnapshots(data.settings, project, false);
 
           set(state => ({
             isLoading: false,
@@ -653,11 +624,10 @@ export const useStore = create<AppState>()(
 
         set({ isLoading: true });
         try {
-          const provider = getProvider(data.settings);
-          await provider.restoreSnapshot(project, snapshot);
+          await appRepository.restoreSnapshot(data.settings, project, snapshot);
 
           // Reload project data fully
-          await get().loadProjectFromWebDAV(activeProjectId, project.conf?.password);
+          await get().loadProject(activeProjectId, project.conf?.password);
 
           set({ isLoading: false });
           return true;
@@ -667,15 +637,14 @@ export const useStore = create<AppState>()(
         }
       },
 
-      loadProjectFromWebDAV: async (projectId: string, passwordInput?: string) => {
+      loadProject: async (projectId: string, passwordInput?: string) => {
         const { data } = get();
         const projectStub = data.projects.find(p => p.id === projectId);
         if (!projectStub) return;
 
         set({ isLoading: true });
         try {
-          const provider = getProvider(data.settings);
-          const fullProject = normalizeProjectDrawingIds(await provider.loadProjectData(projectStub, passwordInput));
+          const fullProject = normalizeProjectDrawingIds(await appRepository.loadProject(data.settings, projectStub, passwordInput));
 
           // Inject defaults
           const globalSettings = data.settings;
@@ -702,28 +671,10 @@ export const useStore = create<AppState>()(
         }
       },
 
-      loadFromWebDAV: async () => { },
-      fetchAllProjectsFromWebDAV: async () => { },
-
-      testWebDAVConnection: async (url, user, pass, proxyUrl) => {
+            
+      testConnection: async (url, user, pass, proxyUrl) => {
         const { data } = get();
-        // 优先根据是否传入了 proxyUrl 或者当前的 storageType 来判断
-        const isOneDrive = (proxyUrl && proxyUrl.trim() !== '') || data.settings.storage?.type === 'ONEDRIVE';
-        const type = isOneDrive ? 'ONEDRIVE' : 'WEBDAV';
-
-        let testSettings = { ...data.settings };
-        if (type === 'WEBDAV') {
-          testSettings = { ...testSettings, storage: { type, webdav: { url, username: user, password: pass } }, webdavUrl: url, webdavUser: user, webdavPass: pass };
-        } else {
-          testSettings = { ...testSettings, storage: { type, onedrive: { proxyUrl: proxyUrl || '' } } };
-        }
-
-        let provider: IStorageProvider;
-        if (type === 'ONEDRIVE') provider = new OneDriveProxyProvider();
-        else provider = new WebDAVProvider();
-
-        provider.configure(testSettings);
-        return provider.testConnection();
+        return appRepository.testConnection(data.settings, { url, user, pass, proxyUrl });
       },
 
       updateProjectConfig: (projectId, updates) => set((state) => ({
@@ -775,8 +726,7 @@ export const useStore = create<AppState>()(
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return;
         try {
-          const provider = getProvider(data.settings);
-          const remote = await provider.loadReviewTracker(project);
+          const remote = await appRepository.loadReviewTracker(data.settings, project);
           // 合并：本地优先，确保未同步的本地标记不被覆盖
           const merged: ReviewTrackerData = {};
           const allIds = new Set([...Object.keys(remote || {}), ...Object.keys(localTracker)]);

@@ -62,42 +62,17 @@ const App: React.FC = () => {
     setActiveProject,
     addProject,
     isLoading,
-    fetchProjectListFromWebDAV,
-    loadProjectFromWebDAV,
-    pushProjectToWebDAV,
-    fetchGlobalSettingsFromWebDAV,
+    fetchProjectList,
+    loadProject,
+    saveProject,
+    fetchGlobalSettings,
     isEditMode,
-    setStorageMode
+
   } = useStore();
 
   const currentProject = data.projects.find(p => p.id === activeProjectId);
 
   const [showProjectSelector, setShowProjectSelector] = useState(true);
-
-  // Helper function to check Cloud configuration (WebDAV or OneDrive)
-  const getWebDAVUrl = () => {
-    const envUrl = import.meta.env.VITE_WEBDAV_URL;
-    return (envUrl && envUrl.trim() !== '') ? envUrl : data.settings.webdavUrl;
-  };
-
-  const currentStorageType = data.settings.storage?.type || 'WEBDAV';
-  // If OneDrive, we assume it's configured via Proxy/Env. If WebDAV, we need URL.
-  const isWebDAVConfigured = currentStorageType === 'ONEDRIVE' ? true : !!getWebDAVUrl();
-
-  const handleStorageToggle = async () => {
-    const newType = currentStorageType === 'WEBDAV' ? 'ONEDRIVE' : 'WEBDAV';
-    setStorageMode({ type: newType });
-
-    // Trigger refresh to test connection/list
-    useStore.setState({ isLoading: true });
-    try {
-      await fetchProjectListFromWebDAV();
-    } catch (e) {
-      console.warn("Switch refresh failed", e);
-    } finally {
-      useStore.setState({ isLoading: false });
-    }
-  };
 
   // 1. Startup Logic: Server First - FETCH LIST ONLY
   useEffect(() => {
@@ -106,7 +81,7 @@ const App: React.FC = () => {
       // Requirement: "Before loading project do not enter main page". So we force selection.
       // We don't wipe store, but we require selection.
 
-      if (!isWebDAVConfigured) {
+      if (!true) {
         // No WebDAV, maybe go straight to Offline if we have projects? 
         // Or show selector with local projects?
         // Let's show selector regardless, listing local cache.
@@ -117,8 +92,8 @@ const App: React.FC = () => {
       useStore.setState({ isLoading: true });
       try {
         // Try to fetch Server List
-        await fetchGlobalSettingsFromWebDAV();
-        await fetchProjectListFromWebDAV();
+        await fetchGlobalSettings();
+        await fetchProjectList();
         console.log("Server list fetched. Ready for selection.");
       } catch (err) {
         console.error("Server connection failed", err);
@@ -134,9 +109,9 @@ const App: React.FC = () => {
   const handleSelectProject = async (projectId: string, passwordInput?: string) => {
     useStore.setState({ isLoading: true });
     try {
-      if (isWebDAVConfigured) {
+      if (true) {
         // Pass password if provided
-        await loadProjectFromWebDAV(projectId, passwordInput);
+        await loadProject(projectId, passwordInput);
       } else {
         // Local load (just set active)
         setActiveProject(projectId);
@@ -185,7 +160,7 @@ const App: React.FC = () => {
 
   // 3. Auto-Save Logic (Configurable Interval)
   useEffect(() => {
-    if (!isWebDAVConfigured || !activeProjectId || showProjectSelector) return;
+    if (!true || !activeProjectId || showProjectSelector) return;
 
     const activeProject = data.projects.find(p => p.id === activeProjectId);
     const configInterval = activeProject?.conf?.autoSyncInterval;
@@ -198,26 +173,26 @@ const App: React.FC = () => {
       // 只有拥有编辑权限 (isEditMode) 时，才将本地数据推送到服务端覆写
       if (isEditMode) {
         console.log(`[Edit Mode] Auto-saving current project to server (Interval: ${intervalMinutes}m)...`);
-        await pushProjectToWebDAV(activeProjectId);
+        await saveProject(activeProjectId);
       } else {
         // 全局只读模式下，不仅禁止推送（避免覆盖），同时从服务端静默拉取最新数据
         // 获取配置中的项目密码（如果该项目受密码保护）
         console.log(`[Read-Only Mode] Auto-fetching latest data from server (Interval: ${intervalMinutes}m)...`);
         const projectConfPw = activeProject?.conf?.password;
-        await loadProjectFromWebDAV(activeProjectId, projectConfPw).catch(e => {
+        await loadProject(activeProjectId, projectConfPw).catch(e => {
           console.warn('Auto-fetch in read-only mode failed:', e.message);
         });
       }
     }, intervalMinutes * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [activeProjectId, isWebDAVConfigured, showProjectSelector, data.settings.autoSyncInterval, data.projects, isEditMode]);
+  }, [activeProjectId, true, showProjectSelector, data.settings.autoSyncInterval, data.projects, isEditMode]);
 
 
   const handleGlobalRefresh = async () => {
     useStore.setState({ isLoading: true });
     try {
-      await fetchProjectListFromWebDAV();
+      await fetchProjectList();
     } catch (e) {
       console.error(e);
     } finally {
@@ -273,14 +248,7 @@ const App: React.FC = () => {
 
             {/* Storage Controls */}
             <div className="flex items-center gap-4">
-              <button
-                onClick={handleStorageToggle}
-                className="flex items-center gap-2.5 px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-full border border-slate-200 shadow-sm text-[10px] font-[1000] uppercase tracking-widest transition-all"
-                title="Switch Cloud Provider"
-              >
-                <div className={`w-2.5 h-2.5 rounded-full ${isWebDAVConfigured ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-amber-500'}`} />
-                {currentStorageType} {isWebDAVConfigured ? 'READY' : 'OFFLINE'}
-              </button>
+
               <button
                 onClick={handleGlobalRefresh}
                 className="p-2.5 bg-white hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-full border border-slate-200 shadow-sm transition-all active:scale-95"
@@ -514,7 +482,7 @@ const App: React.FC = () => {
             >
               <div className="text-left min-w-[120px]">
                 <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1 flex items-center gap-1.5">
-                  {isWebDAVConfigured ? <Cloud size={10} className="text-emerald-400" /> : <CloudOff size={10} className="text-slate-600" />}
+                  {<Cloud size={10} className="text-emerald-400" />}
                   Cloud Registry
                 </div>
                 <div className="text-[12px] font-[1000] text-white truncate max-w-[140px] tracking-tight">{currentProject?.name || 'SELECT SHIP'}</div>
@@ -564,16 +532,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-8 mt-2 md:mt-0">
-          <button
-            onClick={handleStorageToggle}
-            className="flex items-center gap-3 hover:bg-slate-100 rounded-lg px-2 py-1 transition-all cursor-pointer"
-            title="Click to Switch Storage Provider"
-          >
-            <div className={`w-2 h-2 rounded-full transition-all duration-1000 ${isWebDAVConfigured ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-slate-300'} `} />
-            <span className={isWebDAVConfigured ? 'text-emerald-600 font-black' : 'text-slate-400'}>
-              Cloud Service: {isWebDAVConfigured ? `${currentStorageType} CONNECTED` : 'OFFLINE'}
-            </span>
-          </button>
+
           <div className="flex items-center gap-1.5 text-slate-300 group">
             <Code size={12} className="group-hover:text-teal-500 transition-colors" />
             <span className="tracking-widest">PA-V3.1-LTD</span>

@@ -10,7 +10,7 @@ export const ReviewTracker: React.FC = () => {
         reviewTracker,
         loadReviewTracker,
         toggleAssigneeDone,
-        pushProjectToWebDAV,
+        saveProject,
         updateDrawing,
         isEditMode,
         toggleEditMode
@@ -84,7 +84,7 @@ export const ReviewTracker: React.FC = () => {
         if (!activeProjectId || isSyncing) return;
         setIsSyncing(true);
         try {
-            await pushProjectToWebDAV(activeProjectId);
+            await saveProject(activeProjectId);
         } catch (e) {
             console.warn('Sync failed', e);
         } finally {

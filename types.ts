@@ -90,19 +90,7 @@ export interface Project {
   lastUpdated?: string;
 }
 
-export type StorageType = 'WEBDAV' | 'ONEDRIVE';
 
-export interface StorageConfig {
-  type: StorageType;
-  webdav?: {
-    url: string;
-    username: string;
-    password?: string;
-  };
-  onedrive?: {
-    proxyUrl: string; // e.g., http://localhost:3001/api/proxy
-  };
-}
 
 export interface AppSettings {
   reviewers: Reviewer[];
@@ -110,12 +98,6 @@ export interface AppSettings {
   holidays: string[];
   roundACycle: number;
   otherRoundsCycle: number;
-  // New Storage Config
-  storage?: StorageConfig;
-  // Legacy WebDAV config (kept for backward compatibility during migration)
-  webdavUrl?: string;
-  webdavUser?: string;
-  webdavPass?: string;
   pushPassword?: string; // Verification password for local sync UI
   displayName?: string; // Global default display name pattern (optional)
   autoSyncInterval?: number; // Auto-sync interval in minutes (default: 3)
