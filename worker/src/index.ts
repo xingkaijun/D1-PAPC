@@ -491,14 +491,15 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
 
 const buildReviewTrackerStatements = (db: D1Database, projectId: string, data: any): D1PreparedStatement[] => {
   const stmts: D1PreparedStatement[] = [];
-  stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ?`).bind(projectId));
 
   for (const [drawingId, assignees] of Object.entries(data)) {
     if (!assignees || typeof assignees !== 'object') continue;
     for (const [reviewerId, info] of Object.entries(assignees as Record<string, any>)) {
       stmts.push(db.prepare(
         `INSERT INTO review_tracker (project_id, drawing_id, raw_drawing_ref, reviewer_id, done, done_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(project_id, drawing_id, reviewer_id) DO UPDATE SET
+           done=excluded.done, done_at=excluded.done_at`
       ).bind(
         projectId, drawingId, drawingId, reviewerId,
         toBooleanValue(info.done) ? 1 : 0, toStringValue(info.doneAt) || null
