@@ -147,7 +147,7 @@ export const useStore = create<AppState>()(
           // Entering Edit Mode
           if (envPass && envPass.trim() !== '') {
             if (password === envPass) {
-              set({ isEditMode: true });
+              set({ isEditMode: true, adminPresence: { isOnline: true, lastSeen: new Date().toISOString() } });
               // 启动心跳
               const pid = get().activeProjectId;
               if (pid) {
@@ -162,7 +162,7 @@ export const useStore = create<AppState>()(
             }
             return false;
           } else {
-            set({ isEditMode: true });
+            set({ isEditMode: true, adminPresence: { isOnline: true, lastSeen: new Date().toISOString() } });
             // 启动心跳
             const pid = get().activeProjectId;
             if (pid) {
@@ -179,7 +179,7 @@ export const useStore = create<AppState>()(
           // Exiting Edit Mode — stop heartbeat
           const timer = get()._heartbeatTimer;
           if (timer) clearInterval(timer);
-          set({ isEditMode: false, _heartbeatTimer: null });
+          set({ isEditMode: false, _heartbeatTimer: null, adminPresence: { isOnline: false } });
           return true;
         }
       },

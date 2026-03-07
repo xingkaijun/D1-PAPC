@@ -249,6 +249,14 @@ const App: React.FC = () => {
 
             {/* Storage Controls */}
             <div className="flex items-center gap-4">
+              {/* 管理员在线指示 */}
+              <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-[1000] uppercase tracking-widest border ${adminPresence.isOnline
+                ? 'bg-green-50 text-green-600 border-green-200'
+                : 'bg-slate-50 text-slate-400 border-slate-100'
+                }`}>
+                <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
+              </span>
 
               <button
                 onClick={handleGlobalRefresh}
