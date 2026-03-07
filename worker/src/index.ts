@@ -983,15 +983,39 @@ export default {
           if (segments.length === 3 && request.method === 'GET') {
             const all = url.searchParams.get('all') === '1';
             const limit = all ? '' : 'LIMIT 10';
-            const rows = await queryAll(db, `SELECT id, note, created_at FROM snapshots WHERE project_id = ? ORDER BY created_at DESC ${limit}`, [projectId]);
-            const snaps = rows.map(r => ({ id: toStringValue(r.id), note: toStringValue(r.note), timestamp: toStringValue(r.created_at) }));
+            const rows = await queryAll(db, `SELECT id, note, created_at, data_json FROM snapshots WHERE project_id = ? ORDER BY created_at DESC ${limit}`, [projectId]);
+            const snaps = rows.map(r => {
+              const parsed = readJson<any>(r.data_json as string, {});
+              const stats = parsed?.snapshotMeta?.stats || [];
+              return { id: toStringValue(r.id), note: toStringValue(r.note), timestamp: toStringValue(r.created_at), stats };
+            });
             return json(env, 200, snaps);
           }
           if (segments.length === 3 && request.method === 'POST') {
             const body = await request.json() as any;
             const note = toStringValue(body?.note) || `Snapshot ${new Date().toLocaleString()}`;
 
-            const projectData = await getProjectDetail(db, projectId);
+            const projectData = await getProjectDetail(db, projectId) as any;
+
+            // Generate stats from drawings grouped by discipline
+            const drawingsArr = projectData?.drawings || [];
+            const discMap: Record<string, any> = {};
+            for (const d of drawingsArr) {
+              const disc = d.discipline || 'Unknown';
+              if (!discMap[disc]) discMap[disc] = { discipline: disc, approved: 0, reviewing: 0, waitingReply: 0, pending: 0, totalComments: 0, openComments: 0, flowToReview: 0, flowToWaiting: 0, flowToApproved: 0 };
+              const status = (d.status || 'Pending').toLowerCase();
+              if (status === 'approved') discMap[disc].approved++;
+              else if (status === 'reviewing') discMap[disc].reviewing++;
+              else if (status === 'waiting reply') discMap[disc].waitingReply++;
+              else discMap[disc].pending++;
+              const remarks = d.remarks || [];
+              discMap[disc].totalComments += remarks.length;
+              discMap[disc].openComments += remarks.filter((r: any) => !r.resolved).length;
+            }
+            const stats = Object.values(discMap);
+
+            // Embed snapshotMeta into data_json
+            projectData.snapshotMeta = { createdAt: new Date().toISOString(), note, stats };
             const dataJson = JSON.stringify(projectData);
 
             await db.prepare(`INSERT INTO snapshots (id, project_id, note, data_json) VALUES (?, ?, ?, ?)`).bind(
