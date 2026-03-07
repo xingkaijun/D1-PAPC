@@ -504,6 +504,142 @@ var src_default = {
           await saveProjectData(db, projectId, body.project, body.reviewTracker);
           return json(env, 200, { success: true });
         }
+        if (segments.length === 2 && request.method === "PATCH") {
+          const body = await request.json();
+          const stmts = [];
+          if (Array.isArray(body.updatedDrawings)) {
+            for (const drawing of body.updatedDrawings) {
+              const id = toStringValue(drawing.id) || crypto.randomUUID();
+              stmts.push(db.prepare(
+                `INSERT INTO drawings (id, project_id, custom_id, drawing_no, discipline, title, status, version, current_round, review_deadline, manual_comments_count, manual_open_comments_count, checked, checked_synced)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   custom_id=excluded.custom_id, drawing_no=excluded.drawing_no, discipline=excluded.discipline, title=excluded.title,
+                   status=excluded.status, version=excluded.version, current_round=excluded.current_round, review_deadline=excluded.review_deadline,
+                   manual_comments_count=excluded.manual_comments_count, manual_open_comments_count=excluded.manual_open_comments_count,
+                   checked=excluded.checked, checked_synced=excluded.checked_synced`
+              ).bind(
+                id,
+                projectId,
+                toStringValue(drawing.customId) || "",
+                toStringValue(drawing.drawingNo) || "",
+                toStringValue(drawing.discipline) || "",
+                toStringValue(drawing.title) || "",
+                toStringValue(drawing.status) || "Pending",
+                toStringValue(drawing.version) || "",
+                toStringValue(drawing.currentRound) || "A",
+                toStringValue(drawing.reviewDeadline) || null,
+                toNumberValue(drawing.manualCommentsCount, 0),
+                toNumberValue(drawing.manualOpenCommentsCount, 0),
+                toBooleanValue(drawing.checked) ? 1 : 0,
+                toBooleanValue(drawing.checkedSynced) ? 1 : 0
+              ));
+              stmts.push(db.prepare(`DELETE FROM drawing_assignees WHERE drawing_id = ?`).bind(id));
+              if (Array.isArray(drawing.assignees)) {
+                for (const assignee of drawing.assignees) {
+                  stmts.push(db.prepare(`INSERT INTO drawing_assignees (drawing_id, reviewer_id) VALUES (?, ?)`).bind(id, String(assignee)));
+                }
+              }
+              stmts.push(db.prepare(`DELETE FROM drawing_status_history WHERE drawing_id = ?`).bind(id));
+              if (Array.isArray(drawing.statusHistory)) {
+                for (const history of drawing.statusHistory) {
+                  stmts.push(db.prepare(`INSERT INTO drawing_status_history (id, drawing_id, content, created_at) VALUES (?, ?, ?, ?)`).bind(
+                    toStringValue(history.id) || crypto.randomUUID(),
+                    id,
+                    toStringValue(history.content) || "",
+                    toStringValue(history.createdAt) || (/* @__PURE__ */ new Date()).toISOString()
+                  ));
+                }
+              }
+            }
+          }
+          if (Array.isArray(body.deletedDrawingIds)) {
+            for (const delId of body.deletedDrawingIds) {
+              stmts.push(db.prepare(`DELETE FROM drawing_assignees WHERE drawing_id = ?`).bind(delId));
+              stmts.push(db.prepare(`DELETE FROM drawing_status_history WHERE drawing_id = ?`).bind(delId));
+              stmts.push(db.prepare(`DELETE FROM drawings WHERE project_id = ? AND id = ?`).bind(projectId, delId));
+            }
+          }
+          if (body.conf) {
+            const conf = body.conf;
+            const settingsMap = {
+              displayName: conf.displayName,
+              password: conf.password,
+              holidays: Array.isArray(conf.holidays) ? JSON.stringify(conf.holidays) : void 0,
+              roundACycle: conf.roundACycle,
+              otherRoundsCycle: conf.otherRoundsCycle,
+              autoSyncInterval: conf.autoSyncInterval
+            };
+            for (const [key, val] of Object.entries(settingsMap)) {
+              if (val !== void 0 && val !== null) {
+                stmts.push(db.prepare(
+                  `INSERT INTO project_settings (project_id, setting_key, setting_value)
+                   VALUES (?, ?, ?)
+                   ON CONFLICT(project_id, setting_key) DO UPDATE SET setting_value=excluded.setting_value`
+                ).bind(projectId, key, String(val)));
+              }
+            }
+            if (conf.disciplineDefaults && typeof conf.disciplineDefaults === "object") {
+              stmts.push(db.prepare(`DELETE FROM discipline_defaults WHERE project_id = ?`).bind(projectId));
+              for (const [discipline, reviewerId] of Object.entries(conf.disciplineDefaults)) {
+                if (reviewerId) {
+                  stmts.push(db.prepare(
+                    `INSERT INTO discipline_defaults (project_id, discipline, reviewer_id) VALUES (?, ?, ?)`
+                  ).bind(projectId, discipline, String(reviewerId)));
+                }
+              }
+            }
+            if (conf.defaultAssignees && typeof conf.defaultAssignees === "object") {
+              stmts.push(db.prepare(`DELETE FROM discipline_default_assignees WHERE project_id = ?`).bind(projectId));
+              for (const [discipline, reviewerIds] of Object.entries(conf.defaultAssignees)) {
+                if (Array.isArray(reviewerIds)) {
+                  for (const revId of reviewerIds) {
+                    stmts.push(db.prepare(
+                      `INSERT INTO discipline_default_assignees (project_id, discipline, reviewer_id) VALUES (?, ?, ?)`
+                    ).bind(projectId, discipline, String(revId)));
+                  }
+                }
+              }
+            }
+            if (Array.isArray(conf.reviewers)) {
+              for (const rev of conf.reviewers) {
+                if (rev.id) {
+                  stmts.push(db.prepare(
+                    `INSERT INTO reviewers (id, display_name) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET display_name=excluded.display_name`
+                  ).bind(rev.id, rev.name || rev.id));
+                }
+              }
+            }
+          }
+          if (body.reviewTracker && typeof body.reviewTracker === "object") {
+            for (const [drawingId, assignees] of Object.entries(body.reviewTracker)) {
+              if (!assignees || typeof assignees !== "object") continue;
+              for (const [reviewerId, info] of Object.entries(assignees)) {
+                stmts.push(db.prepare(
+                  `INSERT INTO review_tracker (project_id, drawing_id, raw_drawing_ref, reviewer_id, done, done_at)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(project_id, drawing_id, reviewer_id) DO UPDATE SET
+                     done=excluded.done, done_at=excluded.done_at`
+                ).bind(
+                  projectId,
+                  drawingId,
+                  drawingId,
+                  reviewerId,
+                  toBooleanValue(info.done) ? 1 : 0,
+                  toStringValue(info.doneAt) || null
+                ));
+              }
+            }
+          }
+          stmts.push(db.prepare(`UPDATE projects SET last_updated = datetime('now') WHERE id = ?`).bind(projectId));
+          if (stmts.length > 0) {
+            const chunkSize = 80;
+            for (let i = 0; i < stmts.length; i += chunkSize) {
+              await db.batch(stmts.slice(i, i + chunkSize));
+            }
+          }
+          return json(env, 200, { success: true, mode: "delta", statements: stmts.length });
+        }
         if (segments.length === 3 && segments[2] === "review-tracker") {
           if (request.method === "GET") {
             return json(env, 200, await getReviewTracker(db, projectId));

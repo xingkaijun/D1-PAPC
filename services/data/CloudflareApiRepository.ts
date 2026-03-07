@@ -1,4 +1,4 @@
-import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData } from '../../types';
+import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData, DeltaPayload } from '../../types';
 import { DataRepository, ProjectListItem } from './types';
 
 interface RequestOptions {
@@ -62,6 +62,14 @@ export class CloudflareApiRepository implements DataRepository {
     await this.request(`projects/${encodeURIComponent(project.id)}`, {
       method: 'PUT',
       body: { project, reviewTracker },
+    });
+    return true;
+  }
+
+  async saveDelta(_settings: AppSettings, projectId: string, payload: DeltaPayload): Promise<boolean> {
+    await this.request(`projects/${encodeURIComponent(projectId)}`, {
+      method: 'PATCH',
+      body: payload,
     });
     return true;
   }

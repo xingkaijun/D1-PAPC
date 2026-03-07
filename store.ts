@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData } from './types';
+import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData, DeltaPayload } from './types';
 // Fix: Removed missing isWeekend from date-fns imports
 import { addDays, format, isSameDay } from 'date-fns';
 import { appRepository } from './services/data/AppRepository';
@@ -45,9 +45,9 @@ interface AppState {
   resetAllAssignees: () => void;
   bulkImportDrawings: (drawings: Drawing[]) => void;
   saveActiveProject: (password: string) => Promise<boolean>;
-    saveProject: (projectId: string) => Promise<boolean>;
-    fetchGlobalSettings: () => Promise<void>;
-    fetchProjectList: () => Promise<void>;
+  saveProject: (projectId: string) => Promise<boolean>;
+  fetchGlobalSettings: () => Promise<void>;
+  fetchProjectList: () => Promise<void>;
   loadProject: (projectId: string, passwordInput?: string) => Promise<void>;
   refreshSnapshots: (projectId: string) => Promise<void>;
   refreshAllSnapshots: (projectId: string) => Promise<void>;
@@ -72,6 +72,12 @@ interface AppState {
   reviewTracker: ReviewTrackerData;
   loadReviewTracker: (projectId: string) => Promise<void>;
   toggleAssigneeDone: (drawingId: string, assignee: string) => void;
+
+  // 脏数据追踪（增量保存）
+  _dirtyDrawingIds: Set<string>;
+  _deletedDrawingIds: Set<string>;
+  _dirtyConf: boolean;
+  _dirtyTracker: boolean;
 }
 
 const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
@@ -98,7 +104,7 @@ const DEFAULT_DATA: AppData = {
   lastUpdated: new Date().toISOString(),
   projects: [],
   settings: {
-                reviewers: [
+    reviewers: [
       { id: 'engineer_a', name: 'Engineer A' },
       { id: 'engineer_b', name: 'Engineer B' },
       { id: 'senior_eng_c', name: 'Senior Eng C' }
@@ -121,6 +127,10 @@ export const useStore = create<AppState>()(
       filterQuery: '',
       isEditMode: false,
       reviewTracker: {},
+      _dirtyDrawingIds: new Set<string>(),
+      _deletedDrawingIds: new Set<string>(),
+      _dirtyConf: false,
+      _dirtyTracker: false,
 
       setViewMode: (mode) => set({ viewMode: mode }),
       setFilterQuery: (query) => set({ filterQuery: query }),
@@ -186,7 +196,11 @@ export const useStore = create<AppState>()(
         if (!activeProjectId) return state;
         const drawingWithId = { ...ensureDrawingHasId(drawing), currentRound: drawing.currentRound || 'A' };
 
+        const newDirty = new Set(state._dirtyDrawingIds);
+        newDirty.add(drawingWithId.id);
+
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...data,
             projects: data.projects.map((p) => {
@@ -217,7 +231,11 @@ export const useStore = create<AppState>()(
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
 
+        const newDirty = new Set(state._dirtyDrawingIds);
+        newDirty.add(id);
+
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => {
@@ -323,7 +341,13 @@ export const useStore = create<AppState>()(
       deleteDrawing: (id) => set((state) => {
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
+        const newDeleted = new Set(state._deletedDrawingIds);
+        newDeleted.add(id);
+        const newDirty = new Set(state._dirtyDrawingIds);
+        newDirty.delete(id);
         return {
+          _deletedDrawingIds: newDeleted,
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => p.id === activeProjectId ? { ...p, drawings: p.drawings.filter(d => d.id !== id) } : p)
@@ -334,7 +358,10 @@ export const useStore = create<AppState>()(
       addRemark: (drawingId, content) => set((state) => {
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
+        const newDirty = new Set(state._dirtyDrawingIds);
+        newDirty.add(drawingId);
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => {
@@ -359,7 +386,10 @@ export const useStore = create<AppState>()(
       deleteRemark: (drawingId, content) => set((state) => {
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
+        const newDirty = new Set(state._dirtyDrawingIds);
+        newDirty.add(drawingId);
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => {
@@ -379,7 +409,10 @@ export const useStore = create<AppState>()(
       batchUpdateDrawings: (updates) => set((state) => {
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
+        const newDirty = new Set(state._dirtyDrawingIds);
+        updates.forEach(u => newDirty.add(u.id));
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => {
@@ -403,7 +436,10 @@ export const useStore = create<AppState>()(
         const project = data.projects.find(p => p.id === activeProjectId);
         if (!project) return state;
         const defaultAssignees = project.conf?.defaultAssignees || {};
+        const newDirty = new Set(state._dirtyDrawingIds);
+        project.drawings.forEach(d => newDirty.add(d.id));
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => {
@@ -424,7 +460,10 @@ export const useStore = create<AppState>()(
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
         const normalizedDrawings = drawings.map(ensureDrawingHasId);
+        const newDirty = new Set(state._dirtyDrawingIds);
+        normalizedDrawings.forEach(d => newDirty.add(d.id));
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => p.id === activeProjectId ? { ...p, drawings: [...p.drawings, ...normalizedDrawings] } : p)
@@ -440,15 +479,57 @@ export const useStore = create<AppState>()(
       },
 
       saveProject: async (projectId: string) => {
-        const { data, reviewTracker } = get();
+        const { data, reviewTracker, _dirtyDrawingIds, _deletedDrawingIds, _dirtyConf, _dirtyTracker } = get();
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return false;
 
+        const dirtyCount = _dirtyDrawingIds.size + _deletedDrawingIds.size;
+        const totalDrawings = project.drawings.length;
+        const hasDirty = dirtyCount > 0 || _dirtyConf || _dirtyTracker;
+
+        // 无任何变更时跳过
+        if (!hasDirty) {
+          console.log('[Save] No changes detected, skipping.');
+          return true;
+        }
+
         set({ isLoading: true, error: null });
         try {
-          const success = await appRepository.saveProject(data.settings, project, reviewTracker);
-          set({ isLoading: false });
-          return success;
+          // 增量保存条件：脏 drawing 数量 < 总量的 50%，且无删除操作时使用 PATCH
+          const useDelta = dirtyCount > 0 && dirtyCount < totalDrawings * 0.5 && _deletedDrawingIds.size === 0;
+
+          if (useDelta) {
+            // 构建增量 payload
+            const updatedDrawings = project.drawings.filter(d => _dirtyDrawingIds.has(d.id));
+            const payload: DeltaPayload = {};
+            if (updatedDrawings.length > 0) payload.updatedDrawings = updatedDrawings;
+            if (_dirtyConf) payload.conf = project.conf;
+            if (_dirtyTracker) {
+              // 只发送脏 drawing 相关的 tracker 数据
+              const trackerSlice: ReviewTrackerData = {};
+              for (const id of _dirtyDrawingIds) {
+                if (reviewTracker[id]) trackerSlice[id] = reviewTracker[id];
+              }
+              if (Object.keys(trackerSlice).length > 0) payload.reviewTracker = trackerSlice;
+            }
+
+            console.log(`[Save] Delta: ${updatedDrawings.length} drawings, conf=${_dirtyConf}, tracker=${_dirtyTracker}`);
+            await appRepository.saveDelta(data.settings, projectId, payload);
+          } else {
+            // 全量回退（删除、大批量修改、或首次保存）
+            console.log(`[Save] Full: ${totalDrawings} drawings (dirty=${dirtyCount}, deleted=${_deletedDrawingIds.size})`);
+            await appRepository.saveProject(data.settings, project, reviewTracker);
+          }
+
+          // 清空脏标记
+          set({
+            isLoading: false,
+            _dirtyDrawingIds: new Set<string>(),
+            _deletedDrawingIds: new Set<string>(),
+            _dirtyConf: false,
+            _dirtyTracker: false,
+          });
+          return true;
         } catch (err: any) {
           console.error("Push failed", err);
           set({ isLoading: false, error: err.message });
@@ -456,7 +537,7 @@ export const useStore = create<AppState>()(
         }
       },
 
-      
+
       fetchGlobalSettings: async () => {
         const { data } = get();
         try {
@@ -663,7 +744,11 @@ export const useStore = create<AppState>()(
               ...state.data,
               projects: state.data.projects.map(p => p.id === projectId ? { ...fullProject, id: projectId } : p)
             },
-            isLoading: false
+            isLoading: false,
+            _dirtyDrawingIds: new Set<string>(),
+            _deletedDrawingIds: new Set<string>(),
+            _dirtyConf: false,
+            _dirtyTracker: false,
           }));
         } catch (err: any) {
           set({ isLoading: false, error: err.message });
@@ -671,13 +756,14 @@ export const useStore = create<AppState>()(
         }
       },
 
-            
+
       testConnection: async (url, user, pass, proxyUrl) => {
         const { data } = get();
         return appRepository.testConnection(data.settings, { url, user, pass, proxyUrl });
       },
 
       updateProjectConfig: (projectId, updates) => set((state) => ({
+        _dirtyConf: true,
         data: {
           ...state.data,
           projects: state.data.projects.map(p => p.id === projectId ? {
@@ -699,8 +785,10 @@ export const useStore = create<AppState>()(
       toggleRemarkStatus: (drawingId, remarkId) => set((state) => {
         const { activeProjectId } = state;
         if (!activeProjectId) return state;
-
+        const newDirty = new Set(state._dirtyDrawingIds);
+        newDirty.add(drawingId);
         return {
+          _dirtyDrawingIds: newDirty,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => {
@@ -743,6 +831,7 @@ export const useStore = create<AppState>()(
         const newDone = !current?.done;
 
         set(state => ({
+          _dirtyTracker: true,
           reviewTracker: {
             ...state.reviewTracker,
             [drawingId]: {

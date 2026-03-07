@@ -117,3 +117,11 @@ export interface ReviewTrackerEntry {
 
 // key = drawingId, value = { assigneeName: ReviewTrackerEntry }
 export type ReviewTrackerData = Record<string, Record<string, ReviewTrackerEntry>>;
+
+// 增量保存 payload
+export interface DeltaPayload {
+  updatedDrawings?: Drawing[];
+  deletedDrawingIds?: string[];
+  conf?: ProjectConfig;
+  reviewTracker?: ReviewTrackerData;
+}

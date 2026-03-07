@@ -1,4 +1,4 @@
-import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData } from '../../types';
+import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData, DeltaPayload } from '../../types';
 import { CloudflareApiRepository } from './CloudflareApiRepository';
 import { ProjectListItem } from './types';
 
@@ -26,6 +26,10 @@ export const appRepository = {
 
   saveProject(settings: AppSettings, project: Project, reviewTracker: ReviewTrackerData): Promise<boolean> {
     return apiRepository.saveProject(settings, project, reviewTracker);
+  },
+
+  saveDelta(settings: AppSettings, projectId: string, payload: DeltaPayload): Promise<boolean> {
+    return apiRepository.saveDelta(settings, projectId, payload);
   },
 
   loadSnapshots(settings: AppSettings, project: Project, includeAll = false): Promise<ProjectSnapshot[]> {

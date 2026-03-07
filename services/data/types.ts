@@ -1,4 +1,4 @@
-import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData } from '../../types';
+import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData, DeltaPayload } from '../../types';
 
 export interface ProjectListItem {
   id: string;
@@ -11,6 +11,7 @@ export interface DataRepository {
   fetchProjectList(settings: AppSettings): Promise<ProjectListItem[]>;
   loadProject(settings: AppSettings, project: Project, passwordInput?: string): Promise<Project>;
   saveProject(settings: AppSettings, project: Project, reviewTracker: ReviewTrackerData): Promise<boolean>;
+  saveDelta(settings: AppSettings, projectId: string, payload: DeltaPayload): Promise<boolean>;
   loadSnapshots(settings: AppSettings, project: Project, includeAll?: boolean): Promise<ProjectSnapshot[]>;
   createSnapshot(settings: AppSettings, project: Project, note: string): Promise<boolean>;
   restoreSnapshot(settings: AppSettings, project: Project, snapshot: ProjectSnapshot): Promise<boolean>;
