@@ -999,6 +999,17 @@ export default {
             ).run();
             return json(env, 200, { success: true });
           }
+          // Import endpoint: accepts raw JSON data with custom timestamp
+          if (segments.length === 4 && segments[3] === 'import' && request.method === 'POST') {
+            const body = await request.json() as any;
+            const note = toStringValue(body?.note) || 'Imported Snapshot';
+            const dataJson = typeof body?.dataJson === 'string' ? body.dataJson : JSON.stringify(body?.dataJson || {});
+            const createdAt = toStringValue(body?.createdAt) || new Date().toISOString();
+            await db.prepare(`INSERT INTO snapshots (id, project_id, note, data_json, created_at) VALUES (?, ?, ?, ?, ?)`).bind(
+              crypto.randomUUID(), projectId, note, dataJson, createdAt
+            ).run();
+            return json(env, 200, { success: true });
+          }
           if (segments.length === 4 && request.method === 'DELETE') {
             const snapshotId = decodeURIComponent(segments[3]);
             await db.prepare(`DELETE FROM snapshots WHERE project_id = ? AND id = ?`).bind(projectId, snapshotId).run();
