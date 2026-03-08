@@ -136,8 +136,9 @@ export const DrawingList: React.FC = () => {
 
   const project = data.projects.find(p => p.id === activeProjectId);
   const reviewers = (project?.conf?.reviewers || data.settings.reviewers).filter(r => {
+    const id = typeof r === 'string' ? r : r.id;
     const name = typeof r === 'string' ? r : r.name;
-    return !name.startsWith('__');
+    return id !== '__approved__' && !id.startsWith('__') && name.toLowerCase() !== 'approved marker';
   });
 
   // 当 Team Setup 弹窗打开时，自动初始化 defaultAssignees
