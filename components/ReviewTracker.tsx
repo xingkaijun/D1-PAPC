@@ -60,20 +60,21 @@ export const ReviewTracker: React.FC = () => {
             const trackerEntry = reviewTracker[d.id] || {};
             const assignees = d.assignees || [];
             const allDone = assignees.length > 0 && assignees.every(a => trackerEntry[a]?.done);
-            
-            if (allDone) {
-                if (!showUrgeOnly) ready.push(d); // 催促模式下不显示已完成的
-            } else {
-                if (showUrgeOnly) {
-                    const isOverdue = d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
-                    if (isOverdue) pending.push(d);
-                } else {
-                    pending.push(d);
+            const isOverdue = d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
+
+            if (showUrgeOnly) {
+                // 催促模式：只显示超期图纸
+                if (isOverdue) {
+                    if (allDone) ready.push(d);
+                    else pending.push(d);
                 }
+            } else {
+                if (allDone) ready.push(d);
+                else pending.push(d);
             }
         });
         return { readyDrawings: ready, pendingDrawings: pending };
-    }, [filteredDrawings, reviewTracker]);
+    }, [filteredDrawings, reviewTracker, showUrgeOnly]);
 
     // 统计概览
     const stats = useMemo(() => {
@@ -155,10 +156,10 @@ export const ReviewTracker: React.FC = () => {
         return (
             <div
                 key={drawing.id}
-                className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all ${allDone
-                    ? 'bg-emerald-50/60 border-emerald-200'
-                    : isOverdue 
-                        ? 'bg-red-50/60 border-red-300' 
+                className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all ${isOverdue
+                    ? 'bg-red-50/60 border-red-300'
+                    : allDone
+                        ? 'bg-emerald-50/60 border-emerald-200'
                         : 'bg-white border-slate-200 hover:border-slate-300'
                     }`}
             >
@@ -193,16 +194,18 @@ export const ReviewTracker: React.FC = () => {
                                     key={assignee}
                                     onClick={() => isEditMode && toggleAssigneeDone(drawing.id, assignee)}
                                     disabled={!isEditMode}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${isDone
-                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-150'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                                        } ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''} ${!isDone && isOverdue ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200 shadow-sm shadow-red-500/10' : ''}`}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${isOverdue && !allDone
+                                        ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200 shadow-sm shadow-red-500/10'
+                                        : isDone
+                                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-150'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                                        } ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                                     title={!isEditMode ? '需要解锁编辑模式' : isDone ? `${assignee}: 已完成 (点击取消)` : `${assignee}: 点击标记完成`}
                                 >
                                     {isDone ? (
                                         <CheckCircle2 size={12} className="text-emerald-500" />
                                     ) : (
-                                        <Circle size={12} className={isOverdue ? "text-red-400" : "text-slate-300"} />
+                                        <Circle size={12} className={isOverdue && !allDone ? "text-red-400" : "text-slate-300"} />
                                     )}
                                     <span className="uppercase tracking-wider">{assignee}</span>
                                 </button>
