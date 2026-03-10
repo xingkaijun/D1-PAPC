@@ -194,10 +194,10 @@ export const ReviewTracker: React.FC = () => {
                                     key={assignee}
                                     onClick={() => isEditMode && toggleAssigneeDone(drawing.id, assignee)}
                                     disabled={!isEditMode}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${isOverdue && !allDone
-                                        ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200 shadow-sm shadow-red-500/10'
-                                        : isDone
-                                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-150'
+                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${isDone
+                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-150'
+                                        : isOverdue
+                                            ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200 shadow-sm shadow-red-500/10'
                                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                                         } ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
                                     title={!isEditMode ? '需要解锁编辑模式' : isDone ? `${assignee}: 已完成 (点击取消)` : `${assignee}: 点击标记完成`}
@@ -205,7 +205,7 @@ export const ReviewTracker: React.FC = () => {
                                     {isDone ? (
                                         <CheckCircle2 size={12} className="text-emerald-500" />
                                     ) : (
-                                        <Circle size={12} className={isOverdue && !allDone ? "text-red-400" : "text-slate-300"} />
+                                        <Circle size={12} className={isOverdue ? "text-red-400" : "text-slate-300"} />
                                     )}
                                     <span className="uppercase tracking-wider">{assignee}</span>
                                 </button>
