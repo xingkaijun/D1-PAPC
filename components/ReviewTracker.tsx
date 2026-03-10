@@ -1,7 +1,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { RefreshCw, CheckCircle2, Circle, ClipboardCheck, Search, ChevronDown, ChevronRight, Cloud, Lock, Unlock, Send, Award } from 'lucide-react';
+import { RefreshCw, CheckCircle2, Circle, ClipboardCheck, Search, ChevronDown, ChevronRight, Cloud, Lock, Unlock, Send, Award, Flame } from 'lucide-react';
+import { isAfter } from 'date-fns';
 
 export const ReviewTracker: React.FC = () => {
     const {
@@ -21,6 +22,7 @@ export const ReviewTracker: React.FC = () => {
 
     const [filterText, setFilterText] = useState('');
     const [showReady, setShowReady] = useState(true);
+    const [showUrgeOnly, setShowUrgeOnly] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     // approved 标记：通过 reviewTracker 持久化（使用特殊 key '__approved__'）
     const isApprovedMark = (drawingId: string) => reviewTracker[drawingId]?.['__approved__']?.done ?? false;
@@ -58,8 +60,17 @@ export const ReviewTracker: React.FC = () => {
             const trackerEntry = reviewTracker[d.id] || {};
             const assignees = d.assignees || [];
             const allDone = assignees.length > 0 && assignees.every(a => trackerEntry[a]?.done);
-            if (allDone) ready.push(d);
-            else pending.push(d);
+            
+            if (allDone) {
+                if (!showUrgeOnly) ready.push(d); // 催促模式下不显示已完成的
+            } else {
+                if (showUrgeOnly) {
+                    const isOverdue = d.reviewDeadline && isAfter(new Date(), new Date(d.reviewDeadline));
+                    if (isOverdue) pending.push(d);
+                } else {
+                    pending.push(d);
+                }
+            }
         });
         return { readyDrawings: ready, pendingDrawings: pending };
     }, [filteredDrawings, reviewTracker]);
@@ -139,13 +150,16 @@ export const ReviewTracker: React.FC = () => {
         const doneCount = assignees.filter(a => trackerEntry[a]?.done).length;
         const allDone = assignees.length > 0 && doneCount === assignees.length;
         const isApproved = isApprovedMark(drawing.id);
+        const isOverdue = drawing.reviewDeadline && isAfter(new Date(), new Date(drawing.reviewDeadline));
 
         return (
             <div
                 key={drawing.id}
                 className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all ${allDone
                     ? 'bg-emerald-50/60 border-emerald-200'
-                    : 'bg-white border-slate-200 hover:border-slate-300'
+                    : isOverdue 
+                        ? 'bg-red-50/60 border-red-300' 
+                        : 'bg-white border-slate-200 hover:border-slate-300'
                     }`}
             >
                 {/* 图纸号 + discipline */}
@@ -182,13 +196,13 @@ export const ReviewTracker: React.FC = () => {
                                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${isDone
                                         ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-150'
                                         : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-                                        } ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                        } ${!isEditMode ? 'opacity-60 cursor-not-allowed' : ''} ${!isDone && isOverdue ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200 shadow-sm shadow-red-500/10' : ''}`}
                                     title={!isEditMode ? '需要解锁编辑模式' : isDone ? `${assignee}: 已完成 (点击取消)` : `${assignee}: 点击标记完成`}
                                 >
                                     {isDone ? (
                                         <CheckCircle2 size={12} className="text-emerald-500" />
                                     ) : (
-                                        <Circle size={12} className="text-slate-300" />
+                                        <Circle size={12} className={isOverdue ? "text-red-400" : "text-slate-300"} />
                                     )}
                                     <span className="uppercase tracking-wider">{assignee}</span>
                                 </button>
@@ -307,8 +321,8 @@ export const ReviewTracker: React.FC = () => {
             </div>
 
             {/* 筛选输入框 */}
-            <div className="px-6 py-2 border-b border-slate-100 shrink-0">
-                <div className="relative">
+            <div className="px-6 py-2 border-b border-slate-100 shrink-0 flex items-center gap-3">
+                <div className="relative flex-1">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
                     <input
                         type="text"
@@ -318,6 +332,17 @@ export const ReviewTracker: React.FC = () => {
                         className="w-full pl-9 pr-4 py-2 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all placeholder:text-slate-300 placeholder:font-bold placeholder:uppercase placeholder:tracking-wider"
                     />
                 </div>
+                <button
+                    onClick={() => setShowUrgeOnly(!showUrgeOnly)}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-[1000] uppercase tracking-wider transition-all border shrink-0 ${showUrgeOnly
+                        ? 'bg-red-500 text-white border-red-600 shadow-md shadow-red-500/20'
+                        : 'bg-white text-slate-500 border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                        }`}
+                    title="仅显示超期且仍有责任人未完成审查的图纸"
+                >
+                    <Flame size={14} className={showUrgeOnly ? 'animate-pulse' : ''} />
+                    {showUrgeOnly ? 'Urge List Active' : 'Urge List'}
+                </button>
             </div>
 
             {/* 滚动区域 */}
