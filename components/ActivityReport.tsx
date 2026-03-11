@@ -249,24 +249,11 @@ export const ActivityReport: React.FC = () => {
             .sort((a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime());
 
           let currentStatusAtTime = 'Pending';
-          let currentOpenCmtAtTime = 0;
 
           historyBeforeOrAtEnd.forEach(h => {
              if (h.content.includes('Status:')) {
                const m = h.content.match(/Status: .* -> (.*)/);
                if (m) currentStatusAtTime = m[1].trim();
-             }
-             if (h.content.includes('Comments:')) {
-               // 解析出 "X open" 或者是我们简单的回放 manualOpenCommentsCount
-               // 因为早期可能没有记录准确数字，我们从历史提取
-               const match = h.content.match(/(\d+) open/i);
-               if (match) {
-                 currentOpenCmtAtTime = parseInt(match[1], 10);
-               } else if (h.content.includes('resolved') || h.content.includes('Closed')) {
-                 currentOpenCmtAtTime = Math.max(0, currentOpenCmtAtTime - 1);
-               } else {
-                 currentOpenCmtAtTime += 1;
-               }
              }
           });
 
@@ -274,7 +261,18 @@ export const ActivityReport: React.FC = () => {
           else if (currentStatusAtTime.includes('Review')) reviewing++;
           else if (currentStatusAtTime.includes('Waiting')) waiting++;
           
-          openCmt += currentOpenCmtAtTime;
+          // Determine if we've reached the point in time where the drawing's manualOpenCommentsCount is current.
+          // Since we don't have exact comment history numbers, we assume the current `manualOpenCommentsCount`
+          // applies from the date of the latest status history update onwards.
+          let lastUpdateMs = 0;
+          if (d.statusHistory && d.statusHistory.length > 0) {
+            lastUpdateMs = Math.max(...d.statusHistory.map(h => parseISO(h.createdAt).getTime()));
+          } else if (d.receivedDate) {
+            lastUpdateMs = parseISO(d.receivedDate).getTime();
+          }
+          
+          const isLatestWeekForDrawing = lastUpdateMs <= weekEnd2.getTime();
+          openCmt += isLatestWeekForDrawing ? (d.manualOpenCommentsCount || 0) : 0;
         });
 
         return { 
