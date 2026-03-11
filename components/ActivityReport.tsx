@@ -551,7 +551,7 @@ export const ActivityReport: React.FC = () => {
                     <div className="flex gap-3">
                       {STAGE_COLORS.map(s => (
                         <div key={s.label} className="flex items-center gap-1.5">
-                          <div className="w-3 h-2 rounded-sm" style={{ backgroundColor: s.color }} />
+                          <div className="w-3 h-2" style={{ backgroundColor: s.color }} />
                           <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">{s.label}</span>
                         </div>
                       ))}
@@ -605,10 +605,10 @@ export const ActivityReport: React.FC = () => {
                           <div className="flex-1 relative" style={{ height: '20px' }}>
                             <svg width="100%" height="20" preserveAspectRatio="none" style={{ display: 'block' }}>
                               {/* Background track */}
-                              <rect x="0" y="0" width="100%" height="20" rx="4" fill="#f1f5f9" />
+                              <rect x="0" y="0" width="100%" height="20" fill="#f1f5f9" />
                               {/* Stage bars */}
                               {stages.map((seg, j) => (
-                                <rect key={j} x={`${seg.left}%`} y="0" width={`${Math.max(seg.width, 0.5)}%`} height="20" rx="3" fill={STAGE_COLORS[seg.colorIdx].color} />
+                                <rect key={j} x={`${seg.left}%`} y="0" width={`${Math.max(seg.width, 0.5)}%`} height="20" fill={STAGE_COLORS[seg.colorIdx].color} />
                               ))}
                               {/* Stage labels (text inside bars) */}
                               {stages.map((seg, j) => seg.width > 8 && (
@@ -783,10 +783,10 @@ export const ActivityReport: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="text-[7px] font-black text-slate-700 uppercase truncate">{disc.name}</div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <div className="flex-1" style={{ height: '6px' }}>
-                          <svg width="100%" height="6" preserveAspectRatio="none" style={{ display: 'block' }}>
-                            <rect x="0" y="0" width="100%" height="6" rx="3" fill="#e2e8f0" />
-                            <rect x="0" y="0" width={`${(disc.value / Math.max(eventData.disciplineRank[0]?.value || 1, 1)) * 100}%`} height="6" rx="3" fill="#14b8a6" />
+                        <div className="flex-1 min-w-0" style={{ height: '6px' }}>
+                          <svg width="100%" height="6" viewBox="0 0 100 6" preserveAspectRatio="none" style={{ display: 'block', overflow: 'hidden' }}>
+                            <rect x="0" y="0" width="100" height="6" rx="3" fill="#e2e8f0" />
+                            <rect x="0" y="0" width={Math.min((disc.value / Math.max(eventData.disciplineRank[0]?.value || 1, 1)) * 100, 100)} height="6" rx="3" fill="#14b8a6" />
                           </svg>
                         </div>
                         <span className="text-[7px] font-black text-teal-600 w-6 text-right">{disc.value}</span>
