@@ -7,6 +7,7 @@ import { DrawingList } from './components/DrawingList';
 import { Settings } from './components/Settings';
 import { CommandBar } from './components/CommandBar';
 import { DailyLogReport } from './components/DailyLogReport';
+import { ActivityReport } from './components/ActivityReport';
 import { ReviewTracker } from './components/ReviewTracker';
 import { format } from 'date-fns';
 
@@ -46,6 +47,7 @@ import {
   CloudOff,
   RefreshCw,
   LayoutDashboard,
+  TrendingUp,
   BookOpen,
   Lock,
   ChevronLeft,
@@ -55,7 +57,7 @@ import {
 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'dailylog' | 'settings' | 'manual' | 'tracker'>('drawings');
+  const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'activity' | 'dailylog' | 'settings' | 'manual' | 'tracker'>('drawings');
   const {
     data,
     activeProjectId,
@@ -447,6 +449,15 @@ const App: React.FC = () => {
               <span>Intelligence</span>
             </button>
             <button
+              onClick={() => isEditMode && setActiveTab('activity')}
+              disabled={!isEditMode}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'activity' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              title={!isEditMode ? "Unlock Edit Mode to Access" : "Activity Report"}
+            >
+              {!isEditMode ? <Lock size={14} /> : <TrendingUp size={14} strokeWidth={2.5} className={activeTab === 'activity' ? 'text-teal-500' : 'text-slate-400'} />}
+              <span>Activity</span>
+            </button>
+            <button
               onClick={() => isEditMode && setActiveTab('dailylog')}
               disabled={!isEditMode}
               className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'dailylog' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
@@ -513,6 +524,11 @@ const App: React.FC = () => {
             {activeTab === 'reports' && (
               <ErrorBoundary>
                 <Reports />
+              </ErrorBoundary>
+            )}
+            {activeTab === 'activity' && (
+              <ErrorBoundary>
+                <ActivityReport />
               </ErrorBoundary>
             )}
             {activeTab === 'settings' && <Settings />}
