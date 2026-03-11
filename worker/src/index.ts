@@ -997,6 +997,14 @@ export default {
 
             const projectData = await getProjectDetail(db, projectId) as any;
 
+            // Fetch the latest previous snapshot to calculate flows
+            const lastSnapRow = await queryFirst(db, `SELECT data_json FROM snapshots WHERE project_id = ? ORDER BY created_at DESC LIMIT 1`, [projectId]);
+            let previousStats: any[] = [];
+            if (lastSnapRow) {
+              const prevParsed = readJson<any>(lastSnapRow.data_json as string, {});
+              previousStats = prevParsed?.snapshotMeta?.stats || [];
+            }
+
             // Generate stats from drawings grouped by discipline
             const drawingsArr = projectData?.drawings || [];
             const discMap: Record<string, any> = {};
@@ -1013,7 +1021,22 @@ export default {
               discMap[disc].totalComments += manualTotal;
               discMap[disc].openComments += manualOpen;
             }
-            const stats = Object.values(discMap);
+
+            // Calculate flows based on previous snapshot
+            const stats = Object.values(discMap).map((currentStat: any) => {
+              const prevStat = previousStats.find((s: any) => s.discipline === currentStat.discipline);
+              if (prevStat) {
+                currentStat.flowToReview = Math.max(0, currentStat.reviewing - (prevStat.reviewing || 0));
+                currentStat.flowToWaiting = Math.max(0, currentStat.waitingReply - (prevStat.waitingReply || 0));
+                currentStat.flowToApproved = Math.max(0, currentStat.approved - (prevStat.approved || 0));
+              } else {
+                // If no previous stat for this discipline, all current non-pending are considered new flow
+                currentStat.flowToReview = currentStat.reviewing;
+                currentStat.flowToWaiting = currentStat.waitingReply;
+                currentStat.flowToApproved = currentStat.approved;
+              }
+              return currentStat;
+            });
 
             // Embed snapshotMeta into data_json
             projectData.snapshotMeta = { createdAt: new Date().toISOString(), note, stats };
