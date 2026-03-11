@@ -476,6 +476,109 @@ export const Settings: React.FC = () => {
             </div>
           </section>
 
+          {/* Project Summary (Ship Milestones) */}
+          <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:border-violet-400 transition-colors col-span-1 md:col-span-2 lg:col-span-3">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
+              <Calendar className="text-violet-600" size={16} />
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Project Summary &amp; Ship Milestones</h2>
+            </div>
+            <div className="p-5 space-y-4">
+              {/* Info Row: Ship Owner & Update Date */}
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex items-center gap-4 flex-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider w-24 shrink-0">Ship Owner</label>
+                  <input
+                    type="text"
+                    value={project?.conf?.projectSummary?.shipOwner || ''}
+                    onChange={(e) => project && updateProjectConfig(project.id, {
+                      projectSummary: { ...project.conf.projectSummary, ships: project.conf.projectSummary?.ships || [], shipOwner: e.target.value }
+                    })}
+                    placeholder="e.g. COSCO SHIPPING"
+                    disabled={!project}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-slate-300 uppercase"
+                  />
+                </div>
+                <div className="flex items-center gap-4 flex-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider w-32 shrink-0">Milestone Update</label>
+                  <input
+                    type="date"
+                    value={project?.conf?.projectSummary?.milestoneUpdateDate || ''}
+                    onChange={(e) => project && updateProjectConfig(project.id, {
+                      projectSummary: { ...project.conf.projectSummary, ships: project.conf.projectSummary?.ships || [], milestoneUpdateDate: e.target.value }
+                    })}
+                    disabled={!project}
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Ships Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-slate-200">
+                      <th className="px-3 py-2 text-left text-[8px] font-black text-slate-500 uppercase tracking-wider">Hull No.</th>
+                      <th className="px-3 py-2 text-center text-[8px] font-black text-slate-500 uppercase tracking-wider">Steel Cutting (开工)</th>
+                      <th className="px-3 py-2 text-center text-[8px] font-black text-slate-500 uppercase tracking-wider">Keel Laying (入坞)</th>
+                      <th className="px-3 py-2 text-center text-[8px] font-black text-slate-500 uppercase tracking-wider">Launching (下水)</th>
+                      <th className="px-3 py-2 text-center text-[8px] font-black text-slate-500 uppercase tracking-wider">Delivery (交船)</th>
+                      <th className="px-3 py-2 text-center text-[8px] font-black text-slate-500 uppercase tracking-wider">Contract Delivery</th>
+                      <th className="px-1 py-2 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(project?.conf?.projectSummary?.ships || []).map((ship, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={ship.hullNumber} placeholder="H1234"
+                            onChange={(e) => {
+                              if (!project) return;
+                              const ships = [...(project.conf.projectSummary?.ships || [])];
+                              ships[idx] = { ...ships[idx], hullNumber: e.target.value };
+                              updateProjectConfig(project.id, { projectSummary: { ...project.conf.projectSummary, ships } });
+                            }}
+                            className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-700 uppercase focus:outline-none focus:border-violet-400"
+                          />
+                        </td>
+                        {(['steelCutting', 'keelLaying', 'launching', 'delivery', 'contractDelivery'] as const).map(field => (
+                          <td key={field} className="px-3 py-1.5">
+                            <input type="date" value={ship[field] || ''}
+                              onChange={(e) => {
+                                if (!project) return;
+                                const ships = [...(project.conf.projectSummary?.ships || [])];
+                                ships[idx] = { ...ships[idx], [field]: e.target.value };
+                                updateProjectConfig(project.id, { projectSummary: { ...project.conf.projectSummary, ships } });
+                              }}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold text-slate-600 focus:outline-none focus:border-violet-400"
+                            />
+                          </td>
+                        ))}
+                        <td className="px-1 py-1.5">
+                          <button onClick={() => {
+                            if (!project) return;
+                            const ships = (project.conf.projectSummary?.ships || []).filter((_, i) => i !== idx);
+                            updateProjectConfig(project.id, { projectSummary: { ...project.conf.projectSummary, ships } });
+                          }} className="text-slate-200 hover:text-red-500 transition-colors"><Trash2 size={12} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                onClick={() => {
+                  if (!project) return;
+                  const ships = [...(project.conf.projectSummary?.ships || []), { hullNumber: '' }];
+                  updateProjectConfig(project.id, { projectSummary: { ...project.conf.projectSummary, ships } });
+                }}
+                disabled={!project}
+                className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-violet-700 disabled:opacity-50 transition-all active:scale-95"
+              >
+                <Plus size={12} /> Add Ship
+              </button>
+            </div>
+          </section>
+
         </div>
       </div>
     </div>

@@ -67,6 +67,21 @@ export interface Reviewer {
   name: string;
 }
 
+export interface ShipMilestone {
+  hullNumber: string;
+  steelCutting?: string;  // ISO date
+  keelLaying?: string;    // ISO date (入坞/Dock Entry)
+  launching?: string;     // ISO date (下水)
+  delivery?: string;      // ISO date (交船)
+  contractDelivery?: string; // ISO date (合同交船期)
+}
+
+export interface ProjectSummaryConfig {
+  shipOwner?: string;
+  milestoneUpdateDate?: string; // ISO date (节点更新日期)
+  ships: ShipMilestone[];
+}
+
 export interface ProjectConfig {
   reviewers: Reviewer[];
   disciplineDefaults: { [key: string]: string }; // Map discipline -> default reviewer ID
@@ -78,6 +93,7 @@ export interface ProjectConfig {
   autoSyncInterval?: number; // Project-specific auto-sync interval
   lastUpdated?: string; // Last modification timestamp
   defaultAssignees?: Record<string, string[]>; // Map discipline -> default assignee names
+  projectSummary?: ProjectSummaryConfig; // Ship milestones for Gantt chart
 }
 
 export interface Project {

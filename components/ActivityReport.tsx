@@ -1,12 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { format, subDays, startOfDay, endOfDay, parseISO, eachWeekOfInterval, endOfWeek } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, parseISO, eachWeekOfInterval, endOfWeek, differenceInDays } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend, LabelList
 } from 'recharts';
 import {
-  TrendingUp, CheckCircle, Search, Hash, Clock, MessageSquare, Printer, Calendar as CalendarIcon, Filter
+  TrendingUp, CheckCircle, Search, Hash, Clock, MessageSquare, Printer, Calendar as CalendarIcon, Filter, Star, FileText
 } from 'lucide-react';
 
 const formatDiscipline = (disc: string) => {
@@ -396,9 +396,11 @@ export const ActivityReport: React.FC = () => {
   }, [drawings, rangeStart, rangeEnd]);
 
   // --- 页数计算 ---
+  const hasSummary = !!(activeProject.conf?.projectSummary?.ships?.length);
+  const summaryPages = hasSummary ? 1 : 0;
   const healthPages = Math.ceil(derivedDisciplines.length / 8);
   const trendPages = Math.ceil(weeklyTrends.length / 2);
-  const totalPages = 4 + healthPages + trendPages;
+  const totalPages = (summaryPages + 4) + healthPages + trendPages;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -464,8 +466,184 @@ export const ActivityReport: React.FC = () => {
       {/* ===== A4 报告内容（可滚动 + 可打印） ===== */}
       <div className="flex-1 overflow-y-auto bg-slate-100 print:bg-white print:overflow-visible">
 
+        {/* ===== PAGE 0: PROJECT SUMMARY (conditional) ===== */}
+        {hasSummary && (() => {
+          const summary = activeProject.conf.projectSummary!;
+          const ships = summary.ships;
+          const STAGE_COLORS = [
+            { label: 'Block Stage', color: '#6366f1', bg: 'bg-indigo-100 text-indigo-700' },
+            { label: 'Dock', color: '#f59e0b', bg: 'bg-amber-100 text-amber-700' },
+            { label: 'Quay Side', color: '#10b981', bg: 'bg-emerald-100 text-emerald-700' },
+          ];
+
+          // compute Gantt boundaries
+          const allDates = ships.flatMap(s => [s.steelCutting, s.keelLaying, s.launching, s.delivery, s.contractDelivery].filter(Boolean).map(d => new Date(d!)));
+          const ganttMin = allDates.length > 0 ? new Date(Math.min(...allDates.map(d => d.getTime()))) : new Date();
+          const ganttMax = allDates.length > 0 ? new Date(Math.max(...allDates.map(d => d.getTime()))) : new Date();
+          const totalDays = Math.max(differenceInDays(ganttMax, ganttMin), 1);
+
+          const toPercent = (d: string | undefined) => {
+            if (!d) return null;
+            return ((new Date(d).getTime() - ganttMin.getTime()) / (totalDays * 86400000)) * 100;
+          };
+
+          // Generate quarter ticks for the Gantt chart to avoid overlapping text
+          const quarterTicks: { label: string; pct: number }[] = [];
+          const startQ = new Date(ganttMin.getFullYear(), Math.floor(ganttMin.getMonth() / 3) * 3, 1);
+          let curQ = new Date(startQ);
+          while (curQ <= ganttMax) {
+            const pct = ((curQ.getTime() - ganttMin.getTime()) / (totalDays * 86400000)) * 100;
+            if (pct >= -5 && pct <= 105) { // Allow slight overflow for labels
+              const qStr = `Q${Math.floor(curQ.getMonth() / 3) + 1} '${curQ.getFullYear().toString().slice(-2)}`;
+              quarterTicks.push({ label: qStr, pct: Math.max(0, Math.min(100, pct)) });
+            }
+            curQ.setMonth(curQ.getMonth() + 3);
+          }
+
+          return (
+            <ReportPage pageNumber={1} totalPages={totalPages} projectName={projectName}>
+              <div className="flex flex-col gap-6">
+                {/* Section Title */}
+                <div className="border-l-4 border-violet-500 pl-4">
+                  <h3 className="text-[12px] font-[1000] text-slate-800 uppercase tracking-widest">Project Summary</h3>
+                </div>
+
+                {/* Info Cards */}
+                <div className="grid grid-cols-4 gap-3">
+                  <StatCard label="Project/Hull" value={projectName || 'N/A'} icon={<FileText size={14} className="text-teal-500" />} color="teal" />
+                  <StatCard label="Ship Owner" value={summary.shipOwner || 'N/A'} icon={<Hash size={14} className="text-violet-500" />} color="purple" />
+                  <StatCard label="Number of Ships" value={ships.length} icon={<Hash size={14} className="text-slate-500" />} color="slate" />
+                  <StatCard label="Milestones Updated" value={summary.milestoneUpdateDate ? format(new Date(summary.milestoneUpdateDate), 'yyyy/MM/dd') : '—'} icon={<CalendarIcon size={14} className="text-amber-500" />} color="amber" />
+                </div>
+
+                {/* Milestones Table */}
+                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="px-4 py-2.5 text-left text-[8px] font-black text-slate-500 uppercase tracking-wider">Hull No.</th>
+                        <th className="px-4 py-2.5 text-center text-[8px] font-black text-indigo-600 uppercase tracking-wider">Steel Cutting</th>
+                        <th className="px-4 py-2.5 text-center text-[8px] font-black text-amber-600 uppercase tracking-wider">Keel Laying</th>
+                        <th className="px-4 py-2.5 text-center text-[8px] font-black text-emerald-600 uppercase tracking-wider">Launching</th>
+                        <th className="px-4 py-2.5 text-center text-[8px] font-black text-rose-600 uppercase tracking-wider">Delivery</th>
+                        <th className="px-4 py-2.5 text-center text-[8px] font-black text-slate-500 uppercase tracking-wider">Ctr. Delivery</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {ships.map((ship, i) => (
+                        <tr key={i} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-2 text-[9px] font-[1000] text-slate-800 uppercase tracking-widest">{ship.hullNumber || '—'}</td>
+                          <td className="px-4 py-2 text-center text-[9px] font-bold text-slate-600">{ship.steelCutting ? format(new Date(ship.steelCutting), 'dd MMM yyyy') : '—'}</td>
+                          <td className="px-4 py-2 text-center text-[9px] font-bold text-slate-600">{ship.keelLaying ? format(new Date(ship.keelLaying), 'dd MMM yyyy') : '—'}</td>
+                          <td className="px-4 py-2 text-center text-[9px] font-bold text-slate-600">{ship.launching ? format(new Date(ship.launching), 'dd MMM yyyy') : '—'}</td>
+                          <td className="px-4 py-2 text-center text-[9px] font-bold text-slate-600">{ship.delivery ? format(new Date(ship.delivery), 'dd MMM yyyy') : '—'}</td>
+                          <td className="px-4 py-2 text-center text-[9px] font-bold text-slate-500">{ship.contractDelivery ? format(new Date(ship.contractDelivery), 'dd MMM yyyy') : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Gantt Chart */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 flex flex-col shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Project Schedule</div>
+                    <div className="flex gap-3">
+                      {STAGE_COLORS.map(s => (
+                        <div key={s.label} className="flex items-center gap-1.5">
+                          <div className="w-3 h-2 rounded-sm" style={{ backgroundColor: s.color }} />
+                          <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">{s.label}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-slate-800" />
+                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Milestone</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Star className="text-amber-500 fill-amber-500" size={10} />
+                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Ctr. Delivery</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quarter axis */}
+                  <div className="relative h-4 mb-0.5 ml-[100px]">
+                    {quarterTicks.map((t, i) => (
+                      <div key={i} className="absolute text-[8px] font-black text-slate-400 uppercase tracking-tighter" style={{ left: `${t.pct}%`, transform: 'translateX(-50%)' }}>{t.label}</div>
+                    ))}
+                  </div>
+                  <div className="relative ml-[100px] border-t border-slate-300 mb-2">
+                    {/* Axis Ticks */}
+                    {quarterTicks.map((t, i) => (
+                      <div key={`tick-${i}`} className="absolute top-0 w-px h-1.5 bg-slate-300" style={{ left: `${t.pct}%` }} />
+                    ))}
+                  </div>
+
+                  {/* Bars & Grid Container */}
+                  <div className="relative flex flex-col gap-3">
+                    {/* Vertical Background Grid Lines */}
+                    <div className="absolute inset-y-0 left-[100px] right-0 pointer-events-none z-0">
+                      {quarterTicks.map((t, i) => (
+                        <div key={`grid-${i}`} className="absolute top-0 bottom-0 w-px bg-slate-200" style={{ left: `${t.pct}%` }} />
+                      ))}
+                    </div>
+
+                    {/* Bars - rendered as inline SVG so colors survive print */}
+                    {ships.map((ship, si) => {
+                      const points = [toPercent(ship.steelCutting), toPercent(ship.keelLaying), toPercent(ship.launching), toPercent(ship.delivery)];
+                      const contractDeliveryPct = toPercent(ship.contractDelivery);
+                      const stages = [
+                        points[0] != null && points[1] != null ? { left: points[0], width: points[1] - points[0], colorIdx: 0 } : null,
+                        points[1] != null && points[2] != null ? { left: points[1], width: points[2] - points[1], colorIdx: 1 } : null,
+                        points[2] != null && points[3] != null ? { left: points[2], width: points[3] - points[2], colorIdx: 2 } : null,
+                      ].filter(Boolean) as { left: number; width: number; colorIdx: number }[];
+
+                      return (
+                        <div key={si} className="flex items-center gap-0">
+                          <div className="w-[100px] shrink-0 text-[8px] font-[1000] text-slate-700 uppercase tracking-widest pr-3 text-right truncate">{ship.hullNumber || `Ship ${si + 1}`}</div>
+                          {/* SVG-based bar: SVG fill is foreground, always prints */}
+                          <div className="flex-1 relative" style={{ height: '20px' }}>
+                            <svg width="100%" height="20" preserveAspectRatio="none" style={{ display: 'block' }}>
+                              {/* Background track */}
+                              <rect x="0" y="0" width="100%" height="20" rx="4" fill="#f1f5f9" />
+                              {/* Stage bars */}
+                              {stages.map((seg, j) => (
+                                <rect key={j} x={`${seg.left}%`} y="0" width={`${Math.max(seg.width, 0.5)}%`} height="20" rx="3" fill={STAGE_COLORS[seg.colorIdx].color} />
+                              ))}
+                              {/* Stage labels (text inside bars) */}
+                              {stages.map((seg, j) => seg.width > 8 && (
+                                <text key={`lbl-${j}`} x={`${seg.left + seg.width / 2}%`} y="13" textAnchor="middle" fill="white" fontSize="5" fontWeight="900" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>{STAGE_COLORS[seg.colorIdx].label}</text>
+                              ))}
+                              {/* Milestone diamonds */}
+                              {points.map((p, pi) => p != null && (
+                                <polygon key={`ms-${pi}`} points={`${p},5 ${p! + 0.6},10 ${p},15 ${p! - 0.6},10`} fill="#1e293b" style={{ transform: `translateX(${p}%)` }} />
+                              ))}
+                            </svg>
+                            {/* Milestone diamonds as positioned SVGs for accurate % placement */}
+                            {points.map((p, pi) => p != null && (
+                              <svg key={`dia-${pi}`} className="absolute top-0" style={{ left: `${p}%`, marginLeft: '-4px' }} width="8" height="20" viewBox="0 0 8 20">
+                                <polygon points="4,3 7,10 4,17 1,10" fill="#1e293b" />
+                              </svg>
+                            ))}
+                            {/* Contract Delivery Star */}
+                            {contractDeliveryPct != null && (
+                              <svg className="absolute top-0" style={{ left: `${contractDeliveryPct}%`, marginLeft: '-7px' }} width="14" height="20" viewBox="0 0 14 20">
+                                <polygon points="7,2 8.8,7 14,7.5 10,11.5 11.2,17 7,14 2.8,17 4,11.5 0,7.5 5.2,7" fill="#f59e0b" stroke="#fff" strokeWidth="0.5" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </ReportPage>
+          );
+        })()}
+
         {/* ===== PAGE 1: DASHBOARD ===== */}
-        <ReportPage pageNumber={1} totalPages={totalPages} projectName={projectName}>
+        <ReportPage pageNumber={summaryPages + 1} totalPages={totalPages} projectName={projectName}>
           <div className="flex flex-col gap-6">
             {/* 时间范围标签 */}
             <div className="bg-teal-50 border border-teal-200 rounded-xl px-4 py-2 flex items-center justify-between">
@@ -536,7 +714,7 @@ export const ActivityReport: React.FC = () => {
         </ReportPage>
 
         {/* ===== PAGE 2: PERIOD ACTIVITIES ===== */}
-        <ReportPage pageNumber={2} totalPages={totalPages} projectName={projectName}>
+        <ReportPage pageNumber={summaryPages + 2} totalPages={totalPages} projectName={projectName}>
           <div className="flex flex-col gap-5">
             <div className="flex items-center justify-between border-l-4 border-teal-500 pl-4">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Period Activities</h3>
@@ -605,8 +783,11 @@ export const ActivityReport: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="text-[7px] font-black text-slate-700 uppercase truncate">{disc.name}</div>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-gradient-to-r from-teal-500 to-cyan-400 rounded-full" style={{ width: `${(disc.value / Math.max(eventData.disciplineRank[0]?.value || 1, 1)) * 100}%` }} />
+                        <div className="flex-1" style={{ height: '6px' }}>
+                          <svg width="100%" height="6" preserveAspectRatio="none" style={{ display: 'block' }}>
+                            <rect x="0" y="0" width="100%" height="6" rx="3" fill="#e2e8f0" />
+                            <rect x="0" y="0" width={`${(disc.value / Math.max(eventData.disciplineRank[0]?.value || 1, 1)) * 100}%`} height="6" rx="3" fill="#14b8a6" />
+                          </svg>
                         </div>
                         <span className="text-[7px] font-black text-teal-600 w-6 text-right">{disc.value}</span>
                       </div>
@@ -619,7 +800,7 @@ export const ActivityReport: React.FC = () => {
         </ReportPage>
 
         {/* ===== PAGE 3: COMMENTS + STALE ===== */}
-        <ReportPage pageNumber={3} totalPages={totalPages} projectName={projectName}>
+        <ReportPage pageNumber={summaryPages + 3} totalPages={totalPages} projectName={projectName}>
           <div className="flex flex-col gap-6">
             {/* Discipline Comments 条形图 */}
             <div className="flex flex-col gap-4 shrink-0">
@@ -644,7 +825,7 @@ export const ActivityReport: React.FC = () => {
         </ReportPage>
 
         {/* ===== PAGE 4: HEATMAP + VELOCITY ===== */}
-        <ReportPage pageNumber={4} totalPages={totalPages} projectName={projectName}>
+        <ReportPage pageNumber={summaryPages + 4} totalPages={totalPages} projectName={projectName}>
           <div className="flex flex-col gap-6">
             {/* Discipline Progress Heatmap */}
             <div className="flex flex-col gap-3 shrink-0">
@@ -709,7 +890,7 @@ export const ActivityReport: React.FC = () => {
 
         {/* ===== HEALTH PAGES ===== */}
         {Array.from({ length: healthPages }).map((_, hpIdx) => (
-          <ReportPage key={`health-${hpIdx}`} pageNumber={5 + hpIdx} totalPages={totalPages} projectName={projectName}>
+          <ReportPage key={`health-${hpIdx}`} pageNumber={summaryPages + 5 + hpIdx} totalPages={totalPages} projectName={projectName}>
             <div className="flex flex-col gap-6">
               <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4">
                 <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Discipline Status {healthPages > 1 ? `(${hpIdx + 1}/${healthPages})` : ''}</h3>
@@ -761,7 +942,7 @@ export const ActivityReport: React.FC = () => {
 
         {/* ===== TREND PAGES ===== */}
         {Array.from({ length: trendPages }).map((_, tpIdx) => (
-          <ReportPage key={`trend-${tpIdx}`} pageNumber={5 + healthPages + tpIdx} totalPages={totalPages} projectName={projectName}>
+          <ReportPage key={`trend-${tpIdx}`} pageNumber={summaryPages + 5 + healthPages + tpIdx} totalPages={totalPages} projectName={projectName}>
             <div className="flex flex-col gap-10">
               <div className="flex items-center justify-between border-l-4 border-indigo-600 pl-4">
                 <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Activity Trends</h3>
