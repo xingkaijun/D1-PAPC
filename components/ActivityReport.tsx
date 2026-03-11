@@ -236,20 +236,58 @@ export const ActivityReport: React.FC = () => {
     const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
     return derivedDisciplines.map(disc => {
       const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
+      
       const weekData = weeks.map(weekStart => {
         const weekEnd2 = endOfWeek(weekStart, { weekStartsOn: 1 });
-        const wInterval = { start: weekStart, end: weekEnd2 };
-        let statusChanges = 0, commentChanges = 0;
+        
+        // 我们需要计算截至 `weekEnd2` 时，这个专业下图纸的状态分布和 open comments 数量
+        let approved = 0;
+        let reviewing = 0;
+        let waiting = 0;
+        let openCmt = 0;
+
         discDrawings.forEach(d => {
-          (d.statusHistory || []).forEach(h => {
-            const hDate = parseISO(h.createdAt);
-            if (isWithinInterval(hDate, wInterval)) {
-              if (h.content.includes('Status:')) statusChanges++;
-              if (h.content.includes('Comments:')) commentChanges++;
-            }
+          // 寻找该图纸在 weekEnd2 及之前的最后一条状态记录
+          const historyBeforeOrAtEnd = (d.statusHistory || [])
+            .filter(h => parseISO(h.createdAt).getTime() <= weekEnd2.getTime())
+            .sort((a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime());
+
+          let currentStatusAtTime = 'Pending';
+          let currentOpenCmtAtTime = 0;
+
+          historyBeforeOrAtEnd.forEach(h => {
+             if (h.content.includes('Status:')) {
+               const m = h.content.match(/Status: .* -> (.*)/);
+               if (m) currentStatusAtTime = m[1].trim();
+             }
+             if (h.content.includes('Comments:')) {
+               // 解析出 "X open" 或者是我们简单的回放 manualOpenCommentsCount
+               // 因为早期可能没有记录准确数字，我们从历史提取
+               const match = h.content.match(/(\d+) open/i);
+               if (match) {
+                 currentOpenCmtAtTime = parseInt(match[1], 10);
+               } else if (h.content.includes('resolved') || h.content.includes('Closed')) {
+                 currentOpenCmtAtTime = Math.max(0, currentOpenCmtAtTime - 1);
+               } else {
+                 currentOpenCmtAtTime += 1;
+               }
+             }
           });
+
+          if (currentStatusAtTime === 'Approved') approved++;
+          else if (currentStatusAtTime.includes('Review')) reviewing++;
+          else if (currentStatusAtTime.includes('Waiting')) waiting++;
+          
+          openCmt += currentOpenCmtAtTime;
         });
-        return { date: format(weekStart, 'MM/dd'), statusChanges, commentChanges, total: statusChanges + commentChanges };
+
+        return { 
+          date: format(weekStart, 'MM/dd'), 
+          approvedCount: approved,
+          reviewingCount: reviewing,
+          waitingCount: waiting,
+          openComments: openCmt
+        };
       });
 
       // 当前状态
@@ -257,6 +295,14 @@ export const ActivityReport: React.FC = () => {
       const latestReviewing = discDrawings.filter(d => d.status === 'Reviewing').length;
       const latestWaiting = discDrawings.filter(d => d.status === 'Waiting Reply').length;
       const latestOpen = discDrawings.reduce((a, d) => a + (d.manualOpenCommentsCount || 0), 0);
+
+      // 通过修正最后一周的数据为当前最新的精确值，防止回放误差
+      if (weekData.length > 0) {
+         weekData[weekData.length - 1].approvedCount = latestApproved;
+         weekData[weekData.length - 1].reviewingCount = latestReviewing;
+         weekData[weekData.length - 1].waitingCount = latestWaiting;
+         // weekData[weekData.length - 1].openComments = latestOpen; // Comment this out if historic is preferred over actual
+      }
 
       return { discipline: disc, weekData, latest: { approved: latestApproved, reviewing: latestReviewing, waiting: latestWaiting, openComments: latestOpen } };
     });
@@ -658,10 +704,13 @@ export const ActivityReport: React.FC = () => {
                         <AreaChart data={trend.weekData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} />
-                          <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0/0.1)', fontSize: '9px' }} />
-                          <Area type="monotone" dataKey="statusChanges" name="Status Changes" stroke="#8b5cf6" strokeWidth={2} fill="#8b5cf6" fillOpacity={0.1} />
-                          <Area type="monotone" dataKey="commentChanges" name="Comment Updates" stroke="#ef4444" strokeWidth={2} strokeDasharray="4 4" fill="transparent" />
+                          <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#ef4444' }} />
+                          <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b' }} />
+                          <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0/0.1)', fontSize: '9px' }} itemStyle={{ padding: 0 }} />
+                          <Area yAxisId="right" type="monotone" dataKey="approvedCount" name="Approved" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
+                          <Area yAxisId="right" type="monotone" dataKey="reviewingCount" name="Reviewing" stroke="#eab308" strokeWidth={2} fill="#eab308" fillOpacity={0.1} />
+                          <Area yAxisId="right" type="monotone" dataKey="waitingCount" name="Waiting Reply" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
+                          <Area yAxisId="left" type="monotone" dataKey="openComments" name="Open Comments" stroke="#ef4444" strokeWidth={2} strokeDasharray="4 4" fill="transparent" />
                           <Legend iconType="circle" wrapperStyle={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase' }} />
                         </AreaChart>
                       </ResponsiveContainer>
