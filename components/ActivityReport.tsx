@@ -319,11 +319,17 @@ export const ActivityReport: React.FC = () => {
     { name: 'Pending', value: stats.pending },
   ].filter(p => p.value > 0);
 
-  // --- 进度面积图：按周汇总 Issued vs Approved (累计) ---
+  // --- 进度面积图：按周/天汇总 Issued vs Approved (累计) ---
   const progressData = useMemo(() => {
-    const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
-    return weeks.map(weekStart => {
-      const wEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+    const reportDays = differenceInDays(rangeEnd, rangeStart);
+    const isProgressDaily = reportDays <= 31;
+
+    const intervals = isProgressDaily
+      ? eachDayOfInterval({ start: rangeStart, end: rangeEnd })
+      : eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+
+    const data = intervals.map(intervalStart => {
+      const wEnd = isProgressDaily ? endOfDay(intervalStart) : endOfWeek(intervalStart, { weekStartsOn: 1 });
       let submittedCount = 0;
       let approvedCount = 0;
 
@@ -343,8 +349,10 @@ export const ActivityReport: React.FC = () => {
         if (currentStatusAtTime !== 'Pending') submittedCount++;
         if (currentStatusAtTime === 'Approved') approvedCount++;
       });
-      return { date: format(weekStart, 'MM/dd'), 'Submitted': submittedCount, 'Approved': approvedCount };
+      return { date: format(intervalStart, 'MM/dd'), 'Submitted': submittedCount, 'Approved': approvedCount };
     });
+
+    return { data, isProgressDaily };
   }, [drawings, rangeStart, rangeEnd]);
 
   // --- Discipline Progress Heatmap: 各专业每周审批完成率 ---
@@ -379,12 +387,18 @@ export const ActivityReport: React.FC = () => {
     return { weekLabels, rows };
   }, [drawings, derivedDisciplines, rangeStart, rangeEnd]);
 
-  // --- Weekly Velocity: 每周新提交 vs 新审批 ---
-  const velocityData = useMemo(() => {
-    const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
-    return weeks.map(weekStart => {
-      const wEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-      const wInterval = { start: weekStart, end: wEnd };
+  // --- Velocity: 动态颗粒度 新提交 vs 新审批 ---
+  const { velocityData, isVelocityDaily } = useMemo(() => {
+    const reportDays = differenceInDays(rangeEnd, rangeStart);
+    const isVelocityDaily = reportDays <= 31;
+    
+    const intervals = isVelocityDaily
+      ? eachDayOfInterval({ start: rangeStart, end: rangeEnd })
+      : eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+
+    const data = intervals.map(intervalStart => {
+      const wEnd = isVelocityDaily ? endOfDay(intervalStart) : endOfWeek(intervalStart, { weekStartsOn: 1 });
+      const wInterval = { start: intervalStart, end: wEnd };
       let newSubmitted = 0, newApproved = 0;
       drawings.forEach(d => {
         (d.statusHistory || []).forEach(h => {
@@ -398,8 +412,10 @@ export const ActivityReport: React.FC = () => {
           }
         });
       });
-      return { date: format(weekStart, 'MM/dd'), 'New Submitted': newSubmitted, 'New Approved': newApproved };
+      return { date: format(intervalStart, 'MM/dd'), 'New Submitted': newSubmitted, 'New Approved': newApproved };
     });
+    
+    return { velocityData: data, isVelocityDaily };
   }, [drawings, rangeStart, rangeEnd]);
 
   // --- 页数计算 ---
@@ -692,10 +708,12 @@ export const ActivityReport: React.FC = () => {
 
             {/* 全宽面积图：submitted vs approved */}
             <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 flex flex-col shadow-sm">
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">submitted vs approved</div>
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                {progressData.isProgressDaily ? 'daily' : 'weekly'}: submitted vs approved
+              </div>
               <div className="w-full h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={progressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <AreaChart data={progressData.data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="actIssued" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
