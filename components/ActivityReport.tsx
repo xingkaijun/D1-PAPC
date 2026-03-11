@@ -5,11 +5,20 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend, LabelList
 } from 'recharts';
-import { Printer, Calendar as CalendarIcon, Filter, TrendingUp, CheckCircle, Search, Hash, Clock, MessageSquare } from 'lucide-react';
+import {
+  TrendingUp, CheckCircle, Search, Hash, Clock, MessageSquare, Printer, Calendar as CalendarIcon, Filter
+} from 'lucide-react';
+
+const formatDiscipline = (disc: string) => {
+  const name = disc.trim().toLowerCase();
+  if (name === 'cargo handling system') return 'CHS';
+  if (name === 'cargo containment system') return 'CCS';
+  return disc.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+};
 
 // --- 复用 Intelligence 页面的颜色系统 ---
 const HEALTH_COLORS = ['#10b981', '#eab308', '#3b82f6', '#94a3b8'];
-const HEALTH_LABELS = ['Approved', 'Reviewing', 'Waiting Reply', 'Pending'];
+const HEALTH_LABELS = ['Approved', 'Reviewing', 'Sent Out', 'Pending'];
 
 // --- 日期区间过滤 ---
 const isWithinInterval = (date: Date, interval: { start: Date; end: Date }) => {
@@ -31,11 +40,13 @@ const PageHeader: React.FC<{ projectName: string; reportTitle?: string }> = ({ p
       </div>
       <div>
         <div className="text-[9px] font-[1000] text-teal-600 uppercase tracking-[0.2em] mb-0.5">PG SHIPMANAGEMENT</div>
-        <h1 className="text-2xl font-[1000] text-slate-900 uppercase tracking-tighter leading-none">{reportTitle || 'Activity Report'}</h1>
-        <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.2em] mt-2">Project Registry: {projectName}</p>
+        <h1 className="text-2xl font-[1000] text-slate-900 uppercase tracking-tighter leading-none">Plan Approval Report</h1>
       </div>
     </div>
     <div className="text-right">
+      <div className="bg-slate-100 px-3 py-1.5 rounded-lg inline-block mb-3 border border-slate-200">
+        <div className="text-[12px] font-[1000] text-slate-800 uppercase tracking-widest leading-none">{projectName}</div>
+      </div>
       <div className="text-[8px] font-black uppercase text-slate-400 mb-1 tracking-widest">Report Reference</div>
       <div className="text-[10px] font-black text-slate-900">{format(new Date(), 'yyyyMMdd-HHmm')}</div>
     </div>
@@ -119,7 +130,7 @@ export const ActivityReport: React.FC = () => {
 
   // --- Discipline 列表 ---
   const derivedDisciplines = useMemo(() => {
-    return Array.from(new Set(drawings.map(d => d.discipline.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')))).filter(Boolean).sort();
+    return Array.from(new Set(drawings.map(d => formatDiscipline(d.discipline)))).filter(Boolean).sort();
   }, [drawings]);
 
   // --- 全局统计 ---
@@ -162,7 +173,7 @@ export const ActivityReport: React.FC = () => {
     const daysMap = new Map<string, any>();
     let cur = new Date(rangeStart);
     while (cur <= rangeEnd) {
-      daysMap.set(format(cur, 'MM/dd'), { date: format(cur, 'MM/dd'), 'To Reviewing': 0, 'To Waiting': 0, 'To Approved': 0, 'Other': 0, total: 0 });
+      daysMap.set(format(cur, 'MM/dd'), { date: format(cur, 'MM/dd'), 'To Reviewing': 0, 'To Sent Out': 0, 'To Approved': 0, 'Other': 0, total: 0 });
       cur.setDate(cur.getDate() + 1);
     }
 
@@ -177,21 +188,23 @@ export const ActivityReport: React.FC = () => {
         day.total += 1;
         if (ev.type === 'Status' && ev.toStatus) {
           if (ev.toStatus.includes('Review')) { day['To Reviewing'] += 1; flow.reviewing += 1; }
-          else if (ev.toStatus.includes('Waiting')) { day['To Waiting'] += 1; flow.waiting += 1; }
+          else if (ev.toStatus.includes('Waiting')) { day['To Sent Out'] += 1; flow.waiting += 1; }
           else if (ev.toStatus === 'Approved') { day['To Approved'] += 1; flow.approved += 1; }
           else day['Other'] += 1;
 
           // Discipline transition
-          const dt = discTransitions.get(ev.discipline) || { toReview: 0, toWaiting: 0, toApproved: 0 };
+          const discFmt = formatDiscipline(ev.discipline);
+          const dt = discTransitions.get(discFmt) || { toReview: 0, toWaiting: 0, toApproved: 0 };
           if (ev.toStatus.includes('Review')) dt.toReview += 1;
           else if (ev.toStatus.includes('Waiting')) dt.toWaiting += 1;
           else if (ev.toStatus === 'Approved') dt.toApproved += 1;
-          discTransitions.set(ev.discipline, dt);
+          discTransitions.set(discFmt, dt);
         } else {
           day['Other'] += 1;
         }
       }
-      discStats.set(ev.discipline, (discStats.get(ev.discipline) || 0) + 1);
+      const discFmt = formatDiscipline(ev.discipline);
+      discStats.set(discFmt, (discStats.get(discFmt) || 0) + 1);
     });
 
     const timeline = Array.from(daysMap.values());
@@ -205,7 +218,7 @@ export const ActivityReport: React.FC = () => {
   const disciplineMainData = useMemo(() => {
     const map = new Map<string, { name: string; totalComments: number; openComments: number }>();
     drawings.forEach(d => {
-      const disc = d.discipline.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+      const disc = formatDiscipline(d.discipline);
       const e = map.get(disc) || { name: disc, totalComments: 0, openComments: 0 };
       e.totalComments += (d.manualCommentsCount || 0);
       e.openComments += (d.manualOpenCommentsCount || 0);
@@ -214,28 +227,11 @@ export const ActivityReport: React.FC = () => {
     return Array.from(map.values());
   }, [drawings]);
 
-  // --- 逾期图纸 ---
-  const staleDrawings = useMemo(() => {
-    return drawings
-      .filter(d => d.status !== 'Pending' && d.status !== 'Approved')
-      .filter(d => {
-        let last = now;
-        if (d.statusHistory?.length) last = new Date(d.statusHistory[d.statusHistory.length - 1].createdAt);
-        return Math.floor((now.getTime() - last.getTime()) / 86400000) > 14;
-      })
-      .sort((a, b) => {
-        const aD = a.statusHistory?.length ? new Date(a.statusHistory[a.statusHistory.length - 1].createdAt).getTime() : now.getTime();
-        const bD = b.statusHistory?.length ? new Date(b.statusHistory[b.statusHistory.length - 1].createdAt).getTime() : now.getTime();
-        return aD - bD;
-      })
-      .slice(0, 15);
-  }, [drawings]);
-
   // --- 各 discipline 的每周活跃度趋势 ---
   const weeklyTrends = useMemo(() => {
     const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
     return derivedDisciplines.map(disc => {
-      const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
+      const discDrawings = drawings.filter(d => formatDiscipline(d.discipline) === disc);
       
       const weekData = weeks.map(weekStart => {
         const weekEnd2 = endOfWeek(weekStart, { weekStartsOn: 1 });
@@ -312,37 +308,97 @@ export const ActivityReport: React.FC = () => {
   const statusPieData = [
     { name: 'Approved', value: stats.approved },
     { name: 'Reviewing', value: stats.reviewing },
-    { name: 'Waiting Reply', value: stats.waiting },
+    { name: 'Sent Out', value: stats.waiting },
     { name: 'Pending', value: stats.pending },
   ].filter(p => p.value > 0);
 
-  // --- 进度面积图：按周汇总 Issued vs Approved ---
+  // --- 进度面积图：按周汇总 Issued vs Approved (累计) ---
   const progressData = useMemo(() => {
     const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
     return weeks.map(weekStart => {
       const wEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+      let submittedCount = 0;
+      let approvedCount = 0;
+
+      drawings.forEach(d => {
+        const historyBeforeOrAtEnd = (d.statusHistory || [])
+          .filter(h => parseISO(h.createdAt).getTime() <= wEnd.getTime())
+          .sort((a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime());
+
+        let currentStatusAtTime = 'Pending';
+        historyBeforeOrAtEnd.forEach(h => {
+          if (h.content.includes('Status:')) {
+            const m = h.content.match(/Status: .* -> (.*)/);
+            if (m) currentStatusAtTime = m[1].trim();
+          }
+        });
+
+        if (currentStatusAtTime !== 'Pending') submittedCount++;
+        if (currentStatusAtTime === 'Approved') approvedCount++;
+      });
+      return { date: format(weekStart, 'MM/dd'), 'Submitted': submittedCount, 'Approved': approvedCount };
+    });
+  }, [drawings, rangeStart, rangeEnd]);
+
+  // --- Discipline Progress Heatmap: 各专业每周审批完成率 ---
+  const heatmapData = useMemo(() => {
+    const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+    const weekLabels = weeks.map(w => format(w, 'MM/dd'));
+
+    const rows = derivedDisciplines.map(disc => {
+      const discDrawings = drawings.filter(d => formatDiscipline(d.discipline) === disc);
+      const total = discDrawings.length;
+      const cells = weeks.map(weekStart => {
+        const wEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+        let approved = 0;
+        discDrawings.forEach(d => {
+          const history = (d.statusHistory || [])
+            .filter(h => parseISO(h.createdAt).getTime() <= wEnd.getTime())
+            .sort((a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime());
+          let st = 'Pending';
+          history.forEach(h => {
+            if (h.content.includes('Status:')) {
+              const m = h.content.match(/Status: .* -> (.*)/);
+              if (m) st = m[1].trim();
+            }
+          });
+          if (st === 'Approved') approved++;
+        });
+        return total > 0 ? Math.round((approved / total) * 100) : 0;
+      });
+      return { discipline: disc, cells, total };
+    });
+
+    return { weekLabels, rows };
+  }, [drawings, derivedDisciplines, rangeStart, rangeEnd]);
+
+  // --- Weekly Velocity: 每周新提交 vs 新审批 ---
+  const velocityData = useMemo(() => {
+    const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+    return weeks.map(weekStart => {
+      const wEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
       const wInterval = { start: weekStart, end: wEnd };
-      let newIssued = 0, newApproved = 0;
+      let newSubmitted = 0, newApproved = 0;
       drawings.forEach(d => {
         (d.statusHistory || []).forEach(h => {
           const hd = parseISO(h.createdAt);
           if (isWithinInterval(hd, wInterval) && h.content.includes('Status:')) {
             const m = h.content.match(/Status: .* -> (.*)/);
             if (m) {
-              if (m[1].trim().includes('Review')) newIssued++;
+              if (m[1].trim().includes('Review')) newSubmitted++;
               if (m[1].trim() === 'Approved') newApproved++;
             }
           }
         });
       });
-      return { date: format(weekStart, 'MM/dd'), 'Issued': newIssued, 'Approved': newApproved };
+      return { date: format(weekStart, 'MM/dd'), 'New Submitted': newSubmitted, 'New Approved': newApproved };
     });
   }, [drawings, rangeStart, rangeEnd]);
 
   // --- 页数计算 ---
   const healthPages = Math.ceil(derivedDisciplines.length / 8);
   const trendPages = Math.ceil(weeklyTrends.length / 2);
-  const totalPages = 3 + healthPages + trendPages;
+  const totalPages = 4 + healthPages + trendPages;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -419,41 +475,41 @@ export const ActivityReport: React.FC = () => {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-3 gap-3">
+              <StatCard label="Report Date" value={format(new Date(), 'yyyy/MM/dd')} icon={<CalendarIcon size={14} className="text-slate-500" />} color="slate" />
               <StatCard label="Total Drawings" value={stats.total} icon={<Hash size={14} className="text-slate-500" />} color="slate" />
               <StatCard label="Issued for Review" value={stats.issued} icon={<Search size={14} className="text-blue-500" />} color="blue" />
-              <StatCard label="Approved" value={`${stats.approved} (${stats.completion}%)`} icon={<CheckCircle size={14} className="text-emerald-500" />} color="emerald" />
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <StatCard label="Events in Period" value={eventData.totalEvents} icon={<TrendingUp size={14} className="text-indigo-500" />} color="indigo" />
-              <StatCard label="Open Comments" value={stats.openComments} icon={<MessageSquare size={14} className="text-amber-500" />} color="amber" />
-              <StatCard label="Stale (>14d)" value={staleDrawings.length} icon={<Clock size={14} className="text-purple-500" />} color="purple" />
+              <StatCard label="Approved" value={stats.approved} icon={<CheckCircle size={14} className="text-emerald-500" />} color="emerald" />
+              <StatCard label="Completion" value={`${stats.completion}%`} icon={<TrendingUp size={14} className="text-teal-500" />} color="emerald" />
+              <StatCard label="Comments Status" value={`${stats.totalComments - stats.openComments} / ${stats.totalComments}`} icon={<MessageSquare size={14} className="text-indigo-500" />} color="indigo" />
             </div>
 
-            {/* 状态分布饼图 + 进度面积图 */}
-            <div className="grid grid-cols-5 gap-4">
-              {/* 饼图 */}
-              <div className="col-span-2 bg-slate-50 rounded-2xl border border-slate-100 p-4 flex flex-col items-center">
-                <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 self-start">Current Status Distribution</div>
-                <div className="h-[150px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={2} dataKey="value" stroke="none">
-                        {statusPieData.map((p, i) => <Cell key={i} fill={HEALTH_COLORS[HEALTH_LABELS.indexOf(p.name)]} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 700 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex gap-3 mt-2">
+            {/* 状态分布饼图 */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 flex items-center justify-between shadow-sm">
+              <div className="flex flex-col gap-2">
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Current Status Distribution</div>
+                <div className="flex flex-col gap-1.5 mt-2">
                   {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={HEALTH_COLORS[i]} label={l} />)}
                 </div>
               </div>
+              <div className="h-[120px] w-[120px] shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} paddingAngle={2} dataKey="value" stroke="none">
+                      {statusPieData.map((p, i) => <Cell key={i} fill={HEALTH_COLORS[HEALTH_LABELS.indexOf(p.name)]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 700 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
 
-              {/* 面积图 */}
-              <div className="col-span-3 bg-slate-50 rounded-2xl border border-slate-100 p-4 flex flex-col">
-                <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Weekly: Submitted vs Approved</div>
-                <div className="flex-1 min-h-0 h-[180px]">
-                  <ResponsiveContainer width="100%" height="100%">
+            {/* 全宽面积图：submitted vs approved */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 flex flex-col shadow-sm">
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">submitted vs approved</div>
+              <div className="w-full h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={progressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="actIssued" x1="0" y1="0" x2="0" y2="1">
@@ -469,12 +525,11 @@ export const ActivityReport: React.FC = () => {
                       <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
                       <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 700 }} />
-                      <Area type="monotone" dataKey="Issued" stroke="#3b82f6" strokeWidth={2} fill="url(#actIssued)" />
+                      <Area type="monotone" dataKey="Submitted" stroke="#3b82f6" strokeWidth={2} fill="url(#actIssued)" />
                       <Area type="monotone" dataKey="Approved" stroke="#10b981" strokeWidth={2} fill="url(#actApproved)" />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase' }} />
                     </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
@@ -499,7 +554,7 @@ export const ActivityReport: React.FC = () => {
                     <tr className="border-b border-slate-100">
                       <th className="px-4 py-2 text-left text-[8px] font-black text-slate-500 uppercase tracking-wider">Discipline</th>
                       <th className="px-4 py-2 text-center text-[8px] font-black text-amber-600 uppercase tracking-wider">→ Reviewing</th>
-                      <th className="px-4 py-2 text-center text-[8px] font-black text-blue-600 uppercase tracking-wider">→ Waiting</th>
+                      <th className="px-4 py-2 text-center text-[8px] font-black text-blue-600 uppercase tracking-wider">→ Sent Out</th>
                       <th className="px-4 py-2 text-center text-[8px] font-black text-emerald-600 uppercase tracking-wider">→ Approved</th>
                     </tr>
                   </thead>
@@ -527,10 +582,10 @@ export const ActivityReport: React.FC = () => {
                     <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#94a3b8' }} />
                     <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 700 }} cursor={{ fill: '#f8fafc' }} />
-                    <Bar dataKey="To Reviewing" stackId="a" fill="#eab308" radius={[0, 0, 2, 2]} maxBarSize={30} />
-                    <Bar dataKey="To Waiting" stackId="a" fill="#3b82f6" maxBarSize={30} />
-                    <Bar dataKey="To Approved" stackId="a" fill="#10b981" maxBarSize={30} />
-                    <Bar dataKey="Other" stackId="a" fill="#cbd5e1" radius={[2, 2, 0, 0]} maxBarSize={30} />
+                    <Bar dataKey="To Reviewing" fill="#eab308" radius={[2, 2, 0, 0]} maxBarSize={15} />
+                    <Bar dataKey="To Sent Out" fill="#3b82f6" radius={[2, 2, 0, 0]} maxBarSize={15} />
+                    <Bar dataKey="To Approved" fill="#10b981" radius={[2, 2, 0, 0]} maxBarSize={15} />
+                    <Bar dataKey="Other" fill="#cbd5e1" radius={[2, 2, 0, 0]} maxBarSize={15} />
                     <Legend verticalAlign="top" height={30} iconType="circle" wrapperStyle={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase' }} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -585,64 +640,90 @@ export const ActivityReport: React.FC = () => {
                 </ResponsiveContainer>
               </div>
             </div>
+          </div>
+        </ReportPage>
 
-            {/* Stale Drawings */}
+        {/* ===== PAGE 4: HEATMAP + VELOCITY ===== */}
+        <ReportPage pageNumber={4} totalPages={totalPages} projectName={projectName}>
+          <div className="flex flex-col gap-6">
+            {/* Discipline Progress Heatmap */}
             <div className="flex flex-col gap-3 shrink-0">
-              <div className="flex items-center justify-between border-l-4 border-red-400 pl-4">
-                <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Stale Drawings (&gt;14 Days)</h3>
-                <span className="text-[8px] font-bold text-slate-400">{staleDrawings.length} items</span>
+              <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-violet-500 pl-4">Discipline Progress Heatmap</h3>
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="px-3 py-2 text-left text-[7px] font-black text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 min-w-[100px]">Discipline</th>
+                      {heatmapData.weekLabels.map(w => (
+                        <th key={w} className="px-1.5 py-2 text-center text-[7px] font-black text-slate-400 uppercase tracking-wider min-w-[36px]">{w}</th>
+                      ))}
+                      <th className="px-2 py-2 text-center text-[7px] font-black text-slate-500 uppercase tracking-wider">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {heatmapData.rows.map(row => (
+                      <tr key={row.discipline}>
+                        <td className="px-3 py-1.5 text-[8px] font-bold text-slate-700 uppercase truncate max-w-[120px] sticky left-0 bg-white">{row.discipline}</td>
+                        {row.cells.map((pct, ci) => {
+                          const bg = pct >= 80 ? 'bg-emerald-500 text-white' : pct >= 50 ? 'bg-emerald-300 text-emerald-900' : pct >= 20 ? 'bg-amber-200 text-amber-900' : pct > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-50 text-slate-300';
+                          return (
+                            <td key={ci} className="px-0.5 py-1">
+                              <div className={`mx-auto w-8 h-6 rounded flex items-center justify-center text-[7px] font-black ${bg}`}>{pct}%</div>
+                            </td>
+                          );
+                        })}
+                        <td className="px-2 py-1.5 text-center text-[8px] font-black text-slate-600">{row.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              {staleDrawings.length > 0 ? (
-                <div className="bg-white rounded-xl border border-red-100 overflow-hidden">
-                  <table className="w-full">
-                    <thead><tr className="bg-red-50/50 border-b border-red-100">
-                      <th className="px-3 py-1.5 text-left text-[7px] font-black text-slate-500 uppercase">ID</th>
-                      <th className="px-3 py-1.5 text-left text-[7px] font-black text-slate-500 uppercase">Drawing No</th>
-                      <th className="px-3 py-1.5 text-left text-[7px] font-black text-slate-500 uppercase">Title</th>
-                      <th className="px-3 py-1.5 text-center text-[7px] font-black text-slate-500 uppercase">Status</th>
-                      <th className="px-3 py-1.5 text-center text-[7px] font-black text-slate-500 uppercase">Days Since</th>
-                    </tr></thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {staleDrawings.map(d => {
-                        const last = d.statusHistory?.length ? new Date(d.statusHistory[d.statusHistory.length - 1].createdAt) : now;
-                        const days = Math.floor((now.getTime() - last.getTime()) / 86400000);
-                        return (
-                          <tr key={d.id}>
-                            <td className="px-3 py-1 text-[8px] font-bold text-slate-700">{d.customId}</td>
-                            <td className="px-3 py-1 text-[8px] font-mono text-teal-700">{d.drawingNo}</td>
-                            <td className="px-3 py-1 text-[8px] text-slate-600 truncate max-w-[200px]">{d.title}</td>
-                            <td className="px-3 py-1 text-center"><span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${d.status === 'Reviewing' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{d.status}</span></td>
-                            <td className="px-3 py-1 text-center text-[8px] font-black text-red-600">{days}d</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center text-[9px] font-bold text-emerald-600 uppercase tracking-widest">All drawings are up to date ✓</div>
-              )}
+              <div className="flex items-center gap-3 px-2">
+                <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Legend:</span>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-100" /><span className="text-[7px] font-bold text-slate-400">0-19%</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-amber-200" /><span className="text-[7px] font-bold text-slate-400">20-49%</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-300" /><span className="text-[7px] font-bold text-slate-400">50-79%</span></div>
+                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-500" /><span className="text-[7px] font-bold text-slate-400">80-100%</span></div>
+              </div>
+            </div>
+
+            {/* Weekly Velocity */}
+            <div className="flex flex-col gap-3 shrink-0">
+              <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-cyan-500 pl-4">Weekly Velocity</h3>
+              <div className="h-[250px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={velocityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 700 }} cursor={{ fill: '#f8fafc' }} />
+                    <Bar dataKey="New Submitted" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                    <Bar dataKey="New Approved" fill="#10b981" radius={[3, 3, 0, 0]} maxBarSize={20} />
+                    <Legend verticalAlign="top" height={30} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase' }} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </ReportPage>
 
         {/* ===== HEALTH PAGES ===== */}
         {Array.from({ length: healthPages }).map((_, hpIdx) => (
-          <ReportPage key={`health-${hpIdx}`} pageNumber={4 + hpIdx} totalPages={totalPages} projectName={projectName}>
+          <ReportPage key={`health-${hpIdx}`} pageNumber={5 + hpIdx} totalPages={totalPages} projectName={projectName}>
             <div className="flex flex-col gap-6">
               <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4">
-                <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Health Snapshot {healthPages > 1 ? `(${hpIdx + 1}/${healthPages})` : ''}</h3>
+                <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Discipline Status {healthPages > 1 ? `(${hpIdx + 1}/${healthPages})` : ''}</h3>
                 <div className="flex gap-3">
                   {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={HEALTH_COLORS[i]} label={l} />)}
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 shrink-0">
                 {derivedDisciplines.slice(hpIdx * 8, hpIdx * 8 + 8).map(disc => {
-                  const discDrawings = drawings.filter(d => d.discipline.trim().toLowerCase() === disc.toLowerCase());
+                  const discDrawings = drawings.filter(d => formatDiscipline(d.discipline) === disc);
                   const pieData = [
                     { name: 'Approved', value: discDrawings.filter(d => d.status === 'Approved').length },
                     { name: 'Reviewing', value: discDrawings.filter(d => d.status === 'Reviewing').length },
-                    { name: 'Waiting Reply', value: discDrawings.filter(d => d.status === 'Waiting Reply').length },
+                    { name: 'Sent Out', value: discDrawings.filter(d => d.status === 'Waiting Reply').length },
                     { name: 'Pending', value: discDrawings.filter(d => d.status === 'Pending').length },
                   ].filter(p => p.value > 0);
                   return (
@@ -651,8 +732,9 @@ export const ActivityReport: React.FC = () => {
                         <div className="text-[10px] font-[1000] text-slate-900 uppercase mb-2 tracking-widest border-b border-slate-200 pb-2 truncate">{disc}</div>
                         <div className="space-y-1">
                           {HEALTH_LABELS.map(label => {
-                            const count = discDrawings.filter(d => d.status === (label as any)).length;
-                            const cc = label === 'Approved' ? 'text-emerald-500' : label === 'Reviewing' ? 'text-amber-500' : label === 'Waiting Reply' ? 'text-blue-500' : 'text-slate-400';
+                            const dbStatus = label === 'Sent Out' ? 'Waiting Reply' : label;
+                            const count = discDrawings.filter(d => d.status === dbStatus).length;
+                            const cc = label === 'Approved' ? 'text-emerald-500' : label === 'Reviewing' ? 'text-amber-500' : label === 'Sent Out' ? 'text-blue-500' : 'text-slate-400';
                             return (
                               <div key={label} className="flex items-center justify-between text-[8px] font-black uppercase tracking-tight">
                                 <span className={count > 0 ? 'text-slate-600' : 'text-slate-300'}>{label}</span>
@@ -679,7 +761,7 @@ export const ActivityReport: React.FC = () => {
 
         {/* ===== TREND PAGES ===== */}
         {Array.from({ length: trendPages }).map((_, tpIdx) => (
-          <ReportPage key={`trend-${tpIdx}`} pageNumber={4 + healthPages + tpIdx} totalPages={totalPages} projectName={projectName}>
+          <ReportPage key={`trend-${tpIdx}`} pageNumber={5 + healthPages + tpIdx} totalPages={totalPages} projectName={projectName}>
             <div className="flex flex-col gap-10">
               <div className="flex items-center justify-between border-l-4 border-indigo-600 pl-4">
                 <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Activity Trends</h3>
@@ -695,7 +777,7 @@ export const ActivityReport: React.FC = () => {
                       <div className="flex gap-4 bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl">
                         <MiniMetric label="Approved" value={trend.latest.approved} color="text-emerald-500" />
                         <MiniMetric label="Reviewing" value={trend.latest.reviewing} color="text-amber-500" />
-                        <MiniMetric label="Waiting" value={trend.latest.waiting} color="text-blue-500" />
+                        <MiniMetric label="Sent Out" value={trend.latest.waiting} color="text-blue-500" />
                         <MiniMetric label="Open Cmt" value={trend.latest.openComments} color="text-red-500" />
                       </div>
                     </div>
@@ -709,7 +791,7 @@ export const ActivityReport: React.FC = () => {
                           <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0/0.1)', fontSize: '9px' }} itemStyle={{ padding: 0 }} />
                           <Area yAxisId="right" type="monotone" dataKey="approvedCount" name="Approved" stroke="#10b981" strokeWidth={2} fill="#10b981" fillOpacity={0.05} />
                           <Area yAxisId="right" type="monotone" dataKey="reviewingCount" name="Reviewing" stroke="#eab308" strokeWidth={2} fill="#eab308" fillOpacity={0.1} />
-                          <Area yAxisId="right" type="monotone" dataKey="waitingCount" name="Waiting Reply" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
+                          <Area yAxisId="right" type="monotone" dataKey="waitingCount" name="Sent Out" stroke="#3b82f6" strokeWidth={2} fill="#3b82f6" fillOpacity={0.05} />
                           <Area yAxisId="left" type="monotone" dataKey="openComments" name="Open Comments" stroke="#ef4444" strokeWidth={2} strokeDasharray="4 4" fill="transparent" />
                           <Legend iconType="circle" wrapperStyle={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase' }} />
                         </AreaChart>
