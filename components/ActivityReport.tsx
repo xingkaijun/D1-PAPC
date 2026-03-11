@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { format, subDays, startOfDay, endOfDay, parseISO, eachWeekOfInterval, endOfWeek, differenceInDays } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, parseISO, eachWeekOfInterval, eachDayOfInterval, endOfWeek, differenceInDays } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend, LabelList
@@ -227,25 +227,34 @@ export const ActivityReport: React.FC = () => {
     return Array.from(map.values());
   }, [drawings]);
 
-  // --- 各 discipline 的每周活跃度趋势 ---
-  const weeklyTrends = useMemo(() => {
-    const weeks = eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+  // --- 各 discipline 的变化趋势 (动态颗粒度) ---
+  const activityTrends = useMemo(() => {
+    const reportDays = differenceInDays(rangeEnd, rangeStart);
+    const isDaily = reportDays <= 31;
+    
+    // 短期报告按天展示，长期报告按周展示
+    const intervals = isDaily 
+      ? eachDayOfInterval({ start: rangeStart, end: rangeEnd })
+      : eachWeekOfInterval({ start: rangeStart, end: rangeEnd }, { weekStartsOn: 1 });
+
     return derivedDisciplines.map(disc => {
       const discDrawings = drawings.filter(d => formatDiscipline(d.discipline) === disc);
       
-      const weekData = weeks.map(weekStart => {
-        const weekEnd2 = endOfWeek(weekStart, { weekStartsOn: 1 });
+      const intervalData = intervals.map(intervalStart => {
+        const intervalEnd = isDaily 
+          ? endOfDay(intervalStart)
+          : endOfWeek(intervalStart, { weekStartsOn: 1 });
         
-        // 我们需要计算截至 `weekEnd2` 时，这个专业下图纸的状态分布和 open comments 数量
+        // 我们需要计算截至 `intervalEnd` 时，这个专业下图纸的状态分布和 open comments 数量
         let approved = 0;
         let reviewing = 0;
         let waiting = 0;
         let openCmt = 0;
 
         discDrawings.forEach(d => {
-          // 寻找该图纸在 weekEnd2 及之前的最后一条状态记录
+          // 寻找该图纸在 intervalEnd 及之前的最后一条状态记录
           const historyBeforeOrAtEnd = (d.statusHistory || [])
-            .filter(h => parseISO(h.createdAt).getTime() <= weekEnd2.getTime())
+            .filter(h => parseISO(h.createdAt).getTime() <= intervalEnd.getTime())
             .sort((a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime());
 
           let currentStatusAtTime = 'Pending';
@@ -276,7 +285,7 @@ export const ActivityReport: React.FC = () => {
         });
 
         return { 
-          date: format(weekStart, 'MM/dd'), 
+          date: format(intervalStart, 'MM/dd'), 
           approvedCount: approved,
           reviewingCount: reviewing,
           waitingCount: waiting,
@@ -290,15 +299,15 @@ export const ActivityReport: React.FC = () => {
       const latestWaiting = discDrawings.filter(d => d.status === 'Waiting Reply').length;
       const latestOpen = discDrawings.reduce((a, d) => a + (d.manualOpenCommentsCount || 0), 0);
 
-      // 通过修正最后一周的数据为当前最新的精确值，防止回放误差
-      if (weekData.length > 0) {
-         weekData[weekData.length - 1].approvedCount = latestApproved;
-         weekData[weekData.length - 1].reviewingCount = latestReviewing;
-         weekData[weekData.length - 1].waitingCount = latestWaiting;
-         weekData[weekData.length - 1].openComments = latestOpen;
+      // 通过修正最后一个周期的数据为当前最新的精确值，防止回放误差
+      if (intervalData.length > 0) {
+         intervalData[intervalData.length - 1].approvedCount = latestApproved;
+         intervalData[intervalData.length - 1].reviewingCount = latestReviewing;
+         intervalData[intervalData.length - 1].waitingCount = latestWaiting;
+         intervalData[intervalData.length - 1].openComments = latestOpen;
       }
 
-      return { discipline: disc, weekData, latest: { approved: latestApproved, reviewing: latestReviewing, waiting: latestWaiting, openComments: latestOpen } };
+      return { discipline: disc, isDaily, intervalData, latest: { approved: latestApproved, reviewing: latestReviewing, waiting: latestWaiting, openComments: latestOpen } };
     });
   }, [drawings, derivedDisciplines, rangeStart, rangeEnd]);
 
@@ -397,7 +406,7 @@ export const ActivityReport: React.FC = () => {
   const hasSummary = !!(activeProject.conf?.projectSummary?.ships?.length);
   const summaryPages = hasSummary ? 1 : 0;
   const healthPages = Math.ceil(derivedDisciplines.length / 8);
-  const trendPages = Math.ceil(weeklyTrends.length / 2);
+  const trendPages = Math.ceil(activityTrends.length / 2);
   const totalPages = (summaryPages + 4) + healthPages + trendPages;
 
   return (
@@ -946,12 +955,14 @@ export const ActivityReport: React.FC = () => {
                 <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Activity Trends</h3>
               </div>
               <div className="flex flex-col gap-10">
-                {weeklyTrends.slice(tpIdx * 2, tpIdx * 2 + 2).map(trend => (
+                {activityTrends.slice(tpIdx * 2, tpIdx * 2 + 2).map(trend => (
                   <div key={trend.discipline} className="bg-white rounded-[2rem] border border-slate-200 p-6 flex flex-col gap-4 shadow-sm shrink-0">
                     <div className="flex items-start justify-between">
                       <div>
                         <h4 className="text-[11px] font-[1000] text-slate-900 uppercase tracking-widest">{trend.discipline} TREND</h4>
-                        <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">Weekly activity in report period</p>
+                        <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">
+                          {trend.isDaily ? 'Daily activity in report period' : 'Weekly activity in report period'}
+                        </p>
                       </div>
                       <div className="flex gap-4 bg-slate-50 border border-slate-100 px-4 py-2 rounded-xl">
                         <MiniMetric label="Approved" value={trend.latest.approved} color="text-emerald-500" />
@@ -962,7 +973,7 @@ export const ActivityReport: React.FC = () => {
                     </div>
                     <div className="h-[200px] w-full bg-slate-50/20 rounded-2xl p-2 border border-slate-100/50 shrink-0">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={trend.weekData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <AreaChart data={trend.intervalData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
                           <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 8, fontWeight: 900, fill: '#ef4444' }} />
