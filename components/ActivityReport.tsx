@@ -261,18 +261,8 @@ export const ActivityReport: React.FC = () => {
           else if (currentStatusAtTime.includes('Review')) reviewing++;
           else if (currentStatusAtTime.includes('Waiting')) waiting++;
           
-          // Determine if we've reached the point in time where the drawing's manualOpenCommentsCount is current.
-          // Since we don't have exact comment history numbers, we assume the current `manualOpenCommentsCount`
-          // applies from the date of the latest status history update onwards.
-          let lastUpdateMs = 0;
-          if (d.statusHistory && d.statusHistory.length > 0) {
-            lastUpdateMs = Math.max(...d.statusHistory.map(h => parseISO(h.createdAt).getTime()));
-          } else if (d.receivedDate) {
-            lastUpdateMs = parseISO(d.receivedDate).getTime();
-          }
-          
-          const isLatestWeekForDrawing = lastUpdateMs <= weekEnd2.getTime();
-          openCmt += isLatestWeekForDrawing ? (d.manualOpenCommentsCount || 0) : 0;
+          // 直接使用当前真实的 manualOpenCommentsCount，保证曲线和卡片数值一致
+          openCmt += (d.manualOpenCommentsCount || 0);
         });
 
         return { 
@@ -295,7 +285,7 @@ export const ActivityReport: React.FC = () => {
          weekData[weekData.length - 1].approvedCount = latestApproved;
          weekData[weekData.length - 1].reviewingCount = latestReviewing;
          weekData[weekData.length - 1].waitingCount = latestWaiting;
-         // weekData[weekData.length - 1].openComments = latestOpen; // Comment this out if historic is preferred over actual
+         weekData[weekData.length - 1].openComments = latestOpen;
       }
 
       return { discipline: disc, weekData, latest: { approved: latestApproved, reviewing: latestReviewing, waiting: latestWaiting, openComments: latestOpen } };
