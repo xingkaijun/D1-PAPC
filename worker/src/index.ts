@@ -720,17 +720,18 @@ export default {
       return new Response(null, { status: 204, headers: withCors(new Headers(), env) });
     }
 
+    // Admin 路由优先：使用自己的密码验证，不走全局 API Token
+    const url = new URL(request.url);
+    if (url.pathname.startsWith('/admin')) {
+      return handleAdminRequest(request, env, url);
+    }
+
     if (!isAuthorized(request, env)) {
       return json(env, 401, { error: 'Unauthorized' });
     }
 
     try {
-      const url = new URL(request.url);
       const path = url.pathname;
-
-      if (path.startsWith('/admin')) {
-        return handleAdminRequest(request, env, url);
-      }
 
       const expectedToken = env.API_TOKEN?.trim() || '';
       const segments = path.split('/').filter(Boolean);
