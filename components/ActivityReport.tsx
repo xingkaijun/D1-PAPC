@@ -249,20 +249,21 @@ export const ActivityReport: React.FC = () => {
             .sort((a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime());
 
           let currentStatusAtTime = 'Pending';
-          // 用当前的 manualOpenCommentsCount 作为初始值，然后根据历史记录反推
-          // 如果历史记录里有明确的 "X open" 数字，直接使用；否则用当前值
-          let drawingOpenCmt = d.manualOpenCommentsCount || 0;
+          let drawingOpenCmt = 0;
 
           historyBeforeOrAtEnd.forEach(h => {
              if (h.content.includes('Status:')) {
                const m = h.content.match(/Status: .* -> (.*)/);
                if (m) currentStatusAtTime = m[1].trim();
              }
-             // 如果历史记录中包含明确的 open comments 数字，更新
              if (h.content.includes('Comments:')) {
                const match = h.content.match(/(\d+)\s*open/i);
                if (match) {
                  drawingOpenCmt = parseInt(match[1], 10);
+               } else if (h.content.includes('resolved') || h.content.includes('Closed')) {
+                 drawingOpenCmt = Math.max(0, drawingOpenCmt - 1);
+               } else {
+                 drawingOpenCmt += 1;
                }
              }
           });
