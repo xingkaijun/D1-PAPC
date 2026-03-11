@@ -249,11 +249,21 @@ export const ActivityReport: React.FC = () => {
             .sort((a, b) => parseISO(a.createdAt).getTime() - parseISO(b.createdAt).getTime());
 
           let currentStatusAtTime = 'Pending';
+          // 用当前的 manualOpenCommentsCount 作为初始值，然后根据历史记录反推
+          // 如果历史记录里有明确的 "X open" 数字，直接使用；否则用当前值
+          let drawingOpenCmt = d.manualOpenCommentsCount || 0;
 
           historyBeforeOrAtEnd.forEach(h => {
              if (h.content.includes('Status:')) {
                const m = h.content.match(/Status: .* -> (.*)/);
                if (m) currentStatusAtTime = m[1].trim();
+             }
+             // 如果历史记录中包含明确的 open comments 数字，更新
+             if (h.content.includes('Comments:')) {
+               const match = h.content.match(/(\d+)\s*open/i);
+               if (match) {
+                 drawingOpenCmt = parseInt(match[1], 10);
+               }
              }
           });
 
@@ -261,8 +271,7 @@ export const ActivityReport: React.FC = () => {
           else if (currentStatusAtTime.includes('Review')) reviewing++;
           else if (currentStatusAtTime.includes('Waiting')) waiting++;
           
-          // 直接使用当前真实的 manualOpenCommentsCount，保证曲线和卡片数值一致
-          openCmt += (d.manualOpenCommentsCount || 0);
+          openCmt += drawingOpenCmt;
         });
 
         return { 
