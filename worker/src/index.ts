@@ -418,7 +418,8 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
       holidays: Array.isArray(conf.holidays) ? JSON.stringify(conf.holidays) : '[]',
       roundACycle: conf.roundACycle,
       otherRoundsCycle: conf.otherRoundsCycle,
-      autoSyncInterval: conf.autoSyncInterval
+      autoSyncInterval: conf.autoSyncInterval,
+      projectSummary: conf.projectSummary ? JSON.stringify(conf.projectSummary) : undefined
     };
 
     for (const [key, val] of Object.entries(settingsMap)) {
@@ -875,7 +876,8 @@ export default {
               holidays: Array.isArray(conf.holidays) ? JSON.stringify(conf.holidays) : undefined,
               roundACycle: conf.roundACycle,
               otherRoundsCycle: conf.otherRoundsCycle,
-              autoSyncInterval: conf.autoSyncInterval
+              autoSyncInterval: conf.autoSyncInterval,
+              projectSummary: conf.projectSummary ? JSON.stringify(conf.projectSummary) : undefined
             };
             for (const [key, val] of Object.entries(settingsMap)) {
               if (val !== undefined && val !== null) {

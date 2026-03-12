@@ -256,6 +256,10 @@ SELECT
       SELECT CAST(ps.setting_value AS INTEGER) FROM project_settings ps
       WHERE ps.project_id = p.id AND ps.setting_key = 'autoSyncInterval'
     ),
+    'projectSummary', COALESCE((
+      SELECT json(ps.setting_value) FROM project_settings ps
+      WHERE ps.project_id = p.id AND ps.setting_key = 'projectSummary'
+    ), json('null')),
     'defaultAssignees', COALESCE((
       SELECT json_group_object(
         sub.discipline,
