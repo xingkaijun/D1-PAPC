@@ -119,7 +119,7 @@ const PaginationControls = ({
 
 
 export const DrawingList: React.FC = () => {
-  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, saveProject, reviewTracker } = useStore();
+  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, saveProject, reviewTracker, batchUpdateDrawings } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   // Search state moved to store: filterQuery
@@ -373,6 +373,53 @@ export const DrawingList: React.FC = () => {
                   placeholder="Search drawings or show:tag..."
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const query = filterQuery.trim();
+                      const match = query.match(/^@([\w\.\-]+)\s+(add|rm):(.+)$/i);
+                      if (match) {
+                        e.preventDefault();
+                        if (!isEditMode) {
+                          alert("Permission Denied: Edit Mode is required to run batch commands.");
+                          return;
+                        }
+                        const assignee = match[1];
+                        const action = match[2].toLowerCase(); // 'add' or 'rm'
+                        // 用逗号或空格分割 id 列表并过滤空值
+                        const targetIds = match[3].split(/[\s,，]+/).filter(Boolean).map(id => id.toLowerCase());
+
+                        if (targetIds.length > 0 && project) {
+                          const updates: { id: string; changes: Partial<Drawing> }[] = [];
+                          
+                          project.drawings.forEach(d => {
+                            // 使用 customId 精准匹配，由于输入可能忽略大小写，做无感匹配
+                            if (d.customId && targetIds.includes(d.customId.toLowerCase())) {
+                              const currentAssignees = d.assignees || [];
+                              let newAssignees = [...currentAssignees];
+
+                              if (action === 'add' && !currentAssignees.includes(assignee)) {
+                                newAssignees.push(assignee);
+                                updates.push({ id: d.id, changes: { assignees: newAssignees } });
+                              } else if (action === 'rm' && currentAssignees.includes(assignee)) {
+                                newAssignees = currentAssignees.filter(a => a !== assignee);
+                                updates.push({ id: d.id, changes: { assignees: newAssignees } });
+                              }
+                            }
+                          });
+
+                          if (updates.length > 0) {
+                            batchUpdateDrawings(updates);
+                            // 稍微延时再清空或直接清空，给用户反馈
+                            // alert(`Successfully ${action === 'add' ? 'added' : 'removed'} ${assignee} on ${updates.length} drawings.`);
+                            setFilterQuery('');
+                          } else {
+                            // 没命中的反馈（可选）
+                            // alert('No matching drawings found or no changes needed.');
+                          }
+                        }
+                      }
+                    }
+                  }}
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:bg-white focus:ring-4 focus:ring-teal-500/5 transition-all text-[10px] font-black uppercase tracking-tight"
                 />
               </div>
