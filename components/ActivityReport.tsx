@@ -58,19 +58,21 @@ const PageFooter: React.FC<{ pageNumber: number; totalPages: number; projectName
     <div className="text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">
       {projectName} • ACTIVITY REPORT • INTERNAL USE ONLY
     </div>
-    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
-      Page {pageNumber} of {totalPages}
-    </div>
+    {pageNumber > 0 && totalPages > 0 && (
+      <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+        Page {pageNumber} of {totalPages}
+      </div>
+    )}
   </div>
 );
 
-const ReportPage: React.FC<{ children: React.ReactNode; pageNumber: number; totalPages: number; projectName: string }> = ({ children, pageNumber, totalPages, projectName }) => (
-  <div className="mx-auto my-8 bg-white w-[210mm] h-[297mm] shadow-[0_0_50px_-12px_rgba(0,0,0,0.12)] border border-slate-200 p-[15mm] flex flex-col relative box-border break-after-page print:m-0 print:border-none print:shadow-none mb-12 shrink-0">
+const ReportPage: React.FC<{ children: React.ReactNode; pageNumber?: number; totalPages?: number; projectName: string; hideFooter?: boolean; forceBreakAfter?: boolean }> = ({ children, pageNumber, totalPages, projectName, hideFooter, forceBreakAfter = true }) => (
+  <div className={`mx-auto my-8 bg-white w-[210mm] h-[297mm] shadow-[0_0_50px_-12px_rgba(0,0,0,0.12)] border border-slate-200 p-[15mm] flex flex-col relative box-border ${forceBreakAfter ? 'break-after-page' : ''} print:m-0 print:border-none print:shadow-none mb-12 shrink-0`}>
     <PageHeader projectName={projectName} />
     <div className="flex-1 flex flex-col overflow-hidden min-h-0 print:overflow-visible print:h-auto print:flex-none print:block">
       {children}
     </div>
-    <PageFooter pageNumber={pageNumber} totalPages={totalPages} projectName={projectName} />
+    {!hideFooter && <PageFooter pageNumber={pageNumber || 0} totalPages={totalPages || 0} projectName={projectName} />}
   </div>
 );
 
@@ -101,12 +103,17 @@ const MiniMetric: React.FC<{ label: string; value: string | number; color: strin
   </div>
 );
 
-const LegendItem: React.FC<{ color: string; label: string }> = ({ color, label }) => (
-  <div className="flex items-center gap-1.5">
-    <div className={`w-2 h-2 rounded-full`} style={{ backgroundColor: color }} />
-    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
-  </div>
-);
+const LegendItem: React.FC<{ color: string; label: string; count?: number; total?: number }> = ({ color, label, count, total }) => {
+  const pct = count !== undefined && total && total > 0 ? ((count / total) * 100).toFixed(1) : undefined;
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={`w-2 h-2 rounded-full`} style={{ backgroundColor: color }} />
+      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
+        {label} {pct !== undefined ? <span className="text-slate-500">({pct}%)</span> : ''}
+      </span>
+    </div>
+  );
+};
 
 // --- 主组件 ---
 export const ActivityReport: React.FC = () => {
@@ -567,8 +574,8 @@ export const ActivityReport: React.FC = () => {
                   </table>
                 </div>
 
-                {/* Gantt Chart */}
-                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 flex flex-col shadow-sm">
+                {/* Gantt Chart (不打印) */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 flex flex-col shadow-sm print:hidden">
                   <div className="flex items-center justify-between mb-4">
                     <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Project Schedule</div>
                     <div className="flex gap-3">
@@ -691,7 +698,11 @@ export const ActivityReport: React.FC = () => {
               <div className="flex flex-col gap-2">
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Current Status Distribution</div>
                 <div className="flex flex-col gap-1.5 mt-2">
-                  {HEALTH_LABELS.map((l, i) => <LegendItem key={l} color={HEALTH_COLORS[i]} label={l} />)}
+                  {HEALTH_LABELS.map((l, i) => {
+                    const statusVal = l === 'Sent Out' ? 'Waiting Reply' : l;
+                    const count = drawings.filter(d => d.status === statusVal).length;
+                    return <LegendItem key={l} color={HEALTH_COLORS[i]} label={l} count={count} total={stats.total} />;
+                  })}
                 </div>
               </div>
               <div className="h-[120px] w-[120px] shrink-0">
@@ -1011,6 +1022,16 @@ export const ActivityReport: React.FC = () => {
             </div>
           </ReportPage>
         ))}
+
+        {/* ===== END OF REPORT (Blank Footer Page) ===== */}
+        <ReportPage projectName={projectName} hideFooter forceBreakAfter={false}>
+          <div className="flex-1 opacity-10 flex flex-col items-center justify-center p-12 text-center pointer-events-none mb-12">
+             <div className="w-16 h-1 bg-slate-400 rounded-full mb-6" />
+             <div className="text-[14px] font-[1000] text-slate-700 uppercase tracking-[0.3em] font-mono leading-relaxed mt-auto opacity-40">
+                End of Activity Report
+             </div>
+          </div>
+        </ReportPage>
 
       </div>
     </div>
