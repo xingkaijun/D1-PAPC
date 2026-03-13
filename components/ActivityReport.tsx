@@ -430,7 +430,7 @@ export const ActivityReport: React.FC = () => {
   const summaryPages = hasSummary ? 1 : 0;
   const healthPages = Math.ceil(derivedDisciplines.length / 8);
   const trendPages = Math.ceil(activityTrends.length / 2);
-  const totalPages = (summaryPages + 4) + healthPages + trendPages;
+  const totalPages = (summaryPages + 3) + healthPages + trendPages;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -835,13 +835,13 @@ export const ActivityReport: React.FC = () => {
           </div>
         </ReportPage>
 
-        {/* ===== PAGE 3: COMMENTS + STALE ===== */}
+        {/* ===== PAGE 3: COMMENTS + VELOCITY ===== */}
         <ReportPage pageNumber={summaryPages + 3} totalPages={totalPages} projectName={projectName}>
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-8">
             {/* Discipline Comments 条形图 */}
-            <div className="flex flex-col gap-4 shrink-0">
+            <div className="flex flex-col gap-3 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-indigo-500 pl-4">Discipline Comments Status</h3>
-              <div className="h-[280px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
+              <div className="h-[250px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={disciplineMainData} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }} barGap={2}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
@@ -857,54 +857,8 @@ export const ActivityReport: React.FC = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-          </div>
-        </ReportPage>
 
-        {/* ===== PAGE 4: HEATMAP + VELOCITY ===== */}
-        <ReportPage pageNumber={summaryPages + 4} totalPages={totalPages} projectName={projectName}>
-          <div className="flex flex-col gap-6">
-            {/* Discipline Progress Heatmap */}
-            <div className="flex flex-col gap-3 shrink-0">
-              <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-violet-500 pl-4">Discipline Progress Heatmap</h3>
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-3 py-2 text-left text-[7px] font-black text-slate-500 uppercase tracking-wider sticky left-0 bg-slate-50 min-w-[100px]">Discipline</th>
-                      {heatmapData.weekLabels.map(w => (
-                        <th key={w} className="px-1.5 py-2 text-center text-[7px] font-black text-slate-400 uppercase tracking-wider min-w-[36px]">{w}</th>
-                      ))}
-                      <th className="px-2 py-2 text-center text-[7px] font-black text-slate-500 uppercase tracking-wider">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {heatmapData.rows.map(row => (
-                      <tr key={row.discipline}>
-                        <td className="px-3 py-1.5 text-[8px] font-bold text-slate-700 uppercase truncate max-w-[120px] sticky left-0 bg-white">{row.discipline}</td>
-                        {row.cells.map((pct, ci) => {
-                          const bg = pct >= 80 ? 'bg-emerald-500 text-white' : pct >= 50 ? 'bg-emerald-300 text-emerald-900' : pct >= 20 ? 'bg-amber-200 text-amber-900' : pct > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-50 text-slate-300';
-                          return (
-                            <td key={ci} className="px-0.5 py-1">
-                              <div className={`mx-auto w-8 h-6 rounded flex items-center justify-center text-[7px] font-black ${bg}`}>{pct}%</div>
-                            </td>
-                          );
-                        })}
-                        <td className="px-2 py-1.5 text-center text-[8px] font-black text-slate-600">{row.total}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex items-center gap-3 px-2">
-                <span className="text-[7px] font-black text-slate-400 uppercase tracking-wider">Legend:</span>
-                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-100" /><span className="text-[7px] font-bold text-slate-400">0-19%</span></div>
-                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-amber-200" /><span className="text-[7px] font-bold text-slate-400">20-49%</span></div>
-                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-300" /><span className="text-[7px] font-bold text-slate-400">50-79%</span></div>
-                <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-500" /><span className="text-[7px] font-bold text-slate-400">80-100%</span></div>
-              </div>
-            </div>
-
-            {/* Weekly Velocity */}
+            {/* Weekly Velocity (原 Page 4 挪动于此) */}
             <div className="flex flex-col gap-3 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-cyan-500 pl-4">Weekly Velocity</h3>
               <div className="h-[250px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
@@ -926,7 +880,7 @@ export const ActivityReport: React.FC = () => {
 
         {/* ===== HEALTH PAGES ===== */}
         {Array.from({ length: healthPages }).map((_, hpIdx) => (
-          <ReportPage key={`health-${hpIdx}`} pageNumber={summaryPages + 5 + hpIdx} totalPages={totalPages} projectName={projectName}>
+          <ReportPage key={`health-${hpIdx}`} pageNumber={summaryPages + 4 + hpIdx} totalPages={totalPages} projectName={projectName}>
             <div className="flex flex-col gap-6">
               <div className="flex items-center justify-between border-l-4 border-emerald-500 pl-4">
                 <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest">Discipline Status {healthPages > 1 ? `(${hpIdx + 1}/${healthPages})` : ''}</h3>
@@ -1022,16 +976,6 @@ export const ActivityReport: React.FC = () => {
             </div>
           </ReportPage>
         ))}
-
-        {/* ===== END OF REPORT (Blank Footer Page) ===== */}
-        <ReportPage projectName={projectName} hideFooter forceBreakAfter={false}>
-          <div className="flex-1 opacity-10 flex flex-col items-center justify-center p-12 text-center pointer-events-none mb-12">
-             <div className="w-16 h-1 bg-slate-400 rounded-full mb-6" />
-             <div className="text-[14px] font-[1000] text-slate-700 uppercase tracking-[0.3em] font-mono leading-relaxed mt-auto opacity-40">
-                End of Activity Report
-             </div>
-          </div>
-        </ReportPage>
 
       </div>
     </div>
