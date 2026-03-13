@@ -3,24 +3,23 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useStore } from '../store';
 import { Drawing, DrawingStatus } from '../types';
-import {
-  Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as ChevronRightIcon,
-  Lock, Unlock, X, Cloud
-} from 'lucide-react';
-import { isAfter, differenceInCalendarDays } from 'date-fns';
+import { Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Lock, Unlock, X, Cloud, Clock } from 'lucide-react';
+import { isAfter, differenceInCalendarDays, differenceInDays } from 'date-fns';
 import { DrawingRow } from './DrawingRow';
 
 // Reusable Button Component for Filter
 const FilterButton = ({ active, onClick, label, icon, color, count }: { active: boolean, onClick: () => void, label: string, icon?: React.ReactNode, color: string, count?: number }) => {
-  const colorMap: any = {
+  const colorMap: Record<string, string> = {
     slate: active ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
     amber: active ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'bg-amber-50 text-amber-600 hover:bg-amber-100',
     blue: active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100',
     emerald: active ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100',
     red: active ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-red-50 text-red-600 hover:bg-red-100 animate-pulse',
+    purple: active ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20' : 'bg-purple-50 text-purple-600 hover:bg-purple-100',
   };
   return (
-    <button onClick={onClick} className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 shrink-0 ${colorMap[color]}`}>
+    <button onClick={onClick} className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 shrink-0 ${colorMap[color] || colorMap.blue}`}>
       {icon}
       <span>{label}</span>
       {count !== undefined && (
@@ -209,6 +208,13 @@ export const DrawingList: React.FC = () => {
           match = !!isWarning;
         } else if (filter === 'Checked') {
           match = !!isChecked;
+        } else if (filter === '1W Change') {
+          if (!d.statusHistory || d.statusHistory.length === 0) {
+            match = false;
+          } else {
+            const lastRecord = d.statusHistory[d.statusHistory.length - 1];
+            match = differenceInDays(new Date(), new Date(lastRecord.createdAt)) <= 7;
+          }
         } else if (filter === 'Ready') {
           if (d.status !== 'Reviewing' || !d.assignees || d.assignees.length === 0) {
             match = false;
@@ -272,6 +278,13 @@ export const DrawingList: React.FC = () => {
           match = !!isWarning;
         } else if (filter === 'Checked') {
           match = !!isChecked;
+        } else if (filter === '1W Change') {
+          if (!d.statusHistory || d.statusHistory.length === 0) {
+            match = false;
+          } else {
+            const lastRecord = d.statusHistory[d.statusHistory.length - 1];
+            match = differenceInDays(new Date(), new Date(lastRecord.createdAt)) <= 7;
+          }
         } else if (filter === 'Ready') {
           if (d.status !== 'Reviewing' || !d.assignees || d.assignees.length === 0) {
             match = false;
@@ -441,6 +454,8 @@ export const DrawingList: React.FC = () => {
               <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={getFilterCount('Approved')} />
               <FilterButton active={statusFilters.has('Warning')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Warning') ? n.delete('Warning') : n.add('Warning'); return n; })} label="Warning" color="amber" icon={<Layers size={12} />} count={getFilterCount('Warning')} />
               <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={getFilterCount('Overdue')} />
+              <div className="w-px h-4 bg-slate-200 mx-1" />
+              <FilterButton active={statusFilters.has('1W Change')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('1W Change') ? n.delete('1W Change') : n.add('1W Change'); return n; })} label="1W Change" color="purple" icon={<Clock size={12} />} count={getFilterCount('1W Change')} />
               <div className="w-px h-4 bg-slate-200 mx-1" />
               <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={getFilterCount('Checked')} />
               <FilterButton active={statusFilters.has('Unchecked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Unchecked') ? n.delete('Unchecked') : n.add('Unchecked'); return n; })} label="Unchecked" color="slate" count={getFilterCount('Unchecked')} />
