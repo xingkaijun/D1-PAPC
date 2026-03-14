@@ -179,6 +179,44 @@ export const CommandBar: React.FC = () => {
           return;
         }
       }
+
+      // 回退：当 idPart 无法匹配到任何 drawing 时，尝试 assignee 批量操作模式
+      // 格式: @AssigneeName add:customId1 customId2 或 @AssigneeName rm:customId1 customId2
+      if (validDrawings.length === 0) {
+        const assigneeBatchMatch = actionPart.match(/^(add|rm)[:：]\s*(.+)$/i);
+        if (assigneeBatchMatch) {
+          if (!isEditMode) { alert("Edit Mode Required for Assignees Update"); return; }
+          const assigneeName = idPart;
+          const action = assigneeBatchMatch[1].toLowerCase();
+          const batchTargetIds = assigneeBatchMatch[2].split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+
+          const updates: { id: string; changes: Partial<typeof activeProject.drawings[0]> }[] = [];
+          activeProject.drawings.forEach(d => {
+            if (d.customId && batchTargetIds.some(id => id.toLowerCase() === d.customId.toLowerCase())) {
+              const current = d.assignees || [];
+              let newAssignees = [...current];
+
+              if (action === 'add') {
+                if (!current.some(a => a.toLowerCase() === assigneeName.toLowerCase())) {
+                  newAssignees.push(assigneeName);
+                }
+              } else if (action === 'rm') {
+                newAssignees = current.filter(a => a.toLowerCase() !== assigneeName.toLowerCase());
+              }
+
+              if (newAssignees.length !== current.length) {
+                updates.push({ id: d.id, changes: { assignees: newAssignees } });
+              }
+            }
+          });
+
+          if (updates.length > 0) {
+            batchUpdateDrawings(updates);
+            setInput('');
+            return;
+          }
+        }
+      }
     }
   };
 
