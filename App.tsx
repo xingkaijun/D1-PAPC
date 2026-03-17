@@ -203,16 +203,25 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddProject = () => {
+  const handleAddProject = async () => {
     const name = prompt('Enter Hull Number or Project Name (e.g. PG-VLEC-H2684):');
     if (name) {
       addProject(name);
-      // We assume addProject sets it as active? modify if needed
-      // Actually addProject in store sets activeProjectId. 
-      // We might want to auto-select it?
-      // For new project, it's local first. 
-      // We should probably just close selector?
       setShowProjectSelector(false);
+
+      // 新建项目后自动同步到后端 D1
+      // 使用 setTimeout 确保 store 状态已更新
+      setTimeout(async () => {
+        const newProject = useStore.getState().data.projects.find(p => p.name === name);
+        if (newProject) {
+          try {
+            await saveProject(newProject.id);
+            console.log(`[新建项目] "${name}" 已同步到后端`);
+          } catch (e) {
+            console.warn(`[新建项目] "${name}" 同步失败:`, e);
+          }
+        }
+      }, 100);
     }
   };
 

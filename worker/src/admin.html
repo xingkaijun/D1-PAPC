@@ -282,10 +282,13 @@
     </div>
     <ul id="table-list"></ul>
     <div style="padding: 20px; border-top: 1px solid var(--border);">
+      <button onclick="exportFullDb()" style="width:100%; margin-bottom:10px; background:#10b981; font-weight:bold;">📦 导出整库</button>
+      <button onclick="importFullDb()" style="width:100%; margin-bottom:10px; background:#3b82f6; font-weight:bold;">📥 导入整库</button>
       <button onclick="showSqlConsole()" style="width:100%; margin-bottom:10px; background:var(--border)">SQL
         控制台</button>
       <button onclick="logout()" style="width:100%; background:var(--border)">退出</button>
     </div>
+    <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(event)">
   </div>
 
   <div id="main">
@@ -606,6 +609,52 @@
         await renderTableData();
       } catch (e) {
         document.getElementById('content').innerText = '加载失败: ' + e.message;
+      }
+    }
+
+    async function exportFullDb() {
+      try {
+        document.getElementById('content').innerHTML = '<p>正在导出整库，请稍候...</p>';
+        const data = await apiCall('/export');
+        const jsonStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const date = new Date().toISOString().slice(0, 10);
+        link.download = `papc_db_export_${date}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        document.getElementById('content').innerHTML = `<p>✅ 导出成功！共 ${data.projectCount || 0} 个项目</p>`;
+      } catch (e) {
+        alert('导出失败: ' + e.message);
+      }
+    }
+
+    function importFullDb() {
+      if (!confirm('导入将覆盖数据库中同 ID 的项目数据。是否继续？')) return;
+      document.getElementById('importFileInput').click();
+    }
+
+    async function handleImportFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        document.getElementById('content').innerHTML = '<p>正在导入，请稍候...</p>';
+        const text = await file.text();
+        const payload = JSON.parse(text);
+        const result = await apiCall('/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        document.getElementById('content').innerHTML = `<p>✅ 导入成功！共导入 ${result.imported || 0} 个项目</p>`;
+        // 刷新侧边栏
+        init();
+      } catch (e) {
+        alert('导入失败: ' + e.message);
+      } finally {
+        event.target.value = '';
       }
     }
   </script>

@@ -737,6 +737,53 @@ const handleAdminRequest = async (request: Request, env: Env, url: URL): Promise
 
     return json(env, 200, { results: (res.results as any) || [] });
   }
+  // 整库导出：GET /admin/api/export
+  if (segments.length === 3 && segments[1] === 'api' && segments[2] === 'export' && request.method === 'GET') {
+    const projectRows = await queryAll<ProjectListRow>(db,
+      `SELECT id, name, webdav_path, last_updated FROM projects ORDER BY name COLLATE NOCASE ASC`
+    );
+
+    const exportData: any[] = [];
+    for (const proj of projectRows) {
+      const detail = await getProjectDetail(db, proj.id);
+      const reviewTracker = await getReviewTracker(db, proj.id);
+      exportData.push({ project: detail, reviewTracker });
+    }
+
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      projectCount: exportData.length,
+      projects: exportData,
+    };
+
+    const headers = withCors(new Headers({
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="papc_db_export_${new Date().toISOString().slice(0, 10)}.json"`,
+    }), env);
+    return new Response(JSON.stringify(payload), { status: 200, headers });
+  }
+
+  // 整库导入：POST /admin/api/import
+  if (segments.length === 3 && segments[1] === 'api' && segments[2] === 'import' && request.method === 'POST') {
+    const body = await request.json() as any;
+    if (!Array.isArray(body.projects)) {
+      return json(env, 400, { error: '无效的导入格式，需要 { projects: [...] }' });
+    }
+
+    let imported = 0;
+    for (const entry of body.projects) {
+      const project = entry.project;
+      const reviewTracker = entry.reviewTracker || {};
+      if (!project || !project.id) continue;
+      await saveProjectData(db, project.id, project, reviewTracker);
+      imported++;
+    }
+
+    await db.prepare(`INSERT INTO audit_log (table_name, action, detail) VALUES (?, ?, ?)`)
+      .bind('FULL_DB', 'IMPORT', `导入 ${imported} 个项目`).run();
+
+    return json(env, 200, { success: true, imported });
+  }
 
   return json(env, 404, { error: 'Admin API not found' });
 };

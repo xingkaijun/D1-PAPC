@@ -192,7 +192,7 @@ export const useStore = create<AppState>()(
           projects: [
             ...state.data.projects,
             {
-              id: Math.random().toString(36).substr(2, 9),
+              id: crypto.randomUUID(),
               name,
               drawings: [],
               conf: { // Default Project Config from Global Settings
