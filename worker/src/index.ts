@@ -611,8 +611,34 @@ const handleAdminRequest = async (request: Request, env: Env, url: URL): Promise
       const colNames = schemaRows.map(r => toStringValue(r.name)).filter(Boolean) as string[];
 
       if (search && colNames.length > 0) {
-        whereStr = 'WHERE (' + colNames.map(c => `CAST(${c} AS TEXT) LIKE ?`).join(' OR ') + ')';
-        colNames.forEach(() => params.push(`%${search}%`));
+        let isCustomIdSearch = false;
+        let idValue = '';
+
+        const lowerSearch = search.toLowerCase();
+        if (lowerSearch.startsWith('id:')) {
+          isCustomIdSearch = true;
+          idValue = search.substring(3).trim();
+        } else if (lowerSearch.startsWith('customid:')) {
+          isCustomIdSearch = true;
+          idValue = search.substring(9).trim();
+        }
+
+        if (isCustomIdSearch && idValue) {
+          if (colNames.includes('custom_id')) {
+            whereStr = 'WHERE custom_id LIKE ?';
+            params.push(`%${idValue}%`);
+          } else if (colNames.includes('drawing_id')) {
+            whereStr = 'WHERE drawing_id IN (SELECT id FROM drawings WHERE custom_id LIKE ?)';
+            params.push(`%${idValue}%`);
+          } else {
+            // 回退到普通查询
+            whereStr = 'WHERE (' + colNames.map(c => `CAST(${c} AS TEXT) LIKE ?`).join(' OR ') + ')';
+            colNames.forEach(() => params.push(`%${search}%`));
+          }
+        } else {
+          whereStr = 'WHERE (' + colNames.map(c => `CAST(${c} AS TEXT) LIKE ?`).join(' OR ') + ')';
+          colNames.forEach(() => params.push(`%${search}%`));
+        }
       }
 
       if (colNames.includes('_deleted')) {
