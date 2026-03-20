@@ -1,24 +1,35 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
-import { Calendar, Download, Copy, FileText, Printer, Check, Table2, ClipboardCheck } from 'lucide-react';
+import { Calendar, Download, Copy, FileText, Printer, Check, Table2, ClipboardCheck, Filter } from 'lucide-react';
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
+
+// 状态转换筛选定义
+const TRANSITION_FILTERS = [
+    { key: 'pending-review', label: 'Pending → Review', match: (detail: string) => /Status:.*Pending.*->.*Review/i.test(detail) },
+    { key: 'review-sentout', label: 'Review → Sent Out', match: (detail: string) => /Status:.*Review.*->.*Waiting/i.test(detail) },
+    { key: 'sentout-review', label: 'Sent Out → Review', match: (detail: string) => /Status:.*Waiting.*->.*Review/i.test(detail) },
+    { key: 'approved', label: 'Approved', match: (detail: string) => /Status:.*->.*Approved/i.test(detail) }
+] as const;
 
 export const DailyLogReport: React.FC = () => {
     const { data, activeProjectId } = useStore();
     const activeProject = data.projects.find(p => p.id === activeProjectId);
 
-    const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const [startDate, setStartDate] = useState<string>(today);
+    const [endDate, setEndDate] = useState<string>(today);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [showTransmittalTable, setShowTransmittalTable] = useState(false);
     const [tableCopied, setTableCopied] = useState(false);
+    // 状态转换筛选：空集 = 全部显示
+    const [selectedTransitions, setSelectedTransitions] = useState<Set<string>>(new Set());
 
     // 数据聚合引擎
     const dailyChanges = useMemo(() => {
         if (!activeProject) return [];
 
-        const targetDate = parseISO(selectedDate);
-        const dateStart = startOfDay(targetDate);
-        const dateEnd = endOfDay(targetDate);
+        const dateStart = startOfDay(parseISO(startDate));
+        const dateEnd = endOfDay(parseISO(endDate));
 
         const changes: Array<{
             time: string;
@@ -118,15 +129,22 @@ export const DailyLogReport: React.FC = () => {
         });
 
         // 按时间倒序排列（新到旧）
-        return mergedChanges.sort((a, b) => b.time.localeCompare(a.time));
-    }, [activeProject, selectedDate]);
+        const sorted = mergedChanges.sort((a, b) => b.time.localeCompare(a.time));
+
+        // 应用状态转换筛选
+        if (selectedTransitions.size === 0) return sorted;
+        return sorted.filter(change => {
+            return TRANSITION_FILTERS.some(f =>
+                selectedTransitions.has(f.key) && f.match(change.detail)
+            );
+        });
+    }, [activeProject, startDate, endDate, selectedTransitions]);
 
     // 筛选出当天状态变为 Waiting Reply 或 Approved 的图纸（用于打印流转单）
     const transmittalDrawings = useMemo(() => {
         if (!activeProject) return [];
-        const targetDate = parseISO(selectedDate);
-        const dateStart = startOfDay(targetDate);
-        const dateEnd = endOfDay(targetDate);
+        const dateStart = startOfDay(parseISO(startDate));
+        const dateEnd = endOfDay(parseISO(endDate));
 
         // 记录符合条件的图纸 ID 及其相关状态信息
         const validDrawingsMap = new Map<string, {
@@ -170,7 +188,7 @@ export const DailyLogReport: React.FC = () => {
                 isApproved: d.finalStatus === 'Approved' || dwg.status === 'Approved'
             };
         });
-    }, [activeProject, selectedDate]);
+    }, [activeProject, startDate, endDate]);
 
     // 动态从 CDN 加载脚本（绕过 Vite import 分析）
     const loadScript = (src: string): Promise<void> => {
@@ -239,7 +257,7 @@ export const DailyLogReport: React.FC = () => {
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
             pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`Transmittal_Record_${selectedDate}.pdf`);
+            pdf.save(`Transmittal_Record_${startDate}_${endDate}.pdf`);
 
         } catch (error) {
             console.error('PDF export failed, falling back to browser print:', error);
@@ -250,11 +268,21 @@ export const DailyLogReport: React.FC = () => {
         }
     };
 
+    // 获取当前筛选条件文本
+    const getFilterText = () => {
+        if (selectedTransitions.size === 0) return 'All Types';
+        return Array.from(selectedTransitions)
+            .map(key => TRANSITION_FILTERS.find(f => f.key === key)?.label)
+            .filter(Boolean)
+            .join(', ');
+    };
+
     // 导出为文本
     const handleCopyText = () => {
         const text = [
-            `Daily Change Log - ${selectedDate}`,
+            `Change Log - ${startDate} ~ ${endDate}`,
             `Project: ${activeProject?.name || 'N/A'}`,
+            `Filters: ${getFilterText()}`,
             `Total Events: ${dailyChanges.length}`,
             '',
             'Time\t\tID\t\tDrawing No\t\tTitle\t\tType\t\tDetail\t\tNote',
@@ -270,6 +298,11 @@ export const DailyLogReport: React.FC = () => {
     // 导出为 CSV
     const handleExportCSV = () => {
         const csv = [
+            `"Change Log:","${startDate} ~ ${endDate}"`,
+            `"Project:","${activeProject?.name || 'N/A'}"`,
+            `"Filters:","${getFilterText()}"`,
+            `"Total Events:","${dailyChanges.length}"`,
+            '',
             'Time,ID,Drawing No,Title,Type,Detail,Note',
             ...dailyChanges.map(c =>
                 `${c.time},"${c.customId}","${c.drawingNo}","${c.drawingTitle}","${c.eventType}","${c.detail}","${c.note}"`
@@ -279,7 +312,7 @@ export const DailyLogReport: React.FC = () => {
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `daily_log_${selectedDate}.csv`;
+        link.download = `daily_log_${startDate}_${endDate}.csv`;
         link.click();
     };
 
@@ -333,51 +366,96 @@ export const DailyLogReport: React.FC = () => {
 
                 {/* Controls */}
                 <div className="px-6 pb-3 shrink-0">
-                    <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
-                        <div className="flex items-center gap-2 flex-1">
-                            <Calendar size={18} className="text-slate-400" />
-                            <label className="text-sm font-bold text-slate-600">Select Date:</label>
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
-                            />
+                    <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-3">
+                        {/* 第一行：日期范围 + 操作按钮 */}
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 flex-1">
+                                <Calendar size={18} className="text-slate-400" />
+                                <label className="text-sm font-bold text-slate-600">From:</label>
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                />
+                                <span className="text-slate-400 font-bold">→</span>
+                                <label className="text-sm font-bold text-slate-600">To:</label>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                />
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleDownloadPDF}
+                                    disabled={isGeneratingPDF}
+                                    className={`flex items-center gap-2 px-4 py-2 ${isGeneratingPDF ? 'bg-slate-300' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-lg text-sm font-bold transition-colors shadow-sm`}
+                                >
+                                    <Printer size={14} className={isGeneratingPDF ? "animate-spin" : ""} />
+                                    {isGeneratingPDF ? "Generating..." : "Export PDF"}
+                                </button>
+                                <button
+                                    onClick={handleCopyText}
+                                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-colors"
+                                >
+                                    <Copy size={14} />
+                                    Copy
+                                </button>
+                                <button
+                                    onClick={handleExportCSV}
+                                    className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-bold transition-colors"
+                                >
+                                    <Download size={14} />
+                                    CSV
+                                </button>
+                                <button
+                                    onClick={() => setShowTransmittalTable(!showTransmittalTable)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${showTransmittalTable
+                                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                                        : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
+                                        }`}
+                                >
+                                    <Table2 size={14} />
+                                    {showTransmittalTable ? 'Hide' : 'Transmittal'}
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleDownloadPDF}
-                                disabled={isGeneratingPDF}
-                                className={`flex items-center gap-2 px-4 py-2 ${isGeneratingPDF ? 'bg-slate-300' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-lg text-sm font-bold transition-colors shadow-sm`}
-                            >
-                                <Printer size={14} className={isGeneratingPDF ? "animate-spin" : ""} />
-                                {isGeneratingPDF ? "Generating PDF..." : "Export PDF"}
-                            </button>
-                            <button
-                                onClick={handleCopyText}
-                                className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-colors ml-2"
-                            >
-                                <Copy size={14} />
-                                Copy
-                            </button>
-                            <button
-                                onClick={handleExportCSV}
-                                className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-bold transition-colors"
-                            >
-                                <Download size={14} />
-                                Export CSV
-                            </button>
-                            <button
-                                onClick={() => setShowTransmittalTable(!showTransmittalTable)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${showTransmittalTable
-                                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
-                                    }`}
-                            >
-                                <Table2 size={14} />
-                                {showTransmittalTable ? 'Hide Table' : 'Transmittal'}
-                            </button>
+                        {/* 第二行：状态转换筛选 toggle */}
+                        <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
+                            <Filter size={14} className="text-slate-400 shrink-0" />
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wider shrink-0">Filter:</span>
+                            {TRANSITION_FILTERS.map(f => {
+                                const active = selectedTransitions.has(f.key);
+                                return (
+                                    <button
+                                        key={f.key}
+                                        onClick={() => {
+                                            const next = new Set(selectedTransitions);
+                                            if (active) next.delete(f.key); else next.add(f.key);
+                                            setSelectedTransitions(next);
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                            active
+                                                ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        {f.label}
+                                    </button>
+                                );
+                            })}
+                            {selectedTransitions.size > 0 && (
+                                <button
+                                    onClick={() => setSelectedTransitions(new Set())}
+                                    className="px-2 py-1.5 rounded-lg text-xs font-bold text-rose-500 hover:bg-rose-50 transition-all"
+                                >
+                                    ✕ Clear
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -392,7 +470,10 @@ export const DailyLogReport: React.FC = () => {
                             </div>
                             <div className="text-right">
                                 <p className="text-xs font-bold text-slate-500">Project: {activeProject.name}</p>
-                                <p className="text-xs font-bold text-slate-500">Date: {selectedDate}</p>
+                                <p className="text-xs font-bold text-slate-500">Date: {startDate === endDate ? startDate : `${startDate} ~ ${endDate}`}</p>
+                                {selectedTransitions.size > 0 && (
+                                    <p className="text-xs font-bold text-slate-500 mt-1">Filters: {getFilterText()}</p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -457,7 +538,7 @@ export const DailyLogReport: React.FC = () => {
                             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
                                 <div className="flex items-center gap-2">
                                     <Table2 size={16} className="text-amber-600" />
-                                    <span className="text-sm font-black text-amber-800">Transmittal Record — {selectedDate}</span>
+                                    <span className="text-sm font-black text-amber-800">Transmittal Record — {startDate === endDate ? startDate : `${startDate} ~ ${endDate}`}</span>
                                     <span className="text-xs font-bold text-amber-500 ml-2">({transmittalDrawings.length} items)</span>
                                 </div>
                                 <button
@@ -482,14 +563,17 @@ export const DailyLogReport: React.FC = () => {
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td colSpan={4} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
+                                            <td colSpan={3} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
                                                 <strong>Project:</strong> {activeProject.name}
                                             </td>
                                             <td colSpan={2} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
-                                                <strong>Date:</strong> {selectedDate}
+                                                <strong>Date:</strong> {startDate === endDate ? startDate : `${startDate} ~ ${endDate}`}
                                             </td>
                                             <td colSpan={2} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
-                                                <strong>Total:</strong> {transmittalDrawings.length} items
+                                                <strong>Filters:</strong> {getFilterText()}
+                                            </td>
+                                            <td colSpan={1} style={{ border: '1px solid #cbd5e1', padding: '6px 10px', backgroundColor: '#f8fafc', fontSize: '11px' }}>
+                                                <strong>Total:</strong> {transmittalDrawings.length}
                                             </td>
                                         </tr>
                                         {/* 列标题 */}
@@ -549,7 +633,7 @@ export const DailyLogReport: React.FC = () => {
                             Document Transmittal Record
                         </h2>
                         <div className="text-sm font-bold text-slate-500 uppercase mt-2">
-                            DATE: {format(parseISO(selectedDate), 'dd MMM yyyy')}
+                            DATE: {startDate === endDate ? format(parseISO(startDate), 'dd MMM yyyy') : `${format(parseISO(startDate), 'dd MMM yyyy')} — ${format(parseISO(endDate), 'dd MMM yyyy')}`}
                         </div>
                     </div>
                 </div>
