@@ -841,7 +841,7 @@ export const ActivityReport: React.FC = () => {
             {/* Discipline Comments 条形图 */}
             <div className="flex flex-col gap-3 shrink-0">
               <h3 className="text-[10px] font-[1000] text-slate-800 uppercase tracking-widest border-l-4 border-indigo-500 pl-4">Discipline Comments Status</h3>
-              <div className="h-[250px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
+              <div className="h-[375px] bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={disciplineMainData} layout="vertical" margin={{ top: 0, right: 40, left: 10, bottom: 0 }} barGap={2}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
