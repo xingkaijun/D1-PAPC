@@ -797,7 +797,6 @@ export const ActivityReport: React.FC = () => {
                     <Bar dataKey="To Reviewing" fill="#eab308" radius={[2, 2, 0, 0]} maxBarSize={15} />
                     <Bar dataKey="To Sent Out" fill="#3b82f6" radius={[2, 2, 0, 0]} maxBarSize={15} />
                     <Bar dataKey="To Approved" fill="#10b981" radius={[2, 2, 0, 0]} maxBarSize={15} />
-                    <Bar dataKey="Other" fill="#cbd5e1" radius={[2, 2, 0, 0]} maxBarSize={15} />
                     <Legend verticalAlign="top" height={30} iconType="circle" wrapperStyle={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase' }} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -847,7 +846,9 @@ export const ActivityReport: React.FC = () => {
                     <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={120} tick={{ fontSize: 9, fill: '#475569', fontWeight: 800 }} />
                     <Tooltip cursor={{ fill: '#f1f5f9', radius: 4 }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0/0.1)', padding: '10px' }} itemStyle={{ fontSize: '10px', fontWeight: 700 }} />
                     <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', paddingBottom: '15px' }} />
-                    <Bar dataKey="totalComments" name="Total Comments" fill="#cbd5e1" radius={[0, 4, 4, 0]} barSize={10} />
+                    <Bar dataKey="totalComments" name="Total Comments" fill="#cbd5e1" radius={[0, 4, 4, 0]} barSize={10}>
+                      <LabelList dataKey="totalComments" position="right" style={{ fill: '#cbd5e1', fontSize: 9, fontWeight: 900 }} />
+                    </Bar>
                     <Bar dataKey="openComments" name="Open Comments" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={10}>
                       <LabelList dataKey="openComments" position="right" style={{ fill: '#ef4444', fontSize: 9, fontWeight: 900 }} />
                     </Bar>
