@@ -273,13 +273,11 @@ export const ActivityReport: React.FC = () => {
                if (m) currentStatusAtTime = m[1].trim();
              }
              if (h.content.includes('Comments:')) {
-               const match = h.content.match(/(\d+)\s*open/i);
+               // 格式: "Comments: total/open -> total/open"
+               // 提取箭头右侧的 open 值作为该时间点的最新 open comments
+               const match = h.content.match(/->\s*(\d+)\s*\/\s*(\d+)/);
                if (match) {
-                 drawingOpenCmt = parseInt(match[1], 10);
-               } else if (h.content.includes('resolved') || h.content.includes('Closed')) {
-                 drawingOpenCmt = Math.max(0, drawingOpenCmt - 1);
-               } else {
-                 drawingOpenCmt += 1;
+                 drawingOpenCmt = parseInt(match[2], 10);
                }
              }
           });
