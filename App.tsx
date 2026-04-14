@@ -421,10 +421,10 @@ const App: React.FC = () => {
       )}
 
       {/* Navigation Header */}
-      <header className="relative overflow-hidden bg-[rgba(15,118,110,0.88)] backdrop-blur-2xl border-b border-white/10 px-6 py-4 grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-6 z-[60] no-print shrink-0 shadow-[0_24px_48px_-12px_rgba(19,27,46,0.16)]">
+      <header className="relative overflow-hidden bg-[rgba(15,118,110,0.88)] backdrop-blur-2xl border-b border-white/10 px-6 py-4 flex items-center justify-between z-[60] no-print shrink-0 shadow-[0_24px_48px_-12px_rgba(19,27,46,0.16)]">
         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_36%,rgba(156,242,232,0.14)_100%)] pointer-events-none" />
 
-        <div className="relative flex items-center min-w-0">
+        <div className="relative flex items-center min-w-0 z-[1]">
           {/* Logo Section */}
           <div className="flex items-center gap-4 group cursor-pointer shrink-0" onClick={() => setActiveTab('drawings')}>
             <div className="relative">
@@ -446,9 +446,9 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="relative hidden md:flex items-center justify-center min-w-0">
+        <div className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 md:flex items-center justify-center pointer-events-none px-6 z-[1]">
           {/* Main Navigation Tabs */}
-          <nav className="flex items-center gap-1.5 bg-black/15 backdrop-blur-sm p-1.5 rounded-full border border-white/10 shadow-inner shadow-black/10 min-w-0">
+          <nav className="pointer-events-auto flex items-center gap-1.5 bg-black/15 backdrop-blur-sm p-1.5 rounded-full border border-white/10 shadow-inner shadow-black/10 min-w-0">
             <button
               onClick={() => setActiveTab('drawings')}
               className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
@@ -509,7 +509,7 @@ const App: React.FC = () => {
           </nav>
         </div>
 
-        <div className="relative flex items-center gap-3 shrink-0 justify-self-end">
+        <div className="relative flex items-center gap-3 shrink-0 z-[1]">
           <span className={`hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[9px] font-[1000] uppercase tracking-[0.22em] border ${adminPresence.isOnline
             ? 'bg-white/14 text-white border-white/15'
             : 'bg-black/10 text-teal-50/70 border-white/10'
