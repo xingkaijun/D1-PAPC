@@ -485,7 +485,7 @@ export const ActivityReport: React.FC = () => {
 
               {/* 打印按钮 */}
               <button onClick={() => window.print()}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95">
+                className="flex items-center gap-2 px-4 py-2 bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] hover:brightness-105 text-white rounded-full text-[10px] font-black uppercase tracking-[0.18em] transition-all shadow-[0_12px_24px_-16px_rgba(13,148,136,0.45)] active:scale-95">
                 <Printer size={14} /> Print / Export
               </button>
             </div>

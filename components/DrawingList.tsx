@@ -10,26 +10,56 @@ import { DrawingRow } from './DrawingRow';
 
 // Reusable Button Component for Filter
 const FilterButton = ({ active, onClick, label, icon, color, count }: { active: boolean, onClick: () => void, label: string, icon?: React.ReactNode, color: string, count?: number }) => {
-  const colorMap: Record<string, string> = {
-    slate: active ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
-    amber: active ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'bg-amber-50 text-amber-600 hover:bg-amber-100',
-    blue: active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-blue-50 text-blue-600 hover:bg-blue-100',
-    emerald: active ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100',
-    red: active ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-red-50 text-red-600 hover:bg-red-100 animate-pulse',
-    purple: active ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20' : 'bg-purple-50 text-purple-600 hover:bg-purple-100',
+  const colorMap: Record<string, { active: string; inactive: string }> = {
+    slate: {
+      active: 'bg-white text-[#006A63] border-teal-200 shadow-[0_10px_24px_-14px_rgba(15,118,110,0.45)]',
+      inactive: 'bg-slate-100/90 text-slate-500 border-slate-200 hover:bg-white hover:border-teal-200 hover:text-teal-700'
+    },
+    amber: {
+      active: 'bg-white text-amber-700 border-amber-200 shadow-[0_10px_24px_-14px_rgba(245,158,11,0.35)]',
+      inactive: 'bg-amber-50/90 text-amber-700 border-amber-100 hover:bg-white hover:border-amber-200'
+    },
+    blue: {
+      active: 'bg-white text-blue-700 border-blue-200 shadow-[0_10px_24px_-14px_rgba(59,130,246,0.35)]',
+      inactive: 'bg-blue-50/90 text-blue-700 border-blue-100 hover:bg-white hover:border-blue-200'
+    },
+    emerald: {
+      active: 'bg-white text-emerald-700 border-emerald-200 shadow-[0_10px_24px_-14px_rgba(16,185,129,0.35)]',
+      inactive: 'bg-emerald-50/90 text-emerald-700 border-emerald-100 hover:bg-white hover:border-emerald-200'
+    },
+    red: {
+      active: 'bg-white text-red-700 border-red-200 shadow-[0_10px_24px_-14px_rgba(239,68,68,0.35)]',
+      inactive: 'bg-red-50/90 text-red-700 border-red-100 hover:bg-white hover:border-red-200 animate-pulse'
+    },
+    purple: {
+      active: 'bg-white text-violet-700 border-violet-200 shadow-[0_10px_24px_-14px_rgba(139,92,246,0.35)]',
+      inactive: 'bg-violet-50/90 text-violet-700 border-violet-100 hover:bg-white hover:border-violet-200'
+    },
   };
+  const palette = colorMap[color] || colorMap.blue;
+
   return (
-    <button onClick={onClick} className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 shrink-0 ${colorMap[color] || colorMap.blue}`}>
+    <button
+      onClick={onClick}
+      className={`px-3.5 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-[0.18em] flex items-center gap-2 transition-all duration-200 active:scale-95 shrink-0 hover:-translate-y-[1px] ${active ? palette.active : palette.inactive}`}
+    >
       {icon}
       <span>{label}</span>
       {count !== undefined && (
-        <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-black ${active ? 'bg-white/20' : 'bg-white/50'}`}>
+        <span className={`px-1.5 py-0.5 rounded-full text-[8px] font-black ${active ? 'bg-slate-100/80 text-inherit' : 'bg-white/80 text-inherit'}`}>
           {count}
         </span>
       )}
     </button>
   );
 };
+
+const ProgressPill = ({ count }: { count: number }) => (
+  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-teal-200 bg-[linear-gradient(135deg,rgba(0,106,99,0.06),rgba(156,242,232,0.2))] text-[#006A63] shadow-[0_10px_24px_-14px_rgba(15,118,110,0.35)] shrink-0">
+    <span className="text-[9px] font-black uppercase tracking-[0.18em]">Progress</span>
+    <span className="px-1.5 py-0.5 rounded-full bg-white/80 text-[8px] font-black">{count}</span>
+  </div>
+);
 
 const ResizableHeader = ({ children, onResize, width }: { children?: React.ReactNode, onResize: (w: number) => void, width?: number }) => {
   const headerRef = useRef<HTMLTableHeaderCellElement>(null);
@@ -97,7 +127,7 @@ const PaginationControls = ({
               <button
                 key={p}
                 onClick={() => onPageChange(p)}
-                className={`w-7 h-7 flex items-center justify-center rounded-lg text-[10px] font-black transition-all ${currentPage === p ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`w-7 h-7 flex items-center justify-center rounded-full text-[10px] font-black transition-all ${currentPage === p ? 'bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white shadow-[0_10px_24px_-16px_rgba(13,148,136,0.45)]' : 'text-slate-500 hover:bg-teal-50 hover:text-teal-700'}`}
               >
                 {p}
               </button>
@@ -119,7 +149,7 @@ const PaginationControls = ({
 
 
 export const DrawingList: React.FC = () => {
-  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, saveProject, reviewTracker, batchUpdateDrawings } = useStore();
+  const { activeProjectId, data, updateDrawing, bulkImportDrawings, deleteDrawing, toggleRemarkStatus, resetAllAssignees, filterQuery, setFilterQuery, isEditMode, toggleEditMode, saveProject, reviewTracker, batchUpdateDrawings, loadReviewTracker } = useStore();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   // Search state moved to store: filterQuery
@@ -171,136 +201,84 @@ export const DrawingList: React.FC = () => {
     }
   }, [showTeamSetupModal, project?.id]);
 
+  useEffect(() => {
+    if (activeProjectId) {
+      loadReviewTracker(activeProjectId);
+    }
+  }, [activeProjectId, loadReviewTracker]);
+
   const derivedDisciplines = useMemo(() => {
     if (!project || !project.drawings) return [];
     return Array.from(new Set(project.drawings.map(d => d.discipline))).filter(Boolean).sort();
   }, [project]);
 
-  const filteredDrawings = useMemo(() => {
-    if (!project) return [];
+  const matchesSearchQuery = useCallback((d: Drawing) => {
+    if (!filterQuery) return true;
     const lowerSearch = filterQuery.toLowerCase();
+    return d.drawingNo.toLowerCase().includes(lowerSearch) ||
+      d.title.toLowerCase().includes(lowerSearch) ||
+      d.discipline.toLowerCase().includes(lowerSearch) ||
+      d.customId.toLowerCase().includes(lowerSearch) ||
+      (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch))) ||
+      (d.remarks && d.remarks.some(r => r.content.toLowerCase().includes(lowerSearch)));
+  }, [filterQuery]);
 
-    return (project.drawings || []).filter(d => {
-      const matchesSearch = !filterQuery ||
-        d.drawingNo.toLowerCase().includes(lowerSearch) ||
-        d.title.toLowerCase().includes(lowerSearch) ||
-        d.discipline.toLowerCase().includes(lowerSearch) ||
-        d.customId.toLowerCase().includes(lowerSearch) ||
-        (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch))) ||
-        (d.remarks && d.remarks.some(r => r.content.toLowerCase().includes(lowerSearch)));
+  const isReadyDrawing = useCallback((d: Drawing) => {
+    if (d.status !== 'Reviewing' || !d.assignees || d.assignees.length === 0) {
+      return false;
+    }
+    const trackerEntry = reviewTracker[d.id] || {};
+    return d.assignees.every(a => trackerEntry[a]?.done);
+  }, [reviewTracker]);
 
-      if (!matchesSearch) return false;
+  const matchesStatusFilter = useCallback((d: Drawing, filter: string) => {
+    const overdueDays = d.reviewDeadline ? differenceInCalendarDays(new Date(d.reviewDeadline), new Date()) : null;
+    const isOverdue = d.status === 'Reviewing' && overdueDays !== null && overdueDays < 0;
+    const isWarning = d.status === 'Reviewing' && overdueDays !== null && overdueDays >= 0 && overdueDays <= 3;
+    const isChecked = d.checked === true;
 
-      // 多选筛选逻辑
-      if (statusFilters.size === 0) return true;
+    if (filter === 'Overdue') return !!isOverdue;
+    if (filter === 'Warning') return !!isWarning;
+    if (filter === 'Checked') return !!isChecked;
+    if (filter === 'Unchecked') return !isChecked;
+    if (filter === '1W Change') {
+      if (!d.statusHistory || d.statusHistory.length === 0) return false;
+      const lastRecord = d.statusHistory[d.statusHistory.length - 1];
+      return differenceInDays(new Date(), new Date(lastRecord.createdAt)) <= 7;
+    }
+    if (filter === 'Ready') return isReadyDrawing(d);
 
-      const overdueDays = d.reviewDeadline ? differenceInCalendarDays(new Date(d.reviewDeadline), new Date()) : null;
-      const isOverdue = d.status === 'Reviewing' && overdueDays !== null && overdueDays < 0;
-      const isWarning = d.status === 'Reviewing' && overdueDays !== null && overdueDays >= 0 && overdueDays <= 3;
-      const isChecked = d.checked === true;
+    return d.status === filter;
+  }, [isReadyDrawing]);
 
-      // 检查是否同时满足所有筛选条件 (AND 逻辑)
-      for (const filter of statusFilters) {
-        let match = false;
-        if (filter === 'Overdue') {
-          match = !!isOverdue;
-        } else if (filter === 'Warning') {
-          match = !!isWarning;
-        } else if (filter === 'Checked') {
-          match = !!isChecked;
-        } else if (filter === '1W Change') {
-          if (!d.statusHistory || d.statusHistory.length === 0) {
-            match = false;
-          } else {
-            const lastRecord = d.statusHistory[d.statusHistory.length - 1];
-            match = differenceInDays(new Date(), new Date(lastRecord.createdAt)) <= 7;
-          }
-        } else if (filter === 'Ready') {
-          if (d.status !== 'Reviewing' || !d.assignees || d.assignees.length === 0) {
-            match = false;
-          } else {
-            const trackerEntry = reviewTracker[d.id] || {};
-            match = d.assignees.every(a => trackerEntry[a]?.done);
-          }
-        } else {
-          // 默认为状态筛选
-          match = d.status === filter;
-        }
+  const searchScopedDrawings = useMemo(() => {
+    if (!project) return [];
+    return (project.drawings || []).filter(matchesSearchQuery);
+  }, [project, matchesSearchQuery]);
 
-        if (!match) return false;
-      }
-      return true;
-    });
-  }, [project, filterQuery, statusFilters]);
+  const filteredDrawings = useMemo(() => {
+    if (statusFilters.size === 0) return searchScopedDrawings;
+    const filters = Array.from(statusFilters);
+    return searchScopedDrawings.filter(d => filters.every(filter => matchesStatusFilter(d, filter)));
+  }, [searchScopedDrawings, statusFilters, matchesStatusFilter]);
 
-  // 动态计算每个筛选按钮的数量（基于当前筛选结果）
+  const progressCount = useMemo(() => {
+    return searchScopedDrawings.filter(d => d.status === 'Reviewing' || d.status === 'Waiting Reply' || d.status === 'Approved').length;
+  }, [searchScopedDrawings]);
+
+  // 动态计算每个筛选按钮的数量（基于当前搜索语境）
   const getFilterCount = useCallback((filterName: string) => {
     if (!project) return 0;
 
-    // 创建一个包含该筛选条件的新 Set
     const testFilters = new Set(statusFilters);
     if (testFilters.has(filterName)) {
-      // 如果已经激活，返回当前筛选结果数量
       return filteredDrawings.length;
-    } else {
-      // 如果未激活，添加该条件并计算
-      testFilters.add(filterName);
     }
+    testFilters.add(filterName);
 
-    // 使用相同的筛选逻辑计算
-    return (project.drawings || []).filter(d => {
-      // 搜索框筛选（与主筛选逻辑保持一致）
-      const lowerSearch = filterQuery.toLowerCase();
-      const matchesSearch = !filterQuery ||
-        d.drawingNo.toLowerCase().includes(lowerSearch) ||
-        d.title.toLowerCase().includes(lowerSearch) ||
-        d.discipline.toLowerCase().includes(lowerSearch) ||
-        d.customId.toLowerCase().includes(lowerSearch) ||
-        (d.assignees && d.assignees.some(a => a.toLowerCase().includes(lowerSearch))) ||
-        (d.remarks && d.remarks.some(r => r.content.toLowerCase().includes(lowerSearch)));
-
-      if (!matchesSearch) return false;
-
-      // 如果没有筛选条件，显示所有
-      if (testFilters.size === 0) return true;
-
-      const overdueDays = d.reviewDeadline ? differenceInCalendarDays(new Date(d.reviewDeadline), new Date()) : null;
-      const isOverdue = d.status === 'Reviewing' && overdueDays !== null && overdueDays < 0;
-      const isWarning = d.status === 'Reviewing' && overdueDays !== null && overdueDays >= 0 && overdueDays <= 3;
-      const isChecked = d.checked === true;
-
-      // 检查是否同时满足所有筛选条件
-      for (const filter of testFilters) {
-        let match = false;
-        if (filter === 'Overdue') {
-          match = !!isOverdue;
-        } else if (filter === 'Warning') {
-          match = !!isWarning;
-        } else if (filter === 'Checked') {
-          match = !!isChecked;
-        } else if (filter === '1W Change') {
-          if (!d.statusHistory || d.statusHistory.length === 0) {
-            match = false;
-          } else {
-            const lastRecord = d.statusHistory[d.statusHistory.length - 1];
-            match = differenceInDays(new Date(), new Date(lastRecord.createdAt)) <= 7;
-          }
-        } else if (filter === 'Ready') {
-          if (d.status !== 'Reviewing' || !d.assignees || d.assignees.length === 0) {
-            match = false;
-          } else {
-            const trackerEntry = reviewTracker[d.id] || {};
-            match = d.assignees.every(a => trackerEntry[a]?.done);
-          }
-        } else {
-          match = d.status === filter;
-        }
-
-        if (!match) return false;
-      }
-      return true;
-    }).length;
-  }, [project, filterQuery, statusFilters, filteredDrawings]);
+    const filters = Array.from(testFilters);
+    return searchScopedDrawings.filter(d => filters.every(filter => matchesStatusFilter(d, filter))).length;
+  }, [project, statusFilters, filteredDrawings, searchScopedDrawings, matchesStatusFilter]);
 
 
   // Reset pagination when filter changes
@@ -364,7 +342,7 @@ export const DrawingList: React.FC = () => {
       <div className="overflow-auto flex-1 no-print" style={{ position: 'relative' }}>
         <div style={{ minWidth: '1400px' }}>
           {/* Search and Filters - scrolls away */}
-          <div className="px-5 py-3 border-b border-slate-100 flex flex-col gap-3 bg-white">
+          <div className="px-5 py-3 border-b border-teal-100/70 flex flex-col gap-3 bg-white/80 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <div className="relative w-72">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14} />
@@ -420,7 +398,7 @@ export const DrawingList: React.FC = () => {
                       }
                     }
                   }}
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:bg-white focus:ring-4 focus:ring-teal-500/5 transition-all text-[10px] font-black uppercase tracking-tight"
+                  className="w-full pl-9 pr-3 py-2.5 bg-white/80 border border-slate-200 rounded-full outline-none focus:bg-white focus:border-teal-300 focus:ring-4 focus:ring-teal-500/10 transition-all text-[10px] font-black uppercase tracking-tight shadow-sm"
                 />
               </div>
               <div className="flex items-center gap-2">
@@ -441,11 +419,11 @@ export const DrawingList: React.FC = () => {
                     }
                   }}
                   disabled={isSyncing || !isEditMode}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm ${!isEditMode
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] transition-all active:scale-95 shadow-sm ${!isEditMode
                     ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
                     : isSyncing
-                      ? 'bg-teal-50 text-teal-400 border border-teal-200 cursor-wait'
-                      : 'bg-teal-600 text-white hover:bg-teal-700 shadow-teal-500/20'}
+                      ? 'bg-white text-teal-400 border border-teal-200 cursor-wait'
+                      : 'bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white border border-transparent shadow-[0_12px_24px_-16px_rgba(13,148,136,0.45)] hover:brightness-105'}
                     `}
                   title={!isEditMode ? "Unlock Edit Mode to Sync" : "同步项目数据到服务器"}
                 >
@@ -454,21 +432,21 @@ export const DrawingList: React.FC = () => {
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all"
+                  className="px-4 py-2.5 bg-white/85 border border-slate-200 text-slate-600 rounded-full text-[9px] font-black uppercase tracking-[0.18em] flex items-center gap-2 hover:bg-white hover:border-teal-200 hover:text-teal-700 active:scale-95 transition-all shadow-sm"
                 >
                   <Printer size={14} /> Print List
                 </button>
                 <button
                   onClick={() => isEditMode && setShowTeamSetupModal(true)}
                   disabled={!isEditMode}
-                  className={`px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${!isEditMode ? 'opacity-50 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-slate-50 active:scale-95'}`}
+                  className={`px-4 py-2.5 bg-white/85 border border-slate-200 rounded-full text-[9px] font-black uppercase tracking-[0.18em] flex items-center gap-2 transition-all shadow-sm ${!isEditMode ? 'opacity-50 cursor-not-allowed text-slate-400' : 'text-slate-500 hover:bg-white hover:border-teal-200 hover:text-teal-700 active:scale-95'}`}
                 >
                   <Layers size={14} /> Team Setup
                 </button>
                 <button
                   onClick={() => isEditMode && setShowImportModal(true)}
                   disabled={!isEditMode}
-                  className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-teal-500/10 ${!isEditMode ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'}`}
+                  className={`px-4 py-2.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] flex items-center gap-2 transition-all ${!isEditMode ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white border border-transparent shadow-[0_12px_24px_-16px_rgba(13,148,136,0.45)] hover:brightness-105 active:scale-95'}`}
                 >
                   <FileUp size={14} /> Bulk Load
                 </button>
@@ -484,7 +462,7 @@ export const DrawingList: React.FC = () => {
                       }
                     }
                   }}
-                  className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-2 transition-all ${isEditMode ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'}`}
+                  className={`px-4 py-2.5 rounded-full text-[9px] font-black uppercase tracking-[0.18em] flex items-center gap-2 transition-all border shadow-sm ${isEditMode ? 'bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-200' : 'bg-white text-[#006A63] border-teal-200 hover:bg-teal-50 hover:text-teal-700 shadow-[0_10px_24px_-16px_rgba(15,118,110,0.35)]'}`}
                 >
                   {isEditMode ? <Unlock size={14} /> : <Lock size={14} />}
                   {isEditMode ? 'Unlocked' : 'Edit'}
@@ -493,17 +471,25 @@ export const DrawingList: React.FC = () => {
             </div>
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               <FilterButton active={statusFilters.size === 0} onClick={() => setStatusFilters(new Set())} label="All Units" icon={<Layers size={12} />} color="slate" />
-              <div className="w-px h-4 bg-slate-200 mx-1" />
+              <div className="w-px h-5 bg-slate-200/90 mx-1 rounded-full" />
+
               <FilterButton active={statusFilters.has('Pending')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Pending') ? n.delete('Pending') : n.add('Pending'); return n; })} label="Pending" color="slate" count={getFilterCount('Pending')} />
+              <ProgressPill count={progressCount} />
+              <div className="w-px h-5 bg-slate-200/90 mx-1 rounded-full" />
+
               <FilterButton active={statusFilters.has('Reviewing')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Reviewing') ? n.delete('Reviewing') : n.add('Reviewing'); return n; })} label="Reviewing" color="amber" count={getFilterCount('Reviewing')} />
-              <FilterButton active={statusFilters.has('Ready')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Ready') ? n.delete('Ready') : n.add('Ready'); return n; })} label="Ready" color="emerald" count={getFilterCount('Ready')} />
               <FilterButton active={statusFilters.has('Waiting Reply')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Waiting Reply') ? n.delete('Waiting Reply') : n.add('Waiting Reply'); return n; })} label="Waiting" color="blue" count={getFilterCount('Waiting Reply')} />
               <FilterButton active={statusFilters.has('Approved')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Approved') ? n.delete('Approved') : n.add('Approved'); return n; })} label="Approved" color="emerald" count={getFilterCount('Approved')} />
+              <div className="w-px h-5 bg-slate-200/90 mx-1 rounded-full" />
+
+              <FilterButton active={statusFilters.has('Ready')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Ready') ? n.delete('Ready') : n.add('Ready'); return n; })} label="Ready" color="emerald" count={getFilterCount('Ready')} />
               <FilterButton active={statusFilters.has('Warning')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Warning') ? n.delete('Warning') : n.add('Warning'); return n; })} label="Warning" color="amber" icon={<Layers size={12} />} count={getFilterCount('Warning')} />
               <FilterButton active={statusFilters.has('Overdue')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Overdue') ? n.delete('Overdue') : n.add('Overdue'); return n; })} label="Overdue" color="red" icon={<Layers size={12} />} count={getFilterCount('Overdue')} />
-              <div className="w-px h-4 bg-slate-200 mx-1" />
+              <div className="w-px h-5 bg-slate-200/90 mx-1 rounded-full" />
+
               <FilterButton active={statusFilters.has('1W Change')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('1W Change') ? n.delete('1W Change') : n.add('1W Change'); return n; })} label="1W Change" color="purple" icon={<Clock size={12} />} count={getFilterCount('1W Change')} />
-              <div className="w-px h-4 bg-slate-200 mx-1" />
+              <div className="w-px h-5 bg-slate-200/90 mx-1 rounded-full" />
+
               <FilterButton active={statusFilters.has('Checked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Checked') ? n.delete('Checked') : n.add('Checked'); return n; })} label="Checked" color="emerald" count={getFilterCount('Checked')} />
               <FilterButton active={statusFilters.has('Unchecked')} onClick={() => setStatusFilters(prev => { const n = new Set(prev); n.has('Unchecked') ? n.delete('Unchecked') : n.add('Unchecked'); return n; })} label="Unchecked" color="slate" count={getFilterCount('Unchecked')} />
             </div>

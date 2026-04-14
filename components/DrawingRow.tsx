@@ -88,7 +88,7 @@ const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate, disabled }: { dra
                 <div className="flex -space-x-1.5 overflow-hidden flex-1">
                     {(drawing.assignees || []).length > 0 ? (
                         drawing.assignees.map(a => (
-                            <div key={a} className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-900 text-white text-[7px] font-black border-2 border-white shadow-sm" title={a}>
+                            <div key={a} className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white text-[7px] font-black border-2 border-white shadow-sm" title={a}>
                                 {a.charAt(0)}
                             </div>
                         ))

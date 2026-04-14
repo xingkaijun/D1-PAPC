@@ -226,7 +226,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#F8FAFC] text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans overflow-hidden">
+    <div className="h-screen flex flex-col bg-[radial-gradient(circle_at_top,_rgba(156,242,232,0.22),_transparent_28%),linear-gradient(180deg,#f4fbfa_0%,#f7fafc_34%,#eefaf7_100%)] text-slate-900 selection:bg-teal-100 selection:text-teal-900 font-sans overflow-hidden">
 
       <style>{`
         @media print {
@@ -239,39 +239,43 @@ const App: React.FC = () => {
 
       {/* New Project Selector Overlay (Static Prototype) */}
       {showProjectSelector && !isLoading && (
-        <div className="fixed inset-0 z-[10000] flex flex-col bg-[#F4F7F9] overflow-hidden">
+        <div className="fixed inset-0 z-[10000] flex flex-col bg-[radial-gradient(circle_at_top_left,_rgba(156,242,232,0.35),_transparent_24%),linear-gradient(180deg,#f4fbfa_0%,#f7fafc_42%,#eefaf7_100%)] overflow-hidden">
 
           {/* Top Header */}
-          <div className="bg-white/90 backdrop-blur-xl border-b border-slate-200/60 px-8 py-5 flex items-center justify-between shrink-0 shadow-sm z-10">
-            <div className="flex items-center gap-6">
-              {/* Refined Small Logo */}
-              <div className="flex items-center gap-3">
-
-                <div>
-                  <h1 className="text-xl font-[1000] text-slate-800 tracking-tight uppercase leading-none">
-                    Select <span className="text-teal-600">Project</span>
-                  </h1>
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">
-                    Workspace Selection
-                  </p>
-                </div>
+          <div className="relative overflow-hidden bg-[rgba(15,118,110,0.88)] backdrop-blur-2xl border-b border-white/10 px-8 py-5 flex items-center justify-between shrink-0 shadow-[0_24px_48px_-12px_rgba(19,27,46,0.16)] z-10">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_35%,rgba(156,242,232,0.14)_100%)] pointer-events-none" />
+            <div className="relative flex items-center gap-4">
+              <div className="bg-white/95 p-1.5 rounded-2xl shadow-lg border border-white/40">
+                <img
+                  src="https://i.postimg.cc/7LVr6n5m/PG-Logo.jpg"
+                  alt="PG SHIPMANAGEMENT PTE. LTD. Logo"
+                  className="h-10 w-auto object-contain"
+                />
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.35em] text-teal-100/80 mb-1">
+                  Project Access Hall
+                </p>
+                <h1 className="text-2xl font-[1000] text-white tracking-tight uppercase leading-none">
+                  Select <span className="text-[#9CF2E8]">Project</span>
+                </h1>
               </div>
             </div>
 
             {/* Storage Controls */}
-            <div className="flex items-center gap-4">
+            <div className="relative flex items-center gap-3">
               {/* 管理员在线指示 */}
-              <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-[1000] uppercase tracking-widest border ${adminPresence.isOnline
-                ? 'bg-green-50 text-green-600 border-green-200'
-                : 'bg-slate-50 text-slate-400 border-slate-100'
+              <span className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.22em] border ${adminPresence.isOnline
+                ? 'bg-white/14 text-white border-white/15'
+                : 'bg-black/10 text-teal-50/70 border-white/10'
                 }`}>
-                <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-[#9CF2E8] animate-pulse' : 'bg-white/40'}`} />
                 {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
               </span>
 
               <button
                 onClick={handleGlobalRefresh}
-                className="p-2.5 bg-white hover:bg-teal-50 text-slate-500 hover:text-teal-600 rounded-full border border-slate-200 shadow-sm transition-all active:scale-95"
+                className="inline-flex items-center justify-center p-2.5 rounded-full border border-white/15 bg-white/10 text-white/80 hover:bg-white hover:text-teal-700 transition-all active:scale-95 shadow-lg shadow-teal-950/10"
               >
                 <RefreshCw size={16} />
               </button>
@@ -417,118 +421,127 @@ const App: React.FC = () => {
       )}
 
       {/* Navigation Header */}
-      <header className="bg-white/80 backdrop-blur-2xl border-b border-slate-200/60 px-6 py-4 flex items-center justify-between z-[60] no-print shrink-0 shadow-sm">
-        <div className="flex items-center space-x-10">
+      <header className="relative overflow-hidden bg-[rgba(15,118,110,0.88)] backdrop-blur-2xl border-b border-white/10 px-6 py-4 flex items-center justify-between z-[60] no-print shrink-0 shadow-[0_24px_48px_-12px_rgba(19,27,46,0.16)]">
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_36%,rgba(156,242,232,0.14)_100%)] pointer-events-none" />
+        <div className="relative flex items-center gap-8 min-w-0">
           {/* Logo Section */}
-          <div className="flex items-center space-x-4 group cursor-pointer" onClick={() => setActiveTab('drawings')}>
+          <div className="flex items-center gap-4 group cursor-pointer shrink-0" onClick={() => setActiveTab('drawings')}>
             <div className="relative">
-              <div className="bg-white p-1 rounded-xl shadow-md border border-slate-100 transition-transform group-hover:scale-105 active:scale-95 overflow-hidden">
+              <div className="bg-white/95 p-1.5 rounded-2xl shadow-lg border border-white/40 transition-transform group-hover:scale-105 active:scale-95 overflow-hidden">
                 <img
                   src="https://i.postimg.cc/7LVr6n5m/PG-Logo.jpg"
                   alt="PG SHIPMANAGEMENT PTE. LTD. Logo"
                   className="h-8 w-auto object-contain"
                 />
               </div>
-              <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${adminPresence.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
-            </div >
-            <div className="flex flex-col">
-              <h1 className="text-lg font-[1000] text-slate-900 tracking-tighter leading-none uppercase">
-                PLAN APPROVAL <span className="text-teal-600">PLATFORM</span>
-              </h1>
-              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">Technical Intelligence System</span>
+              <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${adminPresence.isOnline ? 'bg-[#9CF2E8] animate-pulse' : 'bg-white/40'}`} />
             </div>
-          </div >
+            <div className="flex flex-col min-w-0">
+              <h1 className="text-lg font-[1000] text-white tracking-tighter leading-none uppercase whitespace-nowrap">
+                PLAN APPROVAL <span className="text-[#9CF2E8]">PLATFORM</span>
+              </h1>
+              <span className="text-[8px] font-black text-teal-100/75 uppercase tracking-[0.35em] mt-1">Technical Intelligence System</span>
+            </div>
+          </div>
 
           {/* Main Navigation Tabs */}
-          < nav className="hidden md:flex items-center gap-1 bg-slate-100/50 backdrop-blur-sm p-1.5 rounded-full border border-slate-200/50" >
+          <nav className="hidden md:flex items-center gap-1.5 bg-black/15 backdrop-blur-sm p-1.5 rounded-full border border-white/10 shadow-inner shadow-black/10 min-w-0">
             <button
               onClick={() => setActiveTab('drawings')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
             >
-              <FileStack size={14} strokeWidth={2.5} className={activeTab === 'drawings' ? 'text-teal-500' : 'text-slate-400'} />
+              <FileStack size={14} strokeWidth={2.5} className={activeTab === 'drawings' ? 'text-teal-600' : 'text-teal-50/75'} />
               <span>Inventory</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('reports')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Intelligence Dashboard"}
             >
-              {!isEditMode ? <Lock size={14} /> : <LayoutDashboard size={14} strokeWidth={2.5} className={activeTab === 'reports' ? 'text-teal-500' : 'text-slate-400'} />}
+              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <LayoutDashboard size={14} strokeWidth={2.5} className={activeTab === 'reports' ? 'text-teal-600' : 'text-teal-50/75'} />}
               <span>Intelligence</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('activity')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'activity' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'activity' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Activity Report"}
             >
-              {!isEditMode ? <Lock size={14} /> : <TrendingUp size={14} strokeWidth={2.5} className={activeTab === 'activity' ? 'text-teal-500' : 'text-slate-400'} />}
+              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <TrendingUp size={14} strokeWidth={2.5} className={activeTab === 'activity' ? 'text-teal-600' : 'text-teal-50/75'} />}
               <span>Activity</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('dailylog')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'dailylog' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'dailylog' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Daily Change Log"}
             >
-              {!isEditMode ? <Lock size={14} /> : <Calendar size={14} strokeWidth={2.5} className={activeTab === 'dailylog' ? 'text-teal-500' : 'text-slate-400'} />}
+              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <Calendar size={14} strokeWidth={2.5} className={activeTab === 'dailylog' ? 'text-teal-600' : 'text-teal-50/75'} />}
               <span>Log</span>
             </button>
             <button
               onClick={() => setActiveTab('tracker')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'tracker' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'tracker' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
             >
-              <ClipboardCheck size={14} strokeWidth={2.5} className={activeTab === 'tracker' ? 'text-teal-500' : 'text-slate-400'} />
+              <ClipboardCheck size={14} strokeWidth={2.5} className={activeTab === 'tracker' ? 'text-teal-600' : 'text-teal-50/75'} />
               <span>Tracker</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('settings')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : !isEditMode ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Configuration"}
             >
-              {!isEditMode ? <Lock size={14} /> : <SettingsIcon size={14} strokeWidth={2.5} className={activeTab === 'settings' ? 'text-teal-500' : 'text-slate-400'} />}
+              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <SettingsIcon size={14} strokeWidth={2.5} className={activeTab === 'settings' ? 'text-teal-600' : 'text-teal-50/75'} />}
               <span>Config</span>
             </button>
             <button
               onClick={() => setActiveTab('manual')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-wider transition-all duration-300 ${activeTab === 'manual' ? 'bg-white text-teal-700 shadow-sm ring-1 ring-slate-200/60' : 'text-slate-400 hover:text-slate-600 hover:bg-white/40'}`}
+              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'manual' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
             >
-              <BookOpen size={14} strokeWidth={2.5} className={activeTab === 'manual' ? 'text-teal-500' : 'text-slate-400'} />
+              <BookOpen size={14} strokeWidth={2.5} className={activeTab === 'manual' ? 'text-teal-600' : 'text-teal-50/75'} />
               <span>Guide</span>
             </button>
-          </nav >
-        </div >
+          </nav>
+        </div>
 
-        <div className="flex items-center space-x-4">
-          <div className="h-8 w-px bg-slate-200/80 mx-1"></div>
+        <div className="relative flex items-center gap-3 shrink-0">
+          <span className={`hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[9px] font-[1000] uppercase tracking-[0.22em] border ${adminPresence.isOnline
+            ? 'bg-white/14 text-white border-white/15'
+            : 'bg-black/10 text-teal-50/70 border-white/10'
+            }`}>
+            <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-[#9CF2E8] animate-pulse' : 'bg-white/40'}`} />
+            {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
+          </span>
 
           <div className="relative group">
             <button
               onClick={() => setShowProjectSelector(true)}
-              className="flex items-center space-x-4 pl-4 pr-3 py-2 bg-slate-900 rounded-2xl hover:bg-black transition-all shadow-xl shadow-slate-900/10 active:scale-[0.98]"
+              className="flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-full border border-white/15 bg-white/10 hover:bg-white/15 text-white shadow-lg shadow-teal-950/10 transition-all active:scale-[0.98]"
             >
-              <div className="text-left min-w-[120px]">
-                <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1 flex items-center gap-1.5">
-                  {<Cloud size={10} className="text-emerald-400" />}
+              <div className="w-8 h-8 rounded-full bg-white/12 border border-white/15 flex items-center justify-center">
+                <Cloud size={15} className="text-[#9CF2E8]" />
+              </div>
+              <div className="text-left min-w-[145px]">
+                <div className="text-[8px] font-black text-teal-100/70 uppercase tracking-[0.25em] leading-none mb-1">
                   Cloud Registry
                 </div>
-                <div className="text-[12px] font-[1000] text-white truncate max-w-[140px] tracking-tight">{currentProject?.name || 'SELECT SHIP'}</div>
+                <div className="text-[12px] font-[1000] text-white truncate max-w-[160px] tracking-tight uppercase">{currentProject?.name || 'Select Ship'}</div>
               </div>
-              <ChevronDown size={14} className="text-slate-500" />
+              <ChevronDown size={14} className="text-teal-100/70" />
             </button>
             {/* Dropdown Removed as requested */}
           </div>
         </div>
-      </header >
+      </header>
 
       {/* Main Container */}
-      < main className="flex-1 flex flex-col overflow-auto px-6 py-4" >
+      <main className="flex-1 flex flex-col overflow-auto px-6 py-4">
         <div className="max-w-[1800px] mx-auto w-full flex-1 flex flex-col gap-4">
           {activeTab === 'drawings' && <CommandBar />}
 
-          <div className="flex-1 bg-white rounded-[2rem] border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden flex flex-col">
+          <div className="flex-1 bg-white/92 backdrop-blur-xl rounded-[2rem] border border-white/70 shadow-[0_24px_80px_-28px_rgba(15,118,110,0.28)] overflow-hidden flex flex-col">
             {activeTab === 'drawings' && <DrawingList />}
             {activeTab === 'reports' && (
               <ErrorBoundary>

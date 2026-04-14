@@ -19,6 +19,9 @@ export const ReviewTracker: React.FC = () => {
     } = useStore();
 
     const currentProject = data.projects.find(p => p.id === activeProjectId);
+    const primaryActionClass = 'flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.18em] border shadow-sm transition-all active:scale-95';
+    const softActionClass = 'flex items-center gap-2 px-4.5 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.18em] border transition-all active:scale-95 shadow-sm';
+    const statPillClass = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border bg-white/75 backdrop-blur text-[10px] font-[1000] uppercase tracking-[0.18em]';
 
     const [filterText, setFilterText] = useState('');
     const [showReady, setShowReady] = useState(true);
@@ -163,20 +166,20 @@ export const ReviewTracker: React.FC = () => {
         return (
             <div
                 key={drawing.id}
-                className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all ${isOverdue
-                    ? 'bg-red-50/60 border-red-300'
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-[1.25rem] border transition-all shadow-sm ${isOverdue
+                    ? 'bg-[linear-gradient(135deg,rgba(254,242,242,0.95),rgba(255,255,255,0.98))] border-red-200'
                     : allDone
-                        ? 'bg-emerald-50/60 border-emerald-200'
-                        : 'bg-white border-slate-200 hover:border-slate-300'
+                        ? 'bg-[linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.98))] border-emerald-200'
+                        : 'bg-white/90 border-slate-200 hover:border-teal-200'
                     }`}
             >
                 {/* 图纸号 + discipline */}
                 <div className="flex items-center gap-2 shrink-0 min-w-[160px]">
-                    <span className="text-xs font-[1000] text-teal-600 uppercase tracking-wider">
+                    <span className="text-xs font-[1000] text-teal-600 uppercase tracking-[0.18em]">
                         {drawing.customId}
                     </span>
                     {drawing.discipline && (
-                        <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-white/80 bg-white/80 text-[9px] font-black text-slate-500 uppercase tracking-[0.16em] shadow-sm">
                             {drawing.discipline}
                         </span>
                     )}
@@ -200,20 +203,20 @@ export const ReviewTracker: React.FC = () => {
                                 <button
                                     key={assignee}
                                     onClick={() => toggleAssigneeDone(drawing.id, assignee)}
-                                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all active:scale-95 border ${isDone
-                                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-150'
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold transition-all active:scale-95 border shadow-sm ${isDone
+                                        ? 'bg-emerald-100/90 text-emerald-700 border-emerald-200 hover:bg-emerald-50'
                                         : isOverdue
-                                            ? 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200 shadow-sm shadow-red-500/10'
-                                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                                            ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 shadow-red-500/10'
+                                            : 'bg-white/85 text-slate-600 border-white/80 hover:bg-white hover:border-teal-200 hover:text-teal-700'
                                         }`}
                                     title={isDone ? `${assignee}: 已完成 (点击取消)` : `${assignee}: 点击标记完成`}
                                 >
                                     {isDone ? (
                                         <CheckCircle2 size={12} className="text-emerald-500" />
                                     ) : (
-                                        <Circle size={12} className={isOverdue ? "text-red-400" : "text-slate-300"} />
+                                        <Circle size={12} className={isOverdue ? 'text-red-400' : 'text-slate-300'} />
                                     )}
-                                    <span className="uppercase tracking-wider">{assignee}</span>
+                                    <span className="uppercase tracking-[0.16em]">{assignee}</span>
                                 </button>
                             );
                         })
@@ -221,11 +224,11 @@ export const ReviewTracker: React.FC = () => {
                 </div>
 
                 {/* 进度标签 */}
-                <div className={`text-[9px] font-[1000] uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${allDone
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                    : 'bg-slate-50 text-slate-500 border-slate-200'
+                <div className={`text-[9px] font-[1000] uppercase tracking-[0.18em] px-3 py-1.5 rounded-full border shrink-0 shadow-sm ${allDone
+                    ? 'bg-emerald-100/90 text-emerald-700 border-emerald-200'
+                    : 'bg-white/85 text-slate-500 border-white/80'
                     }`}>
-                    {allDone ? '✅ READY' : `${doneCount}/${assignees.length}`}
+                    {allDone ? 'Ready' : `${doneCount}/${assignees.length}`}
                 </div>
 
                 {/* Approved 标记 (仅 Ready 图纸显示) */}
@@ -233,14 +236,14 @@ export const ReviewTracker: React.FC = () => {
                     <button
                         onClick={() => toggleApproved(drawing.id)}
                         disabled={!isEditMode}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-[1000] uppercase tracking-wider border transition-all shrink-0 ${isApproved
-                            ? 'bg-violet-100 text-violet-700 border-violet-300 shadow-sm'
-                            : 'bg-white text-slate-400 border-slate-200 hover:border-violet-300 hover:text-violet-500'
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-[1000] uppercase tracking-[0.18em] border transition-all shrink-0 shadow-sm ${isApproved
+                            ? 'bg-violet-100/90 text-violet-700 border-violet-200'
+                            : 'bg-white/85 text-slate-400 border-white/80 hover:border-violet-200 hover:text-violet-500'
                             } ${!isEditMode ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}
                         title={isApproved ? '已标记 Approved（点击取消）' : '标记为 Approved（一键发送时生效）'}
                     >
                         <Award size={11} />
-                        {isApproved ? 'APR' : 'APR'}
+                        APR
                     </button>
                 )}
             </div>
@@ -250,32 +253,37 @@ export const ReviewTracker: React.FC = () => {
     return (
         <div className="flex-1 flex flex-col overflow-hidden">
             {/* 顶部概览 */}
-            <div className="px-6 py-3 border-b border-slate-200/60 bg-slate-50/50 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                        <ClipboardCheck size={18} className="text-teal-600" />
-                        <h2 className="text-sm font-[1000] uppercase tracking-wider text-slate-800">
-                            Review Tracker
-                        </h2>
+            <div className="px-6 py-4 border-b border-teal-100/70 bg-[linear-gradient(135deg,rgba(15,118,110,0.14),rgba(236,253,245,0.96))] flex items-center justify-between gap-4 shrink-0">
+                <div className="flex items-center gap-4 flex-wrap">
+                    <div className="flex items-center gap-3 pr-1">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/70 bg-white/75 shadow-sm backdrop-blur">
+                            <ClipboardCheck size={18} className="text-teal-600" />
+                        </div>
+                        <div>
+                            <div className="text-[9px] font-black uppercase tracking-[0.22em] text-teal-600/80">Review Console</div>
+                            <h2 className="text-sm font-[1000] uppercase tracking-[0.18em] text-slate-800">
+                                Review Tracker
+                            </h2>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-3 text-[10px] font-[1000] uppercase tracking-widest">
-                        <span className="bg-amber-50 text-amber-600 px-3 py-1 rounded-full border border-amber-100">
-                            Reviewing: {stats.totalDrawings}
+                    <div className="flex items-center gap-2.5 text-[10px] font-[1000] uppercase tracking-widest flex-wrap">
+                        <span className={`${statPillClass} border-amber-100 text-amber-700 shadow-[0_10px_24px_-18px_rgba(245,158,11,0.45)]`}>
+                            Reviewing · {stats.totalDrawings}
                         </span>
-                        <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full border border-emerald-100">
-                            Ready: {stats.allDoneCount}
+                        <span className={`${statPillClass} border-emerald-100 text-emerald-700 shadow-[0_10px_24px_-18px_rgba(16,185,129,0.45)]`}>
+                            Ready · {stats.allDoneCount}
                         </span>
                         {/* 管理员在线指示 */}
-                        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${adminPresence.isOnline
-                            ? 'bg-green-50 text-green-600 border-green-100'
-                            : 'bg-slate-50 text-slate-400 border-slate-100'
+                        <span className={`${statPillClass} ${adminPresence.isOnline
+                            ? 'border-green-100 text-green-700 shadow-[0_10px_24px_-18px_rgba(34,197,94,0.4)]'
+                            : 'border-slate-200 text-slate-400'
                             }`}>
                             <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
                             {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
                     {/* 同步按钮 */}
                     <button
                         onClick={async () => {
@@ -286,11 +294,11 @@ export const ReviewTracker: React.FC = () => {
                             await handleSync();
                         }}
                         disabled={isSyncing || !isEditMode}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-[1000] uppercase tracking-wider border shadow-sm transition-all active:scale-95 ${!isEditMode
+                        className={`${primaryActionClass} ${!isEditMode
                             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
                             : isSyncing
-                                ? 'bg-teal-50 text-teal-400 border-teal-200 cursor-wait'
-                                : 'bg-teal-600 text-white border-teal-600 hover:bg-teal-700 shadow-teal-500/20'
+                                ? 'bg-white text-teal-400 border-teal-200 cursor-wait'
+                                : 'bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white border-transparent shadow-[0_12px_24px_-16px_rgba(13,148,136,0.45)] hover:brightness-105'
                             }`}
                         title={!isEditMode ? "Unlock Edit Mode to Sync" : "同步项目数据到服务器"}
                     >
@@ -300,10 +308,11 @@ export const ReviewTracker: React.FC = () => {
                     {/* 刷新按钮 */}
                     <button
                         onClick={handleRefresh}
-                        className="p-2.5 bg-white hover:bg-teal-50 text-slate-400 hover:text-teal-600 rounded-xl border border-slate-200 shadow-sm transition-all active:scale-95"
+                        className={`${softActionClass} bg-white/80 text-teal-700 border-white/80 hover:bg-white hover:border-teal-200 hover:text-teal-800`}
                         title="从服务器刷新追踪数据"
                     >
                         <RefreshCw size={14} />
+                        Refresh
                     </button>
                     {/* 编辑锁定按钮 */}
                     <button
@@ -318,9 +327,9 @@ export const ReviewTracker: React.FC = () => {
                                 }
                             }
                         }}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-[1000] uppercase tracking-wider transition-all active:scale-95 ${isEditMode
-                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200'
-                            : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-900/20'
+                        className={`${softActionClass} ${isEditMode
+                            ? 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50 shadow-[0_10px_24px_-18px_rgba(245,158,11,0.4)]'
+                            : 'bg-[linear-gradient(135deg,#0f766e_0%,#115e59_100%)] text-white border-transparent hover:brightness-105 shadow-[0_12px_24px_-18px_rgba(15,118,110,0.45)]'
                             }`}
                     >
                         {isEditMode ? <Unlock size={14} /> : <Lock size={14} />}
@@ -330,27 +339,27 @@ export const ReviewTracker: React.FC = () => {
             </div>
 
             {/* 筛选输入框 */}
-            <div className="px-6 py-2 border-b border-slate-100 shrink-0 flex items-center gap-3">
+            <div className="px-6 py-3 border-b border-slate-100 shrink-0 flex items-center gap-3 bg-white/60 backdrop-blur-sm">
                 <div className="relative flex-1">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+                    <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
                     <input
                         type="text"
                         value={filterText}
                         onChange={e => setFilterText(e.target.value)}
                         placeholder="Filter by drawing no, title, discipline, or assignee..."
-                        className="w-full pl-9 pr-4 py-2 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all placeholder:text-slate-300 placeholder:font-bold placeholder:uppercase placeholder:tracking-wider"
+                        className="w-full pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 bg-white/85 border border-slate-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300 transition-all placeholder:text-slate-300 placeholder:font-bold placeholder:uppercase placeholder:tracking-wider"
                     />
                 </div>
                 <button
                     onClick={() => setShowUrgeOnly(!showUrgeOnly)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-[1000] uppercase tracking-wider transition-all border shrink-0 ${showUrgeOnly
-                        ? 'bg-red-500 text-white border-red-600 shadow-md shadow-red-500/20'
-                        : 'bg-white text-slate-500 border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                    className={`${softActionClass} shrink-0 ${showUrgeOnly
+                        ? 'bg-[linear-gradient(135deg,#dc2626_0%,#f97316_100%)] text-white border-transparent shadow-[0_12px_24px_-18px_rgba(239,68,68,0.45)]'
+                        : 'bg-white text-rose-600 border-rose-100 hover:bg-rose-50 hover:border-rose-200'
                         }`}
                     title="仅显示超期且仍有责任人未完成审查的图纸"
                 >
                     <Flame size={14} className={showUrgeOnly ? 'animate-pulse' : ''} />
-                    {showUrgeOnly ? 'Urge List Active' : 'Urge List'}
+                    {showUrgeOnly ? 'Urge Active' : 'Urge List'}
                 </button>
             </div>
 
@@ -369,10 +378,10 @@ export const ReviewTracker: React.FC = () => {
                         {/* Ready 图纸模块 */}
                         {readyDrawings.length > 0 && (
                             <div className="mb-2">
-                                <div className="flex items-center gap-3 mb-2">
+                                <div className="flex items-center gap-3 mb-2 flex-wrap">
                                     <button
                                         onClick={() => setShowReady(!showReady)}
-                                        className="flex items-center gap-2 text-[10px] font-[1000] uppercase tracking-widest text-emerald-600 hover:text-emerald-700 transition-colors"
+                                        className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-emerald-100 bg-emerald-50/80 text-[10px] font-[1000] uppercase tracking-[0.18em] text-emerald-700 transition-all hover:bg-white hover:border-emerald-200 shadow-sm"
                                     >
                                         {showReady ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                         <span>Ready Drawings ({readyDrawings.length})</span>
@@ -381,7 +390,7 @@ export const ReviewTracker: React.FC = () => {
                                     {isEditMode && (
                                         <button
                                             onClick={handleSendReady}
-                                            className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 text-white rounded-lg text-[10px] font-[1000] uppercase tracking-wider hover:bg-emerald-700 shadow-md shadow-emerald-500/20 transition-all active:scale-95"
+                                            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[linear-gradient(135deg,#059669_0%,#10b981_100%)] text-white text-[10px] font-[1000] uppercase tracking-[0.18em] border border-transparent hover:brightness-105 shadow-[0_12px_24px_-18px_rgba(16,185,129,0.45)] transition-all active:scale-95"
                                             title="将 Ready 图纸状态更新为 Waiting Reply（或 Approved，如标记了 APR）"
                                         >
                                             <Send size={12} />
@@ -402,7 +411,7 @@ export const ReviewTracker: React.FC = () => {
                             <div>
                                 {readyDrawings.length > 0 && (
                                     <div className="flex items-center gap-2 mb-2 text-[10px] font-[1000] uppercase tracking-widest text-slate-400">
-                                        <span>In Progress ({pendingDrawings.length})</span>
+                                        <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm tracking-[0.18em]">In Progress ({pendingDrawings.length})</span>
                                     </div>
                                 )}
                                 <div className="grid grid-cols-2 gap-2">

@@ -175,7 +175,7 @@ export const Settings: React.FC = () => {
                   <button
                     onClick={handleExecutePush}
                     disabled={isLoading || !project}
-                    className="p-3 bg-teal-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-teal-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-teal-500/10"
+                    className="p-3 bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white rounded-full text-[9px] font-black uppercase tracking-[0.18em] hover:brightness-105 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_12px_24px_-16px_rgba(13,148,136,0.45)] border border-transparent"
                   >
                     <Send size={12} /> Save to Cloud 云端保存
                   </button>
@@ -192,7 +192,7 @@ export const Settings: React.FC = () => {
                       }
                     }}
                     disabled={isLoading || !project}
-                    className="p-3 bg-cyan-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-md shadow-cyan-500/10"
+                    className="p-3 bg-white text-cyan-700 rounded-full text-[9px] font-black uppercase tracking-[0.18em] hover:bg-cyan-50 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm border border-cyan-100"
                   >
                     <Download size={12} /> Cloud Fetch 云端拉取
                   </button>
@@ -217,13 +217,13 @@ export const Settings: React.FC = () => {
                   <button
                     onClick={handleLocalBackup}
                     disabled={!project}
-                    className="p-3 bg-white border border-slate-900 text-slate-900 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="p-3 bg-white border border-teal-100 text-teal-700 rounded-full text-[9px] font-black uppercase tracking-[0.18em] hover:bg-teal-50 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-sm"
                   >
                     <Save size={12} /> Local Backup
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="p-3 bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white rounded-full text-[9px] font-black uppercase tracking-[0.18em] hover:brightness-105 transition-all active:scale-95 flex items-center justify-center gap-2 border border-transparent shadow-[0_12px_24px_-16px_rgba(13,148,136,0.45)]"
                   >
                     <Upload size={12} /> Local Restore
                   </button>
@@ -254,7 +254,7 @@ export const Settings: React.FC = () => {
                   placeholder="New Reviewer Name"
                   className="flex-1 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-black outline-none focus:bg-white transition-all uppercase"
                 />
-                <button onClick={() => addItem('reviewers', newReviewer, setNewReviewer)} className="p-1.5 bg-slate-900 text-white rounded-lg hover:bg-black active:scale-95 transition-all"><Plus size={14} /></button>
+                <button onClick={() => addItem('reviewers', newReviewer, setNewReviewer)} className="p-2 bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white rounded-full hover:brightness-105 active:scale-95 transition-all shadow-[0_10px_20px_-14px_rgba(13,148,136,0.45)]"><Plus size={14} /></button>
               </div>
               <div className="grid grid-cols-1 gap-1 overflow-y-auto pr-1 scrollbar-thin flex-1">
                 {(activeSettings.reviewers || []).map(r => {
@@ -356,7 +356,7 @@ export const Settings: React.FC = () => {
                   type="date" value={newHoliday} onChange={(e) => setNewHoliday(e.target.value)}
                   className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black outline-none focus:bg-white transition-all uppercase"
                 />
-                <button onClick={() => addItem('holidays', newHoliday, setNewHoliday)} className="p-2 bg-slate-900 text-white rounded-xl hover:bg-black active:scale-95 transition-all"><Plus size={16} /></button>
+                <button onClick={() => addItem('holidays', newHoliday, setNewHoliday)} className="p-2 bg-[linear-gradient(135deg,#005c55_0%,#0f766e_100%)] text-white rounded-full hover:brightness-105 active:scale-95 transition-all shadow-[0_10px_20px_-14px_rgba(13,148,136,0.45)]"><Plus size={16} /></button>
               </div>
               <div className="grid grid-cols-1 gap-1.5 overflow-y-auto pr-1 scrollbar-thin flex-1">
                 {(activeSettings.holidays || []).sort().map(h => (
