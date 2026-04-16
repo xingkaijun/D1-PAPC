@@ -446,65 +446,65 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="absolute inset-y-0 left-1/2 hidden -translate-x-1/2 md:flex items-center justify-center pointer-events-none px-6 z-[1]">
+        <div className="hidden md:flex flex-1 min-w-0 items-center justify-center px-4 z-[1]">
           {/* Main Navigation Tabs */}
-          <nav className="pointer-events-auto flex items-center gap-1.5 bg-black/15 backdrop-blur-sm p-1.5 rounded-full border border-white/10 shadow-inner shadow-black/10 min-w-0">
+          <nav className="flex items-center gap-1 bg-black/15 backdrop-blur-sm p-1 rounded-full border border-white/10 shadow-inner shadow-black/10 min-w-0">
             <button
               onClick={() => setActiveTab('drawings')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'drawings' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] transition-all duration-300 shrink-0 ${activeTab === 'drawings' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
             >
-              <FileStack size={14} strokeWidth={2.5} className={activeTab === 'drawings' ? 'text-teal-600' : 'text-teal-50/75'} />
-              <span>Inventory</span>
+              <FileStack size={14} strokeWidth={2.5} className={`shrink-0 ${activeTab === 'drawings' ? 'text-teal-600' : 'text-teal-50/75'}`} />
+              <span className="hidden xl:inline">Inventory</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('reports')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'reports' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] transition-all duration-300 shrink-0 ${activeTab === 'reports' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Intelligence Dashboard"}
             >
-              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <LayoutDashboard size={14} strokeWidth={2.5} className={activeTab === 'reports' ? 'text-teal-600' : 'text-teal-50/75'} />}
-              <span>Intelligence</span>
+              {!isEditMode ? <Lock size={14} className="text-white/40 shrink-0" /> : <LayoutDashboard size={14} strokeWidth={2.5} className={`shrink-0 ${activeTab === 'reports' ? 'text-teal-600' : 'text-teal-50/75'}`} />}
+              <span className="hidden xl:inline">Intelligence</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('activity')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'activity' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] transition-all duration-300 shrink-0 ${activeTab === 'activity' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Activity Report"}
             >
-              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <TrendingUp size={14} strokeWidth={2.5} className={activeTab === 'activity' ? 'text-teal-600' : 'text-teal-50/75'} />}
-              <span>Activity</span>
+              {!isEditMode ? <Lock size={14} className="text-white/40 shrink-0" /> : <TrendingUp size={14} strokeWidth={2.5} className={`shrink-0 ${activeTab === 'activity' ? 'text-teal-600' : 'text-teal-50/75'}`} />}
+              <span className="hidden xl:inline">Activity</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('dailylog')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'dailylog' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] transition-all duration-300 shrink-0 ${activeTab === 'dailylog' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Daily Change Log"}
             >
-              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <Calendar size={14} strokeWidth={2.5} className={activeTab === 'dailylog' ? 'text-teal-600' : 'text-teal-50/75'} />}
-              <span>Log</span>
+              {!isEditMode ? <Lock size={14} className="text-white/40 shrink-0" /> : <Calendar size={14} strokeWidth={2.5} className={`shrink-0 ${activeTab === 'dailylog' ? 'text-teal-600' : 'text-teal-50/75'}`} />}
+              <span className="hidden xl:inline">Log</span>
             </button>
             <button
               onClick={() => setActiveTab('tracker')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'tracker' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] transition-all duration-300 shrink-0 ${activeTab === 'tracker' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
             >
-              <ClipboardCheck size={14} strokeWidth={2.5} className={activeTab === 'tracker' ? 'text-teal-600' : 'text-teal-50/75'} />
-              <span>Tracker</span>
+              <ClipboardCheck size={14} strokeWidth={2.5} className={`shrink-0 ${activeTab === 'tracker' ? 'text-teal-600' : 'text-teal-50/75'}`} />
+              <span className="hidden xl:inline">Tracker</span>
             </button>
             <button
               onClick={() => isEditMode && setActiveTab('settings')}
               disabled={!isEditMode}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] transition-all duration-300 shrink-0 ${activeTab === 'settings' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : !isEditMode ? 'text-white/35 cursor-not-allowed opacity-70' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
               title={!isEditMode ? "Unlock Edit Mode to Access" : "Configuration"}
             >
-              {!isEditMode ? <Lock size={14} className="text-white/40" /> : <SettingsIcon size={14} strokeWidth={2.5} className={activeTab === 'settings' ? 'text-teal-600' : 'text-teal-50/75'} />}
-              <span>Config</span>
+              {!isEditMode ? <Lock size={14} className="text-white/40 shrink-0" /> : <SettingsIcon size={14} strokeWidth={2.5} className={`shrink-0 ${activeTab === 'settings' ? 'text-teal-600' : 'text-teal-50/75'}`} />}
+              <span className="hidden xl:inline">Config</span>
             </button>
             <button
               onClick={() => setActiveTab('manual')}
-              className={`flex items-center space-x-2 px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.2em] transition-all duration-300 ${activeTab === 'manual' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] transition-all duration-300 shrink-0 ${activeTab === 'manual' ? 'bg-white text-teal-700 shadow-lg shadow-black/10' : 'text-teal-50/75 hover:text-white hover:bg-white/10'}`}
             >
-              <BookOpen size={14} strokeWidth={2.5} className={activeTab === 'manual' ? 'text-teal-600' : 'text-teal-50/75'} />
-              <span>Guide</span>
+              <BookOpen size={14} strokeWidth={2.5} className={`shrink-0 ${activeTab === 'manual' ? 'text-teal-600' : 'text-teal-50/75'}`} />
+              <span className="hidden xl:inline">Guide</span>
             </button>
           </nav>
         </div>
