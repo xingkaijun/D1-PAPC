@@ -4,6 +4,8 @@ import { useStore } from '../store';
 import { RefreshCw, CheckCircle2, Circle, ClipboardCheck, Search, ChevronDown, ChevronRight, Cloud, Lock, Unlock, Send, Award, Flame } from 'lucide-react';
 import { isAfter } from 'date-fns';
 
+const REVIEW_TRACKER_LAYOUT_STORAGE_KEY = 'review-tracker-layout-single-column';
+
 export const ReviewTracker: React.FC = () => {
     const {
         data,
@@ -27,6 +29,11 @@ export const ReviewTracker: React.FC = () => {
     const [showReady, setShowReady] = useState(true);
     const [showUrgeOnly, setShowUrgeOnly] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isSingleColumn, setIsSingleColumn] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.localStorage.getItem(REVIEW_TRACKER_LAYOUT_STORAGE_KEY) === 'true';
+    });
+    const drawingGridClass = isSingleColumn ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-1 lg:grid-cols-2 gap-2';
     // approved 标记：通过 reviewTracker 持久化（使用特殊 key '__approved__'）
     const isApprovedMark = (drawingId: string) => reviewTracker[drawingId]?.['__approved__']?.done ?? false;
 
@@ -36,6 +43,11 @@ export const ReviewTracker: React.FC = () => {
             loadReviewTracker(activeProjectId);
         }
     }, [activeProjectId]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem(REVIEW_TRACKER_LAYOUT_STORAGE_KEY, String(isSingleColumn));
+    }, [isSingleColumn]);
 
     // 只显示 Reviewing 状态的图纸
     const reviewingDrawings = useMemo(() => {
@@ -351,6 +363,16 @@ export const ReviewTracker: React.FC = () => {
                     />
                 </div>
                 <button
+                    onClick={() => setIsSingleColumn(prev => !prev)}
+                    className={`${softActionClass} shrink-0 ${isSingleColumn
+                        ? 'bg-[linear-gradient(135deg,#0f766e_0%,#115e59_100%)] text-white border-transparent shadow-[0_12px_24px_-18px_rgba(15,118,110,0.45)]'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-teal-200 hover:text-teal-700'
+                        }`}
+                    title={isSingleColumn ? 'Switch to two-column layout' : 'Switch to single-column layout'}
+                >
+                    {isSingleColumn ? 'To 2 Columns' : 'To 1 Column'}
+                </button>
+                <button
                     onClick={() => setShowUrgeOnly(!showUrgeOnly)}
                     className={`${softActionClass} shrink-0 ${showUrgeOnly
                         ? 'bg-[linear-gradient(135deg,#dc2626_0%,#f97316_100%)] text-white border-transparent shadow-[0_12px_24px_-18px_rgba(239,68,68,0.45)]'
@@ -399,7 +421,7 @@ export const ReviewTracker: React.FC = () => {
                                     )}
                                 </div>
                                 {showReady && (
-                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                    <div className={`${drawingGridClass} mb-3`}>
                                         {readyDrawings.map(d => renderDrawingRow(d, true))}
                                     </div>
                                 )}
@@ -414,7 +436,7 @@ export const ReviewTracker: React.FC = () => {
                                         <span className="inline-flex items-center px-3 py-1.5 rounded-full border border-slate-200 bg-white/80 text-slate-500 shadow-sm tracking-[0.18em]">In Progress ({pendingDrawings.length})</span>
                                     </div>
                                 )}
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className={drawingGridClass}>
                                     {pendingDrawings.map(d => renderDrawingRow(d, false))}
                                 </div>
                             </div>
