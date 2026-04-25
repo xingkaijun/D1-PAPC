@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { RefreshCw, CheckCircle2, Circle, ClipboardCheck, Search, ChevronDown, ChevronRight, Cloud, Lock, Unlock, Send, Award, Flame } from 'lucide-react';
-import { isAfter } from 'date-fns';
+import { differenceInCalendarDays, format, isAfter } from 'date-fns';
 
 const REVIEW_TRACKER_LAYOUT_STORAGE_KEY = 'review-tracker-layout-single-column';
 
@@ -34,6 +34,7 @@ export const ReviewTracker: React.FC = () => {
         return window.localStorage.getItem(REVIEW_TRACKER_LAYOUT_STORAGE_KEY) === 'true';
     });
     const drawingGridClass = isSingleColumn ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-1 lg:grid-cols-2 gap-2';
+    const getDeadlineDays = (deadline?: string) => deadline ? differenceInCalendarDays(new Date(deadline), new Date()) : null;
     // approved 标记：通过 reviewTracker 持久化（使用特殊 key '__approved__'）
     const isApprovedMark = (drawingId: string) => reviewTracker[drawingId]?.['__approved__']?.done ?? false;
 
@@ -174,6 +175,7 @@ export const ReviewTracker: React.FC = () => {
         const allDone = assignees.length > 0 && doneCount === assignees.length;
         const isApproved = isApprovedMark(drawing.id);
         const isOverdue = drawing.reviewDeadline && isAfter(new Date(), new Date(drawing.reviewDeadline));
+        const deadlineDays = getDeadlineDays(drawing.reviewDeadline);
 
         return (
             <div
@@ -201,6 +203,27 @@ export const ReviewTracker: React.FC = () => {
                 <span className="text-[11px] font-bold text-slate-500 truncate flex-1 min-w-0">
                     {drawing.title}
                 </span>
+
+                <div className="shrink-0">
+                    {drawing.reviewDeadline ? (
+                        <div
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[9px] font-[1000] uppercase tracking-[0.14em] ${
+                                deadlineDays !== null && deadlineDays < 0
+                                    ? 'bg-red-50 text-red-700 border-red-200'
+                                    : deadlineDays !== null && deadlineDays <= 3
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : 'bg-white/90 text-slate-500 border-slate-200'
+                            }`}
+                            title={`Deadline ${format(new Date(drawing.reviewDeadline), 'yyyy-MM-dd')}`}
+                        >
+                            <span>{deadlineDays}d</span>
+                        </div>
+                    ) : (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 bg-white/80 text-[9px] font-[1000] uppercase tracking-[0.14em] text-slate-300">
+                            --
+                        </span>
+                    )}
+                </div>
 
                 {/* Assignee 按钮 */}
                 <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">

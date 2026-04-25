@@ -8,6 +8,11 @@ import { Search, FileUp, Layers, FilterX, Printer, ChevronLeft, ChevronRight as 
 import { isAfter, differenceInCalendarDays, differenceInDays } from 'date-fns';
 import { DrawingRow } from './DrawingRow';
 
+const getReviewDeadlineDays = (drawing: Drawing) => {
+  if (!drawing.reviewDeadline) return Number.POSITIVE_INFINITY;
+  return differenceInCalendarDays(new Date(drawing.reviewDeadline), new Date());
+};
+
 // Reusable Button Component for Filter
 const FilterButton = ({ active, onClick, label, icon, color, count }: { active: boolean, onClick: () => void, label: string, icon?: React.ReactNode, color: string, count?: number }) => {
   const colorMap: Record<string, { active: string; inactive: string }> = {
@@ -158,6 +163,7 @@ export const DrawingList: React.FC = () => {
   const [showTeamSetupModal, setShowTeamSetupModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [daysSortDirection, setDaysSortDirection] = useState<'none' | 'asc' | 'desc'>('none');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -257,10 +263,23 @@ export const DrawingList: React.FC = () => {
   }, [project, matchesSearchQuery]);
 
   const filteredDrawings = useMemo(() => {
-    if (statusFilters.size === 0) return searchScopedDrawings;
-    const filters = Array.from(statusFilters);
-    return searchScopedDrawings.filter(d => filters.every(filter => matchesStatusFilter(d, filter)));
-  }, [searchScopedDrawings, statusFilters, matchesStatusFilter]);
+    let drawings = statusFilters.size === 0
+      ? searchScopedDrawings
+      : searchScopedDrawings.filter(d => {
+        const filters = Array.from(statusFilters);
+        return filters.every(filter => matchesStatusFilter(d, filter));
+      });
+
+    if (daysSortDirection !== 'none') {
+      drawings = [...drawings].sort((a, b) => {
+        const diff = getReviewDeadlineDays(a) - getReviewDeadlineDays(b);
+        if (diff !== 0) return daysSortDirection === 'asc' ? diff : -diff;
+        return a.customId.localeCompare(b.customId);
+      });
+    }
+
+    return drawings;
+  }, [searchScopedDrawings, statusFilters, matchesStatusFilter, daysSortDirection]);
 
   const progressCount = useMemo(() => {
     return searchScopedDrawings.filter(d => d.status === 'Reviewing' || d.status === 'Waiting Reply' || d.status === 'Approved').length;
@@ -284,7 +303,7 @@ export const DrawingList: React.FC = () => {
   // Reset pagination when filter changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [filterQuery, statusFilters]);
+  }, [filterQuery, statusFilters, daysSortDirection]);
 
   // Calculate Paginated Data
   const paginatedDrawings = useMemo(() => {
@@ -509,7 +528,18 @@ export const DrawingList: React.FC = () => {
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, lchg: w }))} width={columnWidths.lchg || 80}>Last Change</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, wait: w }))} width={columnWidths.wait || 50}>Wait</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, dead: w }))} width={columnWidths.dead || 90}>Deadline</ResizableHeader>
-                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, days: w }))} width={columnWidths.days || 60}>Days</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, days: w }))} width={columnWidths.days || 70}>
+                  <button
+                    onClick={() => setDaysSortDirection(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? 'none' : 'asc')}
+                    className="inline-flex items-center gap-1 text-left hover:text-teal-700 transition-colors"
+                    title="Sort by days to deadline"
+                  >
+                    <span>Days</span>
+                    <span className="text-[7px] text-slate-400">
+                      {daysSortDirection === 'asc' ? '↑' : daysSortDirection === 'desc' ? '↓' : '↕'}
+                    </span>
+                  </button>
+                </ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, ass: w }))} width={columnWidths.ass || 90}>Assignees</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, stat: w }))} width={columnWidths.stat || 100}>Status</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, cmt: w }))} width={columnWidths.cmt || 50}>Total Cmt</ResizableHeader>
@@ -568,7 +598,7 @@ export const DrawingList: React.FC = () => {
               ))}
               {paginatedDrawings.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="py-20 text-center text-slate-300 pointer-events-none">
+                  <td colSpan={17} className="py-20 text-center text-slate-300 pointer-events-none">
                     <div className="text-[10px] font-black uppercase tracking-widest">No match found</div>
                   </td>
                 </tr>

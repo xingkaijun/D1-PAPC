@@ -297,7 +297,7 @@ export const DrawingRow = memo(({
             </tr>
             {isExpanded && (
                 <tr className="bg-slate-50/50 border-l-2 border-teal-500 animate-in slide-in-from-left-1">
-                    <td colSpan={16} className="px-8 py-4">
+                    <td colSpan={17} className="px-8 py-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                 <h4 className="text-[8px] font-black uppercase text-slate-400 mb-3 tracking-widest flex items-center gap-2"><History size={12} /> Log Stream</h4>

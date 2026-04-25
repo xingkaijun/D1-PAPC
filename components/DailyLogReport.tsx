@@ -32,7 +32,9 @@ export const DailyLogReport: React.FC = () => {
         const dateEnd = endOfDay(parseISO(endDate));
 
         const changes: Array<{
+            date: string;
             time: string;
+            occurredAt: number;
             drawingNo: string;
             drawingTitle: string;
             customId: string;
@@ -48,7 +50,9 @@ export const DailyLogReport: React.FC = () => {
                 const historyDate = parseISO(history.createdAt);
                 if (isWithinInterval(historyDate, { start: dateStart, end: dateEnd })) {
                     changes.push({
+                        date: format(historyDate, 'yyyy-MM-dd'),
                         time: format(historyDate, 'HH:mm:ss'),
+                        occurredAt: historyDate.getTime(),
                         drawingNo: drawing.drawingNo,
                         drawingTitle: drawing.title || '',
                         customId: drawing.customId,
@@ -66,7 +70,9 @@ export const DailyLogReport: React.FC = () => {
                     const receivedDate = parseISO(log.receivedDate);
                     if (isWithinInterval(receivedDate, { start: dateStart, end: dateEnd })) {
                         changes.push({
+                            date: format(receivedDate, 'yyyy-MM-dd'),
                             time: format(receivedDate, 'HH:mm:ss'),
+                            occurredAt: receivedDate.getTime(),
                             drawingNo: drawing.drawingNo,
                             drawingTitle: drawing.title || '',
                             customId: drawing.customId,
@@ -82,7 +88,9 @@ export const DailyLogReport: React.FC = () => {
                     const sentDate = parseISO(log.sentDate);
                     if (isWithinInterval(sentDate, { start: dateStart, end: dateEnd })) {
                         changes.push({
+                            date: format(sentDate, 'yyyy-MM-dd'),
                             time: format(sentDate, 'HH:mm:ss'),
+                            occurredAt: sentDate.getTime(),
                             drawingNo: drawing.drawingNo,
                             drawingTitle: drawing.title || '',
                             customId: drawing.customId,
@@ -96,7 +104,7 @@ export const DailyLogReport: React.FC = () => {
         });
 
         // 按时间正序排列（旧到新，方便合并）
-        const sortedChanges = changes.sort((a, b) => a.time.localeCompare(b.time));
+        const sortedChanges = changes.sort((a, b) => a.occurredAt - b.occurredAt);
 
         // 合并同一分钟内相同图纸的 Comments 变更
         const mergedChanges: typeof changes = [];
@@ -106,7 +114,7 @@ export const DailyLogReport: React.FC = () => {
             // 只合并 Change 类型且包含 Comments 的记录
             if (change.eventType === 'Change' && change.detail.includes('Comments:')) {
                 const timeKey = change.time.substring(0, 5); // HH:mm (精确到分钟)
-                const key = `${change.drawingNo}-${timeKey}`;
+                const key = `${change.date}-${change.drawingNo}-${timeKey}`;
 
                 if (mergeMap.has(key)) {
                     // 合并：提取最终状态
@@ -117,6 +125,8 @@ export const DailyLogReport: React.FC = () => {
                         const initialValue = existing.detail.match(/Comments: (.+) ->/)?.[1];
                         existing.detail = existing.detail.replace(/Comments: .+ -> .+/, `Comments: ${initialValue} -> ${newValue}`);
                         existing.time = change.time; // 使用最后一次修改的时间
+                        existing.date = change.date;
+                        existing.occurredAt = change.occurredAt;
                     }
                 } else {
                     mergeMap.set(key, change);
@@ -129,7 +139,7 @@ export const DailyLogReport: React.FC = () => {
         });
 
         // 按时间倒序排列（新到旧）
-        const sorted = mergedChanges.sort((a, b) => b.time.localeCompare(a.time));
+        const sorted = mergedChanges.sort((a, b) => b.occurredAt - a.occurredAt);
 
         // 应用状态转换筛选
         if (selectedTransitions.size === 0) return sorted;
@@ -285,9 +295,9 @@ export const DailyLogReport: React.FC = () => {
             `Filters: ${getFilterText()}`,
             `Total Events: ${dailyChanges.length}`,
             '',
-            'Time\t\tID\t\tDrawing No\t\tTitle\t\tType\t\tDetail\t\tNote',
+            'Date\t\tTime\t\tID\t\tDrawing No\t\tTitle\t\tType\t\tDetail\t\tNote',
             ...dailyChanges.map(c =>
-                `${c.time}\t\t${c.customId}\t\t${c.drawingNo}\t\t${c.drawingTitle}\t\t${c.eventType}\t\t${c.detail}\t\t${c.note}`
+                `${c.date}\t\t${c.time}\t\t${c.customId}\t\t${c.drawingNo}\t\t${c.drawingTitle}\t\t${c.eventType}\t\t${c.detail}\t\t${c.note}`
             )
         ].join('\n');
 
@@ -303,9 +313,9 @@ export const DailyLogReport: React.FC = () => {
             `"Filters:","${getFilterText()}"`,
             `"Total Events:","${dailyChanges.length}"`,
             '',
-            'Time,ID,Drawing No,Title,Type,Detail,Note',
+            'Date,Time,ID,Drawing No,Title,Type,Detail,Note',
             ...dailyChanges.map(c =>
-                `${c.time},"${c.customId}","${c.drawingNo}","${c.drawingTitle}","${c.eventType}","${c.detail}","${c.note}"`
+                `"${c.date}",${c.time},"${c.customId}","${c.drawingNo}","${c.drawingTitle}","${c.eventType}","${c.detail}","${c.note}"`
             )
         ].join('\n');
 
@@ -485,6 +495,7 @@ export const DailyLogReport: React.FC = () => {
                         <table className="w-full">
                             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                                 <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-black uppercase text-slate-600 tracking-widest">Date</th>
                                     <th className="px-4 py-3 text-left text-xs font-black uppercase text-slate-600 tracking-widest">Time</th>
                                     <th className="px-4 py-3 text-left text-xs font-black uppercase text-slate-600 tracking-widest">ID</th>
                                     <th className="px-4 py-3 text-left text-xs font-black uppercase text-slate-600 tracking-widest">Drawing No</th>
@@ -497,7 +508,7 @@ export const DailyLogReport: React.FC = () => {
                             <tbody className="divide-y divide-slate-100">
                                 {dailyChanges.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="px-4 py-12 text-center">
+                                        <td colSpan={8} className="px-4 py-12 text-center">
                                             <div className="text-slate-300">
                                                 <FileText size={48} className="mx-auto mb-3 opacity-20" />
                                                 <p className="text-sm font-bold">No changes recorded for this date</p>
@@ -508,6 +519,7 @@ export const DailyLogReport: React.FC = () => {
                                 ) : (
                                     dailyChanges.map((change, idx) => (
                                         <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-4 py-3 text-sm font-mono text-slate-500">{change.date}</td>
                                             <td className="px-4 py-3 text-sm font-mono text-slate-600">{change.time}</td>
                                             <td className="px-4 py-3 text-sm font-black text-slate-800">{change.customId}</td>
                                             <td className="px-4 py-3 text-sm font-mono text-teal-600">{change.drawingNo}</td>
