@@ -19,6 +19,15 @@ const normalizeProjectDrawingIds = (project: Project): Project => ({
   })),
 });
 
+const stripProjectPayload = (project: Project, keepPayload: boolean): Project => {
+  if (keepPayload) return project;
+  return {
+    ...project,
+    drawings: [],
+    snapshots: [],
+  };
+};
+
 // Fix: Local implementation of isWeekend to resolve missing export error from date-fns
 const isWeekend = (date: Date) => {
   const day = date.getDay();
@@ -815,8 +824,13 @@ export const useStore = create<AppState>()(
           set(state => ({
             data: {
               ...state.data,
-              projects: state.data.projects.map(p => p.id === projectId ? { ...fullProject, id: projectId } : p)
+              projects: state.data.projects.map(p =>
+                p.id === projectId
+                  ? { ...fullProject, id: projectId }
+                  : stripProjectPayload(p, false)
+              )
             },
+            activeProjectId: projectId,
             isLoading: false,
             _dirtyDrawingIds: new Set<string>(),
             _deletedDrawingIds: new Set<string>(),
@@ -942,7 +956,13 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'marine-drawings-v3-storage-webdav',
-      partialize: (state) => ({ data: state.data, activeProjectId: state.activeProjectId }),
+      partialize: (state) => ({
+        data: {
+          ...state.data,
+          projects: state.data.projects.map(project => stripProjectPayload(project, project.id === state.activeProjectId)),
+        },
+        activeProjectId: state.activeProjectId
+      }),
       version: 1,
       migrate: (persistedState: any) => {
         if (!persistedState?.data?.projects) return persistedState;

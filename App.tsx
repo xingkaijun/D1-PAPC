@@ -1,14 +1,9 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { useStore } from './store';
-import { Reports } from './components/Reports';
 import { DrawingList } from './components/DrawingList';
-import { Settings } from './components/Settings';
 import { CommandBar } from './components/CommandBar';
-import { DailyLogReport } from './components/DailyLogReport';
-import { ActivityReport } from './components/ActivityReport';
-import { ReviewTracker } from './components/ReviewTracker';
 import { format } from 'date-fns';
 
 const PROJECT_THEMES = [
@@ -34,7 +29,6 @@ const getProjectTheme = (id: string, name: string) => {
   }
   return PROJECT_THEMES[Math.abs(hash) % PROJECT_THEMES.length];
 };
-import { Manual } from './components/Manual';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   FileStack,
@@ -56,24 +50,44 @@ import {
   ClipboardCheck
 } from 'lucide-react';
 
+const Reports = lazy(() => import('./components/Reports').then(module => ({ default: module.Reports })));
+const Settings = lazy(() => import('./components/Settings').then(module => ({ default: module.Settings })));
+const DailyLogReport = lazy(() => import('./components/DailyLogReport').then(module => ({ default: module.DailyLogReport })));
+const ActivityReport = lazy(() => import('./components/ActivityReport').then(module => ({ default: module.ActivityReport })));
+const ReviewTracker = lazy(() => import('./components/ReviewTracker').then(module => ({ default: module.ReviewTracker })));
+const Manual = lazy(() => import('./components/Manual').then(module => ({ default: module.Manual })));
+
+const LazyTabFallback: React.FC = () => (
+  <div className="flex-1 flex items-center justify-center bg-white/60">
+    <div className="text-center">
+      <div className="mx-auto mb-3 h-10 w-10 rounded-full border-2 border-teal-200 border-t-teal-600 animate-spin" />
+      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Loading Module</p>
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'drawings' | 'reports' | 'activity' | 'dailylog' | 'settings' | 'manual' | 'tracker'>('drawings');
-  const {
-    data,
-    activeProjectId,
-    setActiveProject,
-    addProject,
-    isLoading,
-    fetchProjectList,
-    loadProject,
-    saveProject,
-    fetchGlobalSettings,
-    isEditMode,
-    adminPresence,
-
-  } = useStore();
-
-  const currentProject = data.projects.find(p => p.id === activeProjectId);
+  const data = useStore(state => state.data);
+  const activeProjectId = useStore(state => state.activeProjectId);
+  const setActiveProject = useStore(state => state.setActiveProject);
+  const addProject = useStore(state => state.addProject);
+  const isLoading = useStore(state => state.isLoading);
+  const fetchProjectList = useStore(state => state.fetchProjectList);
+  const loadProject = useStore(state => state.loadProject);
+  const saveProject = useStore(state => state.saveProject);
+  const fetchGlobalSettings = useStore(state => state.fetchGlobalSettings);
+  const isEditMode = useStore(state => state.isEditMode);
+  const adminPresence = useStore(state => state.adminPresence);
+  const currentProject = useStore(state => state.data.projects.find(p => p.id === state.activeProjectId));
+  const projectCards = useStore(state => state.data.projects.map(p => ({
+    id: p.id,
+    name: p.name,
+    conf: p.conf,
+    drawingCount: p.drawings?.length || 0,
+    approvedCount: p.drawings?.filter(d => d.status === 'Approved').length || 0,
+    webdavPath: p.webdavPath,
+  })));
 
   const [showProjectSelector, setShowProjectSelector] = useState(true);
 
@@ -189,7 +203,7 @@ const App: React.FC = () => {
     }, intervalMinutes * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [activeProjectId, true, showProjectSelector, data.settings.autoSyncInterval, data.projects, isEditMode]);
+  }, [activeProjectId, showProjectSelector, data.settings.autoSyncInterval, currentProject?.conf?.autoSyncInterval, currentProject?.conf?.password, isEditMode, loadProject, saveProject]);
 
 
   const handleGlobalRefresh = async () => {
@@ -300,10 +314,10 @@ const App: React.FC = () => {
               </div>
 
               {/* Project Items (Dynamic) */}
-              {data.projects.map(p => {
+              {projectCards.map(p => {
                 const theme = getProjectTheme(p.id, p.name);
-                const total = p.drawings?.length || 0;
-                const approved = p.drawings?.filter(d => d.status === 'Approved').length || 0;
+                const total = p.drawingCount;
+                const approved = p.approvedCount;
                 const completion = total > 0 ? Math.round((approved / total) * 100) : 0;
 
                 return (
@@ -547,19 +561,39 @@ const App: React.FC = () => {
           <div className="flex-1 bg-white/92 backdrop-blur-xl rounded-[2rem] border border-white/70 shadow-[0_24px_80px_-28px_rgba(15,118,110,0.28)] overflow-hidden flex flex-col">
             {activeTab === 'drawings' && <DrawingList />}
             {activeTab === 'reports' && (
-              <ErrorBoundary>
-                <Reports />
-              </ErrorBoundary>
+              <Suspense fallback={<LazyTabFallback />}>
+                <ErrorBoundary>
+                  <Reports />
+                </ErrorBoundary>
+              </Suspense>
             )}
             {activeTab === 'activity' && (
-              <ErrorBoundary>
-                <ActivityReport />
-              </ErrorBoundary>
+              <Suspense fallback={<LazyTabFallback />}>
+                <ErrorBoundary>
+                  <ActivityReport />
+                </ErrorBoundary>
+              </Suspense>
             )}
-            {activeTab === 'settings' && <Settings />}
-            {activeTab === 'dailylog' && <DailyLogReport />}
-            {activeTab === 'tracker' && <ReviewTracker />}
-            {activeTab === 'manual' && <Manual />}
+            {activeTab === 'settings' && (
+              <Suspense fallback={<LazyTabFallback />}>
+                <Settings />
+              </Suspense>
+            )}
+            {activeTab === 'dailylog' && (
+              <Suspense fallback={<LazyTabFallback />}>
+                <DailyLogReport />
+              </Suspense>
+            )}
+            {activeTab === 'tracker' && (
+              <Suspense fallback={<LazyTabFallback />}>
+                <ReviewTracker />
+              </Suspense>
+            )}
+            {activeTab === 'manual' && (
+              <Suspense fallback={<LazyTabFallback />}>
+                <Manual />
+              </Suspense>
+            )}
           </div>
         </div>
       </main >
