@@ -1,6 +1,6 @@
 
 
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import { useStore } from './store';
 import { DrawingList } from './components/DrawingList';
 import { CommandBar } from './components/CommandBar';
@@ -79,15 +79,21 @@ const App: React.FC = () => {
   const fetchGlobalSettings = useStore(state => state.fetchGlobalSettings);
   const isEditMode = useStore(state => state.isEditMode);
   const adminPresence = useStore(state => state.adminPresence);
-  const currentProject = useStore(state => state.data.projects.find(p => p.id === state.activeProjectId));
-  const projectCards = useStore(state => state.data.projects.map(p => ({
-    id: p.id,
-    name: p.name,
-    conf: p.conf,
-    drawingCount: p.drawings?.length || 0,
-    approvedCount: p.drawings?.filter(d => d.status === 'Approved').length || 0,
-    webdavPath: p.webdavPath,
-  })));
+  const currentProject = useMemo(
+    () => data.projects.find(p => p.id === activeProjectId),
+    [data.projects, activeProjectId]
+  );
+  const projectCards = useMemo(
+    () => data.projects.map(p => ({
+      id: p.id,
+      name: p.name,
+      conf: p.conf,
+      drawingCount: p.drawings?.length || 0,
+      approvedCount: p.drawings?.filter(d => d.status === 'Approved').length || 0,
+      webdavPath: p.webdavPath,
+    })),
+    [data.projects]
+  );
 
   const [showProjectSelector, setShowProjectSelector] = useState(true);
 
