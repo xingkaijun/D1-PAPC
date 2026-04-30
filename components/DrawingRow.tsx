@@ -1,12 +1,12 @@
-
 import React, { memo } from 'react';
 import { Drawing, DrawingStatus } from '../types';
 import {
     ChevronDown, ChevronRight, AlertTriangle, Clock,
     Trash2, History, StickyNote, CheckCircle2, Circle, Check
 } from 'lucide-react';
-import { format, isAfter, differenceInCalendarDays } from 'date-fns';
+import { isAfter, differenceInCalendarDays } from 'date-fns';
 import { useStore } from '../store';
+import { safeFormatDate, toValidDate } from '../lib/date';
 
 interface DrawingRowProps {
     drawing: Drawing;
@@ -20,9 +20,11 @@ interface DrawingRowProps {
     derivedDisciplines: string[];
 }
 
-// Sub-components used in Row
+const EMPTY_MARK = <span className="text-slate-200">—</span>;
+
 const StatusBadge = ({ drawing, onStatusChange, disabled }: { drawing: Drawing, onStatusChange: (s: DrawingStatus) => void, disabled: boolean }) => {
-    const isOverdue = drawing.status === 'Reviewing' && drawing.reviewDeadline && isAfter(new Date(), new Date(drawing.reviewDeadline));
+    const reviewDeadline = toValidDate(drawing.reviewDeadline);
+    const isOverdue = drawing.status === 'Reviewing' && !!reviewDeadline && isAfter(new Date(), reviewDeadline);
     const config = {
         'Pending': 'bg-slate-100 text-slate-500 border-slate-200',
         'Reviewing': isOverdue
@@ -31,6 +33,7 @@ const StatusBadge = ({ drawing, onStatusChange, disabled }: { drawing: Drawing, 
         'Waiting Reply': 'bg-blue-50 text-blue-700 border-blue-200/50',
         'Approved': 'bg-emerald-50 text-emerald-700 border-emerald-200/50',
     };
+
     return (
         <div className="relative flex flex-col items-center group/status" title={`Manual Status: ${drawing.status}`}>
             <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase border tracking-tight leading-none pointer-events-none ${config[drawing.status]}`}>
@@ -55,24 +58,13 @@ const StatusBadge = ({ drawing, onStatusChange, disabled }: { drawing: Drawing, 
     );
 };
 
-
 const MultiAssigneeDropdown = ({ drawing, reviewers, onUpdate, disabled }: { drawing: Drawing, reviewers: (string | { id: string, name: string })[], onUpdate: (ids: string[]) => void, disabled: boolean }) => {
     const [open, setOpen] = React.useState(false);
-
-    // Helper to normalize reviewer to ID/Name
     const getRevId = (r: string | { id: string, name: string }) => typeof r === 'string' ? r : r.id;
     const getRevName = (r: string | { id: string, name: string }) => typeof r === 'string' ? r : r.name;
 
     const toggle = (r: string | { id: string, name: string }) => {
-        const id = getRevId(r);
-        const name = getRevName(r); // We store Name or ID? Usually Name for display.
-        // Actually, existing logic likely stores Names in `drawing.assignees`.
-        // If we switch to objects, we might want to store IDs?
-        // Let's assume we continue storing NAMES (or whatever string representation was used).
-        // If the reviewer is {id: 'kevin', name: 'Kevin'}, we likely store 'Kevin'.
-        // Let's use getRevName(r) as the value for consistency with previous string-only array.
         const val = getRevName(r);
-
         const current = drawing.assignees || [];
         const next = current.includes(val) ? current.filter(n => n !== val) : [...current, val];
         onUpdate(next);
@@ -138,6 +130,7 @@ export const DrawingRow = memo(({
     const { isEditMode } = useStore();
     const liveRemarkCount = drawing.remarks?.length || 0;
     const liveOpenRemarkCount = drawing.remarks?.filter(r => !r.resolved).length || 0;
+    const reviewDeadline = toValidDate(drawing.reviewDeadline);
 
     return (
         <React.Fragment>
@@ -158,7 +151,7 @@ export const DrawingRow = memo(({
                             const hasHold = openRemarks.some(r => r.content.toLowerCase().includes('#hold'));
                             const hasOtherTag = openRemarks.some(r => r.content.startsWith('#'));
 
-                            let dotColor = 'bg-blue-500 shadow-blue-500/30'; // Default text (Blue)
+                            let dotColor = 'bg-blue-500 shadow-blue-500/30';
                             if (hasUrgent) dotColor = 'bg-red-500 shadow-red-500/30';
                             else if (hasHold) dotColor = 'bg-amber-500 shadow-amber-500/30';
                             else if (hasOtherTag) dotColor = 'bg-purple-500 shadow-purple-500/30';
@@ -174,7 +167,8 @@ export const DrawingRow = memo(({
                 <td className="px-3 py-2">
                     <input
                         disabled={!isEditMode}
-                        type="text" value={drawing.version}
+                        type="text"
+                        value={drawing.version}
                         onChange={(e) => updateDrawing(drawing.id, { version: e.target.value })}
                         className={`w-full bg-slate-100/50 border-none rounded-md text-[9px] font-black text-center py-0.5 focus:bg-white ${!isEditMode ? 'cursor-not-allowed text-slate-400' : ''}`}
                     />
@@ -193,35 +187,24 @@ export const DrawingRow = memo(({
                     </select>
                 </td>
                 <td className="px-3 py-2 truncate text-[10px] font-bold text-slate-700 tracking-tight" title={drawing.title}>{drawing.title}</td>
-                {/* Last Change 列 - 显示最后一次状态变化的日期 */}
                 <td className="px-2 py-2 text-[9px] text-slate-500 text-center" title={(() => {
                     const statusChanges = (drawing.statusHistory || []).filter(h => h.content.includes('Status:'));
                     if (statusChanges.length === 0) return '';
-                    const last = statusChanges[statusChanges.length - 1];
-                    if (!last.createdAt) return '';
-                    const date = new Date(last.createdAt);
-                    if (isNaN(date.getTime())) return '';
-                    return format(date, 'yyyy-MM-dd HH:mm');
+                    return safeFormatDate(statusChanges[statusChanges.length - 1].createdAt, 'yyyy-MM-dd HH:mm', '');
                 })()}>
                     {(() => {
                         const statusChanges = (drawing.statusHistory || []).filter(h => h.content.includes('Status:'));
-                        if (statusChanges.length === 0) return <span className="text-slate-200">—</span>;
-                        const last = statusChanges[statusChanges.length - 1];
-                        if (!last.createdAt) return <span className="text-slate-200">—</span>;
-                        const date = new Date(last.createdAt);
-                        if (isNaN(date.getTime())) return <span className="text-slate-200">—</span>;
-                        return <span className="font-bold">{format(date, 'MM-dd')}</span>;
+                        if (statusChanges.length === 0) return EMPTY_MARK;
+                        const label = safeFormatDate(statusChanges[statusChanges.length - 1].createdAt, 'MM-dd', '');
+                        return label ? <span className="font-bold">{label}</span> : EMPTY_MARK;
                     })()}
                 </td>
-                {/* Waiting Time 列 - 显示距离上次状态变化的天数 */}
                 <td className="px-2 py-2 text-center">
                     {(() => {
                         const statusChanges = (drawing.statusHistory || []).filter(h => h.content.includes('Status:'));
-                        if (statusChanges.length === 0) return <span className="text-slate-200">—</span>;
-                        const lastChange = statusChanges[statusChanges.length - 1];
-                        if (!lastChange.createdAt) return <span className="text-slate-200">—</span>;
-                        const date = new Date(lastChange.createdAt);
-                        if (isNaN(date.getTime())) return <span className="text-slate-200">—</span>;
+                        if (statusChanges.length === 0) return EMPTY_MARK;
+                        const date = toValidDate(statusChanges[statusChanges.length - 1].createdAt);
+                        if (!date) return EMPTY_MARK;
                         const days = differenceInCalendarDays(new Date(), date);
                         let colorClass = 'text-slate-400';
                         if (days >= 14) colorClass = 'text-red-600 font-black';
@@ -230,24 +213,21 @@ export const DrawingRow = memo(({
                     })()}
                 </td>
                 <td className="px-3 py-2">
-                    {drawing.reviewDeadline ? (
-                        <div className={`text-[9px] font-black flex items-center gap-1 ${isAfter(new Date(), new Date(drawing.reviewDeadline)) ? 'text-red-600' : 'text-slate-500'}`}>
-                            <Clock size={10} /> {format(new Date(drawing.reviewDeadline), 'MM-dd')}
+                    {reviewDeadline ? (
+                        <div className={`text-[9px] font-black flex items-center gap-1 ${isAfter(new Date(), reviewDeadline) ? 'text-red-600' : 'text-slate-500'}`}>
+                            <Clock size={10} /> {safeFormatDate(reviewDeadline, 'MM-dd')}
                         </div>
-                    ) : <span className="text-slate-200">—</span>}
+                    ) : EMPTY_MARK}
                 </td>
                 <td className="px-3 py-2 text-center">
-                    {drawing.reviewDeadline ? (() => {
-                        const days = differenceInCalendarDays(new Date(drawing.reviewDeadline), new Date());
+                    {reviewDeadline ? (() => {
+                        const days = differenceInCalendarDays(reviewDeadline, new Date());
                         let colorClass = 'text-slate-500';
-                        if (days < 0) colorClass = 'text-red-600 font-black'; // Overdue
-                        else if (days <= 3) colorClass = 'text-amber-500 font-black'; // Warning
-                        else colorClass = 'text-emerald-500 font-bold'; // Safe
-
-                        return (
-                            <span className={`text-[10px] ${colorClass}`}>{days}d</span>
-                        );
-                    })() : <span className="text-slate-200">—</span>}
+                        if (days < 0) colorClass = 'text-red-600 font-black';
+                        else if (days <= 3) colorClass = 'text-amber-500 font-black';
+                        else colorClass = 'text-emerald-500 font-bold';
+                        return <span className={`text-[10px] ${colorClass}`}>{days}d</span>;
+                    })() : EMPTY_MARK}
                 </td>
                 <td className="px-1 py-2">
                     <MultiAssigneeDropdown disabled={!isEditMode} drawing={drawing} reviewers={reviewers} onUpdate={(ids) => updateDrawing(drawing.id, { assignees: ids })} />
@@ -305,7 +285,7 @@ export const DrawingRow = memo(({
                                     {(drawing.statusHistory || []).slice().reverse().map(h => (
                                         <div key={h.id} className="text-[9px] px-3 py-1.5 bg-slate-50 rounded-lg flex justify-between items-center">
                                             <span className="font-bold text-slate-600">{h.content}</span>
-                                            <span className="font-mono text-slate-400">{format(new Date(h.createdAt), 'MM-dd HH:mm')}</span>
+                                            <span className="font-mono text-slate-400">{safeFormatDate(h.createdAt, 'MM-dd HH:mm')}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -315,7 +295,7 @@ export const DrawingRow = memo(({
                                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-2 scrollbar-thin">
                                     {(drawing.remarks || []).map(r => {
                                         const lower = r.content.toLowerCase();
-                                        let bgClass = 'bg-blue-50 text-blue-700'; // Default text (Blue)
+                                        let bgClass = 'bg-blue-50 text-blue-700';
                                         let iconClass = 'text-blue-400';
 
                                         if (lower.includes('#urgent')) {
@@ -325,7 +305,7 @@ export const DrawingRow = memo(({
                                             bgClass = 'bg-amber-50 text-amber-700 border border-amber-100';
                                             iconClass = 'text-amber-500';
                                         } else if (lower.startsWith('#')) {
-                                            bgClass = 'bg-purple-50 text-purple-700 border border-purple-100'; // Other tags
+                                            bgClass = 'bg-purple-50 text-purple-700 border border-purple-100';
                                             iconClass = 'text-purple-500';
                                         }
 
@@ -335,7 +315,7 @@ export const DrawingRow = memo(({
                                                     {r.resolved ? <CheckCircle2 size={14} /> : <Circle size={14} fill="currentColor" className="opacity-20" />}
                                                 </button>
                                                 <span className={`font-bold leading-normal flex-1 ${r.resolved ? 'line-through' : ''}`}>{r.content}</span>
-                                                <span className="text-[7px] font-mono opacity-50 mt-0.5">{format(new Date(r.createdAt), 'MM-dd')}</span>
+                                                <span className="text-[7px] font-mono opacity-50 mt-0.5">{safeFormatDate(r.createdAt, 'MM-dd')}</span>
                                             </div>
                                         );
                                     })}
@@ -347,10 +327,9 @@ export const DrawingRow = memo(({
                         </div>
                     </td>
                 </tr>
-            )
-            }
-        </React.Fragment >
+            )}
+        </React.Fragment>
     );
 });
 
-DrawingRow.displayName = "DrawingRow";
+DrawingRow.displayName = 'DrawingRow';

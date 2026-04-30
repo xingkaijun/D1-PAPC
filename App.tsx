@@ -4,7 +4,7 @@ import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import { useStore } from './store';
 import { DrawingList } from './components/DrawingList';
 import { CommandBar } from './components/CommandBar';
-import { format } from 'date-fns';
+import { safeFormatDate } from './lib/date';
 
 const PROJECT_THEMES = [
   { bg: 'bg-white', border: 'border-slate-100', hover: 'hover:border-slate-300', iconBg: 'from-slate-100 to-slate-200', iconText: 'text-slate-500' }, // Classic
@@ -370,7 +370,7 @@ const App: React.FC = () => {
                               Assets: {total}
                             </span>
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                              {p.lastUpdated ? format(new Date(p.lastUpdated), 'MM/dd') : 'New'}
+                              {p.lastUpdated ? safeFormatDate(p.lastUpdated, 'MM/dd', 'New') : 'New'}
                             </span>
                           </div>
                         </div>
