@@ -60,7 +60,7 @@ export const Manual: React.FC = () => {
             <Section icon={<Cloud size={18} />} title="1. Server-First Sync & Auto-Save">
               <ul className="space-y-3 text-[11px] font-medium text-slate-600 leading-relaxed">
                 <li className="flex gap-2"><ChevronRight size={12} className="shrink-0 mt-0.5 text-teal-500" /> <strong>Pure Real-time Cloud:</strong> Our system is entirely cloud-based. Every action is saved instantly to the database. There is no manual "save" button.</li>
-                <li className="flex gap-2"><ChevronRight size={12} className="shrink-0 mt-0.5 text-teal-500" /> <strong>Collaboration Protection:</strong> If another team member is actively editing the project, you will see an <strong>Admin Online 🟢</strong> indicator at the top. Read-only usage is recommended when the admin is active to prevent conflicts.</li>
+                <li className="flex gap-2"><ChevronRight size={12} className="shrink-0 mt-0.5 text-teal-500" /> <strong>Collaboration Protection:</strong> Multiple users can access the system simultaneously. Use Edit Mode lock to prevent conflicts when making changes.</li>
               </ul>
             </Section>
 
@@ -99,7 +99,7 @@ export const Manual: React.FC = () => {
             <Section icon={<Cloud size={18} />} title="1. 完全云端与防冲突机制">
               <ul className="space-y-3 text-[11px] font-medium text-slate-600 leading-relaxed">
                 <li className="flex gap-2"><ChevronRight size={12} className="shrink-0 mt-0.5 text-teal-600" /> <strong>实时存档：</strong> 系统基于云原生数据库驱动，我们在客户端所做的任何变更，都会被实时保存到云端服务器中。无需寻找或点击“保存”按钮。</li>
-                <li className="flex gap-2"><ChevronRight size={12} className="shrink-0 mt-0.5 text-teal-600" /> <strong>在线指示灯：</strong> 当有其他同事解锁编辑并正在操作同一项目时，您将在页面顶部看到 <strong>Admin Online 🟢</strong> 的绿色指示灯。这表示目前有人正在修改项目，为避免覆盖风险，请尽量只阅不改。</li>
+                <li className="flex gap-2"><ChevronRight size={12} className="shrink-0 mt-0.5 text-teal-600" /> <strong>协作保护：</strong> 多用户可同时访问系统。使用编辑模式锁定功能，避免在修改数据时产生冲突。</li>
               </ul>
             </Section>
 

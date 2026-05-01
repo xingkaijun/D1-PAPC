@@ -79,7 +79,6 @@ const App: React.FC = () => {
   const saveProject = useStore(state => state.saveProject);
   const fetchGlobalSettings = useStore(state => state.fetchGlobalSettings);
   const isEditMode = useStore(state => state.isEditMode);
-  const adminPresence = useStore(state => state.adminPresence);
   const hasUnsavedChanges = useStore(state => state.hasUnsavedChanges());
   const getUnsavedChangesCount = useStore(state => state.getUnsavedChangesCount());
   const currentProject = useMemo(
@@ -310,15 +309,6 @@ const App: React.FC = () => {
 
             {/* Storage Controls */}
             <div className="relative flex items-center gap-3">
-              {/* 管理员在线指示 */}
-              <span className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-[1000] uppercase tracking-[0.22em] border ${adminPresence.isOnline
-                ? 'bg-white/14 text-white border-white/15'
-                : 'bg-black/10 text-teal-50/70 border-white/10'
-                }`}>
-                <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-[#9CF2E8] animate-pulse' : 'bg-white/40'}`} />
-                {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
-              </span>
-
               <button
                 onClick={handleGlobalRefresh}
                 className="inline-flex items-center justify-center p-2.5 rounded-full border border-white/15 bg-white/10 text-white/80 hover:bg-white hover:text-teal-700 transition-all active:scale-95 shadow-lg shadow-teal-950/10"
@@ -481,7 +471,6 @@ const App: React.FC = () => {
                   className="h-8 w-auto object-contain"
                 />
               </div>
-              <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${adminPresence.isOnline ? 'bg-[#9CF2E8] animate-pulse' : 'bg-white/40'}`} />
             </div>
             <div className="flex flex-col min-w-0">
               <h1 className="text-lg font-[1000] text-white tracking-tighter leading-none uppercase whitespace-nowrap">
@@ -556,14 +545,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="relative flex items-center gap-3 shrink-0 z-[1]">
-          <span className={`hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[9px] font-[1000] uppercase tracking-[0.22em] border ${adminPresence.isOnline
-            ? 'bg-white/14 text-white border-white/15'
-            : 'bg-black/10 text-teal-50/70 border-white/10'
-            }`}>
-            <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-[#9CF2E8] animate-pulse' : 'bg-white/40'}`} />
-            {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
-          </span>
-
           <div className="relative group">
             <button
               onClick={() => setShowProjectSelector(true)}

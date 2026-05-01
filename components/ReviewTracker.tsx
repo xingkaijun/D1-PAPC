@@ -16,8 +16,7 @@ export const ReviewTracker: React.FC = () => {
         saveProject,
         updateDrawing,
         isEditMode,
-        toggleEditMode,
-        adminPresence
+        toggleEditMode
     } = useStore();
 
     const currentProject = data.projects.find(p => p.id === activeProjectId);
@@ -307,14 +306,6 @@ export const ReviewTracker: React.FC = () => {
                         </span>
                         <span className={`${statPillClass} border-emerald-100 text-emerald-700 shadow-[0_10px_24px_-18px_rgba(16,185,129,0.45)]`}>
                             Ready · {stats.allDoneCount}
-                        </span>
-                        {/* 管理员在线指示 */}
-                        <span className={`${statPillClass} ${adminPresence.isOnline
-                            ? 'border-green-100 text-green-700 shadow-[0_10px_24px_-18px_rgba(34,197,94,0.4)]'
-                            : 'border-slate-200 text-slate-400'
-                            }`}>
-                            <span className={`inline-block w-2 h-2 rounded-full ${adminPresence.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
-                            {adminPresence.isOnline ? 'Admin Online' : 'No Admin'}
                         </span>
                     </div>
                 </div>
