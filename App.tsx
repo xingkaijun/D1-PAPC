@@ -136,19 +136,19 @@ const App: React.FC = () => {
     const hasUnsaved = useStore.getState().hasUnsavedChanges();
     if (hasUnsaved && activeProjectId && projectId !== activeProjectId) {
       const confirmSwitch = window.confirm(
-        '当前项目有未保存的更改。切换项目将丢失这些更改。\n\n是否要先保存当前项目？\n\n点击"确定"保存后切换，点击"取消"直接切换（丢失更改）'
+        'You have unsaved changes in the current project. Switching projects will discard these changes.\n\nWould you like to save the current project first?\n\nClick "OK" to save and switch, or "Cancel" to switch without saving (changes will be lost).'
       );
       
       if (confirmSwitch) {
         // Save current project first
         const saved = await saveProject(activeProjectId);
         if (!saved) {
-          alert('保存失败，请重试或选择直接切换');
+          alert('Save failed. Please try again or choose to switch without saving.');
           return;
         }
       } else {
         // User chose to discard changes, confirm again
-        const confirmDiscard = window.confirm('确认要丢弃未保存的更改吗？此操作无法撤销。');
+        const confirmDiscard = window.confirm('Are you sure you want to discard unsaved changes? This action cannot be undone.');
         if (!confirmDiscard) {
           return; // Cancel the switch
         }
@@ -554,10 +554,10 @@ const App: React.FC = () => {
               {hasUnsavedChanges && (
                 <div className="absolute -top-1 -right-1 z-10">
                   <div className="relative">
-                    <div className="w-5 h-5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-[9px] font-black text-white shadow-lg border-2 border-white">
+                    <div className="w-5 h-5 bg-gradient-to-br from-teal-400 to-teal-600 rounded-full flex items-center justify-center text-[9px] font-black text-white shadow-lg border-2 border-white">
                       {getUnsavedChangesCount}
                     </div>
-                    <div className="absolute inset-0 w-5 h-5 bg-amber-400 rounded-full animate-ping opacity-75" />
+                    <div className="absolute inset-0 w-5 h-5 bg-teal-400 rounded-full animate-ping opacity-75" />
                   </div>
                 </div>
               )}
