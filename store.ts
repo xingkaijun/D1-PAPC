@@ -40,6 +40,10 @@ interface AppState {
   error: string | null;
   activeProjectId: string | null;
 
+  // Unsaved changes tracking
+  hasUnsavedChanges: () => boolean;
+  getUnsavedChangesCount: () => number;
+
   // Actions
   addProject: (name: string) => void;
   deleteProject: (projectId: string) => void;
@@ -149,6 +153,20 @@ export const useStore = create<AppState>()(
 
       setViewMode: (mode) => set({ viewMode: mode }),
       setFilterQuery: (query) => set({ filterQuery: query }),
+
+      hasUnsavedChanges: () => {
+        const state = get();
+        return state._dirtyDrawingIds.size > 0 || 
+               state._deletedDrawingIds.size > 0 || 
+               state._dirtyConf || 
+               state._dirtyTracker;
+      },
+
+      getUnsavedChangesCount: () => {
+        const state = get();
+        return state._dirtyDrawingIds.size + state._deletedDrawingIds.size + 
+               (state._dirtyConf ? 1 : 0) + (state._dirtyTracker ? 1 : 0);
+      },
 
       toggleEditMode: (password) => {
         const envPass = import.meta.env.VITE_EDIT_PASSWORD; // 使用专用的编辑密码环境变量

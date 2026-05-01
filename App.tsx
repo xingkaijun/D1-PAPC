@@ -30,6 +30,7 @@ const getProjectTheme = (id: string, name: string) => {
   return PROJECT_THEMES[Math.abs(hash) % PROJECT_THEMES.length];
 };
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { UnsavedChangesIndicator } from './components/UnsavedChangesIndicator';
 import {
   FileStack,
   Settings as SettingsIcon,
@@ -79,6 +80,8 @@ const App: React.FC = () => {
   const fetchGlobalSettings = useStore(state => state.fetchGlobalSettings);
   const isEditMode = useStore(state => state.isEditMode);
   const adminPresence = useStore(state => state.adminPresence);
+  const hasUnsavedChanges = useStore(state => state.hasUnsavedChanges());
+  const getUnsavedChangesCount = useStore(state => state.getUnsavedChangesCount());
   const currentProject = useMemo(
     () => data.projects.find(p => p.id === activeProjectId),
     [data.projects, activeProjectId]
@@ -130,6 +133,29 @@ const App: React.FC = () => {
   }, []);
 
   const handleSelectProject = async (projectId: string, passwordInput?: string) => {
+    // Check for unsaved changes before switching projects
+    const hasUnsaved = useStore.getState().hasUnsavedChanges();
+    if (hasUnsaved && activeProjectId && projectId !== activeProjectId) {
+      const confirmSwitch = window.confirm(
+        '当前项目有未保存的更改。切换项目将丢失这些更改。\n\n是否要先保存当前项目？\n\n点击"确定"保存后切换，点击"取消"直接切换（丢失更改）'
+      );
+      
+      if (confirmSwitch) {
+        // Save current project first
+        const saved = await saveProject(activeProjectId);
+        if (!saved) {
+          alert('保存失败，请重试或选择直接切换');
+          return;
+        }
+      } else {
+        // User chose to discard changes, confirm again
+        const confirmDiscard = window.confirm('确认要丢弃未保存的更改吗？此操作无法撤销。');
+        if (!confirmDiscard) {
+          return; // Cancel the switch
+        }
+      }
+    }
+
     useStore.setState({ isLoading: true });
     try {
       if (true) {
@@ -543,6 +569,18 @@ const App: React.FC = () => {
               onClick={() => setShowProjectSelector(true)}
               className="flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-full border border-white/15 bg-white/10 hover:bg-white/15 text-white shadow-lg shadow-teal-950/10 transition-all active:scale-[0.98]"
             >
+              {/* Unsaved changes badge */}
+              {hasUnsavedChanges && (
+                <div className="absolute -top-1 -right-1 z-10">
+                  <div className="relative">
+                    <div className="w-5 h-5 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-[9px] font-black text-white shadow-lg border-2 border-white">
+                      {getUnsavedChangesCount}
+                    </div>
+                    <div className="absolute inset-0 w-5 h-5 bg-amber-400 rounded-full animate-ping opacity-75" />
+                  </div>
+                </div>
+              )}
+              
               <div className="w-8 h-8 rounded-full bg-white/12 border border-white/15 flex items-center justify-center">
                 <Cloud size={15} className="text-[#9CF2E8]" />
               </div>
@@ -629,6 +667,9 @@ const App: React.FC = () => {
           </div>
         </div>
       </footer >
+
+      {/* Unsaved Changes Indicator */}
+      <UnsavedChangesIndicator />
     </div >
   );
 };
