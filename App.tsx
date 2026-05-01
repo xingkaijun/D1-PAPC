@@ -545,10 +545,10 @@ const App: React.FC = () => {
         </div>
 
         <div className="relative flex items-center gap-3 shrink-0 z-[1]">
-          <div className="relative group">
+          <div className="relative">
             <button
               onClick={() => setShowProjectSelector(true)}
-              className="flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-full border border-white/15 bg-white/10 hover:bg-white/15 text-white shadow-lg shadow-teal-950/10 transition-all active:scale-[0.98]"
+              className="flex items-center gap-2 px-3 xl:px-5 py-2 rounded-full border border-white/15 bg-white/10 hover:bg-white/15 text-white shadow-lg shadow-teal-950/10 transition-all active:scale-[0.98] text-[10px] font-[1000] uppercase tracking-[0.15em]"
             >
               {/* Unsaved changes badge */}
               {hasUnsavedChanges && (
@@ -561,19 +561,11 @@ const App: React.FC = () => {
                   </div>
                 </div>
               )}
-              
-              <div className="w-8 h-8 rounded-full bg-white/12 border border-white/15 flex items-center justify-center">
-                <Cloud size={15} className="text-[#9CF2E8]" />
-              </div>
-              <div className="text-left min-w-[145px]">
-                <div className="text-[8px] font-black text-teal-100/70 uppercase tracking-[0.25em] leading-none mb-1">
-                  Cloud Registry
-                </div>
-                <div className="text-[12px] font-[1000] text-white truncate max-w-[160px] tracking-tight uppercase">{currentProject?.name || 'Select Ship'}</div>
-              </div>
-              <ChevronDown size={14} className="text-teal-100/70" />
+              <Layers size={14} strokeWidth={2.5} className="text-teal-50/75 shrink-0" />
+              <span className="hidden xl:inline truncate max-w-[160px]">{currentProject?.name || 'Select Ship'}</span>
+              <span className="xl:hidden truncate max-w-[80px]">{currentProject?.name || 'Select'}</span>
+              <ChevronDown size={14} className="text-teal-100/70 shrink-0" />
             </button>
-            {/* Dropdown Removed as requested */}
           </div>
         </div>
       </header>

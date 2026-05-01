@@ -398,38 +398,39 @@ export const DailyLogReport: React.FC = () => {
                                 />
                             </div>
 
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 flex-wrap">
                                 <button
                                     onClick={handleDownloadPDF}
                                     disabled={isGeneratingPDF}
-                                    className={`flex items-center gap-2 px-4 py-2 ${isGeneratingPDF ? 'bg-slate-300' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-lg text-sm font-bold transition-colors shadow-sm`}
+                                    className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] border transition-all duration-300 active:scale-95 ${isGeneratingPDF
+                                        ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-teal-600 hover:text-white hover:border-teal-600'}`}
                                 >
-                                    <Printer size={14} className={isGeneratingPDF ? "animate-spin" : ""} />
-                                    {isGeneratingPDF ? "Generating..." : "Export PDF"}
+                                    <Printer size={14} strokeWidth={2.5} className={`shrink-0 ${isGeneratingPDF ? 'animate-spin' : ''}`} />
+                                    <span>{isGeneratingPDF ? 'Generating...' : 'Export PDF'}</span>
                                 </button>
                                 <button
                                     onClick={handleCopyText}
-                                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-colors"
+                                    className="flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] border border-slate-200 bg-slate-100 text-slate-600 hover:bg-teal-600 hover:text-white hover:border-teal-600 transition-all duration-300 active:scale-95"
                                 >
-                                    <Copy size={14} />
-                                    Copy
+                                    <Copy size={14} strokeWidth={2.5} className="shrink-0" />
+                                    <span>Copy</span>
                                 </button>
                                 <button
                                     onClick={handleExportCSV}
-                                    className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-bold transition-colors"
+                                    className="flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] border border-slate-200 bg-slate-100 text-slate-600 hover:bg-teal-600 hover:text-white hover:border-teal-600 transition-all duration-300 active:scale-95"
                                 >
-                                    <Download size={14} />
-                                    CSV
+                                    <Download size={14} strokeWidth={2.5} className="shrink-0" />
+                                    <span>CSV</span>
                                 </button>
                                 <button
                                     onClick={() => setShowTransmittalTable(!showTransmittalTable)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${showTransmittalTable
-                                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                                        : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
-                                        }`}
+                                    className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] border transition-all duration-300 active:scale-95 ${showTransmittalTable
+                                        ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-teal-600 hover:text-white hover:border-teal-600'}`}
                                 >
-                                    <Table2 size={14} />
-                                    {showTransmittalTable ? 'Hide' : 'Transmittal'}
+                                    <Table2 size={14} strokeWidth={2.5} className="shrink-0" />
+                                    <span>{showTransmittalTable ? 'Hide' : 'Transmittal'}</span>
                                 </button>
                             </div>
                         </div>
@@ -555,12 +556,14 @@ export const DailyLogReport: React.FC = () => {
                                 </div>
                                 <button
                                     onClick={handleCopyTable}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${tableCopied
-                                        ? 'bg-emerald-500 text-white'
-                                        : 'bg-amber-100 hover:bg-amber-200 text-amber-700'
+                                    className={`flex items-center gap-1.5 px-3 xl:px-5 py-2 rounded-full text-[10px] font-[1000] uppercase tracking-[0.15em] border transition-all duration-300 active:scale-95 ${tableCopied
+                                        ? 'bg-teal-600 text-white border-teal-600'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-teal-600 hover:text-white hover:border-teal-600'
                                         }`}
                                 >
-                                    {tableCopied ? <><ClipboardCheck size={12} /> Copied!</> : <><Copy size={12} /> Copy Table</>}
+                                    {tableCopied
+                                        ? <><ClipboardCheck size={12} strokeWidth={2.5} className="shrink-0" /><span>Copied!</span></>
+                                        : <><Copy size={12} strokeWidth={2.5} className="shrink-0" /><span>Copy Table</span></>}
                                 </button>
                             </div>
 
