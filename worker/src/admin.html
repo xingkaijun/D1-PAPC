@@ -406,6 +406,22 @@
       if (target) target.classList.add('active');
     }
 
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatCellValue(value) {
+      if (value === null) return '<span style="color:#dc2626;font-weight:700;font-size:11px">NULL</span>';
+      if (value === undefined) return '<span style="color:#94a3b8;font-style:italic">undefined</span>';
+      if (value === '') return '<span style="color:#cbd5e1;font-style:italic">(empty)</span>';
+      return escapeHtml(value);
+    }
+
     async function loadTable(name) {
       currentTable = name;
       currentPage = 1;
@@ -455,21 +471,22 @@
         return 0;
       });
 
-      cols.forEach(c => html += `<th>${c}</th>`);
+      cols.forEach(c => html += `<th>${escapeHtml(c)}</th>`);
       html += `<th>操作</th></tr></thead><tbody>`;
 
       data.rows.forEach(row => {
         html += `<tr>`;
         cols.forEach(c => {
-          let valStr = String(row[c] || '').replace(/</g, '&lt;');
+          let valStr = formatCellValue(row[c]);
           if (c === '_custom_id' || c === 'custom_id') valStr = `<strong style="color:var(--primary)">${valStr}</strong>`;
           html += `<td>${valStr}</td>`;
         });
-        const idVal = row.id || row.project_id; // Best effort for composite but we prefer 'id'
+        const idVal = row.id ?? row.project_id; // Best effort for composite but we prefer 'id'
+        const escapedId = escapeHtml(idVal ?? '');
         html += `<td>
       <div class="actions">
         <button class="btn-sm" onclick='openEditModal(${JSON.stringify(row).replace(/'/g, "&#39;")})'>编辑</button>
-        <button class="btn-sm danger" onclick="deleteRow('${idVal}')">删(软)</button>
+        <button class="btn-sm danger" onclick="deleteRow('${escapedId}')">删(软)</button>
       </div>
     </td></tr>`;
       });
@@ -492,10 +509,10 @@
     }
 
     function openEditModal(row) {
-      document.getElementById('modal-title').innerText = `编辑行 (ID: ${row.id || 'N/A'})`;
+      document.getElementById('modal-title').innerText = `编辑行 (ID: ${row.id ?? row.project_id ?? 'N/A'})`;
       renderForm(row);
       document.getElementById('edit-modal').dataset.mode = 'edit';
-      document.getElementById('edit-modal').dataset.id = row.id || row.project_id;
+      document.getElementById('edit-modal').dataset.id = row.id ?? row.project_id;
       document.getElementById('edit-modal').classList.add('show');
     }
 
@@ -503,12 +520,17 @@
       const form = document.getElementById('modal-form');
       let html = '';
       currentSchema.forEach(col => {
-        const val = row[col.name] !== undefined ? row[col.name] : '';
+        const hasValue = Object.prototype.hasOwnProperty.call(row, col.name);
+        const rawVal = hasValue ? row[col.name] : '';
+        const inputVal = rawVal == null ? '' : String(rawVal);
+        const wasNull = rawVal === null ? 'data-was-null="1"' : '';
+        const nullHint = rawVal === null ? '<div style="font-size:11px;color:#dc2626;margin-top:4px">当前数据库值为 NULL；留空保存将变为空字符串。</div>' : '';
         const readOnly = (col.name === 'id' && col.type === 'INTEGER') ? 'readonly' : '';
         html += `
       <div class="form-group">
-        <label>${col.name} <span style="font-size:0.8em;color:gray">(${col.type})</span></label>
-        <input type="text" id="form-${col.name}" value="${String(val).replace(/"/g, '&quot;')}" ${readOnly}>
+        <label>${escapeHtml(col.name)} <span style="font-size:0.8em;color:gray">(${escapeHtml(col.type)})</span></label>
+        <input type="text" id="form-${col.name}" value="${escapeHtml(inputVal)}" ${wasNull} ${readOnly}>
+        ${nullHint}
       </div>
     `;
       });
@@ -581,7 +603,7 @@
           html += `</tr></thead><tbody>`;
           data.results.forEach(row => {
             html += `<tr>`;
-            cols.forEach(c => html += `<td>${String(row[c] || '').replace(/</g, '&lt;')}</td>`);
+            cols.forEach(c => html += `<td>${formatCellValue(row[c])}</td>`);
             html += `</tr>`;
           });
           html += `</tbody></table>`;

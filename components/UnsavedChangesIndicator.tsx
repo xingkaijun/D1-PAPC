@@ -37,7 +37,7 @@ export const UnsavedChangesIndicator: React.FC = () => {
   const count = getUnsavedChangesCount;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9000] animate-in slide-in-from-bottom-4 fade-in duration-500">
+    <div className="fixed bottom-6 right-6 z-[9000] animate-in slide-in-from-bottom-4 fade-in duration-500 no-print">
       <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-[0_24px_48px_-12px_rgba(15,118,110,0.3)] border-2 border-teal-200/60 overflow-hidden">
         <div className="px-5 py-4 flex items-center gap-4">
           <div className="flex items-center gap-3">

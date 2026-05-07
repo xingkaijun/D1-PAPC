@@ -122,13 +122,18 @@ export const Settings: React.FC = () => {
         const payload = parseProjectBackup(content);
         restoreProject(payload.project);
 
-        // 恢复 Review Tracker（如果导出中包含）
+        // 恢复 Review Tracker（如果导出中包含），并标记为脏数据
         if (payload.reviewTracker && Object.keys(payload.reviewTracker).length > 0) {
-          useStore.setState({ reviewTracker: payload.reviewTracker });
+          const trackerDrawingIds = new Set(Object.keys(payload.reviewTracker));
+          useStore.setState({
+            reviewTracker: payload.reviewTracker,
+            _dirtyTracker: true,
+            _dirtyTrackerDrawingIds: trackerDrawingIds,
+          });
         }
 
         const trackerInfo = payload._backupVersion && payload._backupVersion >= 2 ? ' (含 Tracker)' : '';
-        alert(`Project "${payload.project.name}" has been restored locally.${trackerInfo}`);
+        alert(`Project "${payload.project.name}" has been restored locally.${trackerInfo}\n\n⚠️ 数据仅恢复到本地，请使用 "Save to Cloud" 同步到云端。`);
       } catch (err) {
         alert("Restoration failed: " + (err instanceof Error ? err.message : "Malformed JSON file"));
       }

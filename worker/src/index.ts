@@ -348,6 +348,11 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
   const toDelete = existingRows.map(r => toStringValue(r.id)).filter(id => id && !validIds.includes(id)) as string[];
 
   for (const delId of toDelete) {
+    // 清理关联数据：assignees、statusHistory、remarks、tracker
+    stmts.push(db.prepare(`DELETE FROM drawing_assignees WHERE drawing_id = ?`).bind(delId));
+    stmts.push(db.prepare(`DELETE FROM drawing_status_history WHERE drawing_id = ?`).bind(delId));
+    stmts.push(db.prepare(`DELETE FROM drawing_remarks WHERE drawing_id = ?`).bind(delId));
+    stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ? AND drawing_id = ?`).bind(projectId, delId));
     stmts.push(db.prepare(`DELETE FROM drawings WHERE project_id = ? AND id = ?`).bind(projectId, delId));
   }
 
@@ -373,11 +378,16 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
       toStringValue(drawing.receivedDate) || null, toStringValue(drawing.category) || null, toStringValue(drawing.deadline) || null
     ));
 
-    // Assignees
+    // Assignees (dedupe and filter null/undefined to avoid PK conflict)
     stmts.push(db.prepare(`DELETE FROM drawing_assignees WHERE drawing_id = ?`).bind(id));
     if (Array.isArray(drawing.assignees)) {
+      const seen = new Set<string>();
       for (const assignee of drawing.assignees) {
-        stmts.push(db.prepare(`INSERT INTO drawing_assignees (drawing_id, reviewer_id) VALUES (?, ?)`).bind(id, String(assignee)));
+        if (assignee == null) continue;
+        const s = String(assignee);
+        if (seen.has(s)) continue;
+        seen.add(s);
+        stmts.push(db.prepare(`INSERT INTO drawing_assignees (drawing_id, reviewer_id) VALUES (?, ?)`).bind(id, s));
       }
     }
 
@@ -475,14 +485,17 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
     }
   }
 
-  // Update Review Tracker if provided
-  if (reviewTracker && typeof reviewTracker === 'object' && Object.keys(reviewTracker).length > 0) {
-    stmts.push(...buildReviewTrackerStatements(db, projectId, reviewTracker));
+  // Full save owns the entire tracker state for this project.
+  // Clear existing rows first so removed assignees / empty tracker entries cannot remain stale.
+  stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ?`).bind(projectId));
+  const sanitizedTracker = sanitizeProjectReviewTracker(project, reviewTracker);
+  if (Object.keys(sanitizedTracker).length > 0) {
+    stmts.push(...buildReviewTrackerStatements(db, projectId, sanitizedTracker));
   }
 
   // Execute in batch
   if (stmts.length > 0) {
-    const chunkSize = 80;
+    const chunkSize = 100;
     for (let i = 0; i < stmts.length; i += chunkSize) {
       const chunk = stmts.slice(i, i + chunkSize);
       await db.batch(chunk);
@@ -510,10 +523,34 @@ const buildReviewTrackerStatements = (db: D1Database, projectId: string, data: a
   return stmts;
 };
 
+const sanitizeProjectReviewTracker = (project: any, reviewTracker: any) => {
+  const sanitized: Record<string, Record<string, any>> = {};
+  if (!reviewTracker || typeof reviewTracker !== 'object' || !Array.isArray(project?.drawings)) return sanitized;
+
+  for (const drawing of project.drawings) {
+    const drawingId = toStringValue(drawing.id);
+    if (!drawingId) continue;
+    const incoming = reviewTracker[drawingId];
+    if (!incoming || typeof incoming !== 'object') continue;
+
+    const allowedReviewers = new Set((Array.isArray(drawing.assignees) ? drawing.assignees : []).map((item: any) => String(item)));
+    allowedReviewers.add('__approved__');
+
+    for (const [reviewerId, info] of Object.entries(incoming as Record<string, any>)) {
+      if (allowedReviewers.has(reviewerId)) {
+        if (!sanitized[drawingId]) sanitized[drawingId] = {};
+        sanitized[drawingId][reviewerId] = info;
+      }
+    }
+  }
+
+  return sanitized;
+};
+
 const saveReviewTrackerData = async (db: D1Database, projectId: string, data: any) => {
   const stmts = buildReviewTrackerStatements(db, projectId, data);
   if (stmts.length > 0) {
-    const chunkSize = 80;
+    const chunkSize = 100;
     for (let i = 0; i < stmts.length; i += chunkSize) {
       const chunk = stmts.slice(i, i + chunkSize);
       await db.batch(chunk);
@@ -895,11 +932,16 @@ export default {
                 toStringValue(drawing.receivedDate) || null, toStringValue(drawing.category) || null, toStringValue(drawing.deadline) || null
               ));
 
-              // Assignees
+              // Assignees (dedupe and filter null/undefined to avoid PK conflict)
               stmts.push(db.prepare(`DELETE FROM drawing_assignees WHERE drawing_id = ?`).bind(id));
               if (Array.isArray(drawing.assignees)) {
+                const seen = new Set<string>();
                 for (const assignee of drawing.assignees) {
-                  stmts.push(db.prepare(`INSERT INTO drawing_assignees (drawing_id, reviewer_id) VALUES (?, ?)`).bind(id, String(assignee)));
+                  if (assignee == null) continue;
+                  const s = String(assignee);
+                  if (seen.has(s)) continue;
+                  seen.add(s);
+                  stmts.push(db.prepare(`INSERT INTO drawing_assignees (drawing_id, reviewer_id) VALUES (?, ?)`).bind(id, s));
                 }
               }
 
@@ -936,6 +978,7 @@ export default {
               stmts.push(db.prepare(`DELETE FROM drawing_assignees WHERE drawing_id = ?`).bind(delId));
               stmts.push(db.prepare(`DELETE FROM drawing_status_history WHERE drawing_id = ?`).bind(delId));
               stmts.push(db.prepare(`DELETE FROM drawing_remarks WHERE drawing_id = ?`).bind(delId));
+              stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ? AND drawing_id = ?`).bind(projectId, delId));
               stmts.push(db.prepare(`DELETE FROM drawings WHERE project_id = ? AND id = ?`).bind(projectId, delId));
             }
           }
@@ -998,6 +1041,8 @@ export default {
           if (body.reviewTracker && typeof body.reviewTracker === 'object') {
             for (const [drawingId, assignees] of Object.entries(body.reviewTracker)) {
               if (!assignees || typeof assignees !== 'object') continue;
+              // 先删除该 drawing 下所有 tracker 行，再重新插入，确保移除的 assignee 不会残留
+              stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ? AND drawing_id = ?`).bind(projectId, drawingId));
               for (const [reviewerId, info] of Object.entries(assignees as Record<string, any>)) {
                 stmts.push(db.prepare(
                   `INSERT INTO review_tracker (project_id, drawing_id, raw_drawing_ref, reviewer_id, done, done_at)
@@ -1017,7 +1062,7 @@ export default {
 
           // Execute batch
           if (stmts.length > 0) {
-            const chunkSize = 80;
+            const chunkSize = 100;
             for (let i = 0; i < stmts.length; i += chunkSize) {
               await db.batch(stmts.slice(i, i + chunkSize));
             }

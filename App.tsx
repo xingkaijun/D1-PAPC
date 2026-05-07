@@ -224,6 +224,13 @@ const App: React.FC = () => {
         await saveProject(activeProjectId);
       } else {
         // 全局只读模式下，不仅禁止推送（避免覆盖），同时从服务端静默拉取最新数据
+        // 如果本地有任何待保存状态（drawing / conf / tracker），跳过拉取以避免覆盖
+        const state = useStore.getState();
+        const hasPending = state._dirtyDrawingIds.size > 0 || state._deletedDrawingIds.size > 0 || state._dirtyConf || state._dirtyTracker;
+        if (hasPending) {
+          console.log(`[Read-Only Mode] Skipping auto-fetch: local unsaved changes pending.`);
+          return;
+        }
         // 获取配置中的项目密码（如果该项目受密码保护）
         console.log(`[Read-Only Mode] Auto-fetching latest data from server (Interval: ${intervalMinutes}m)...`);
         const projectConfPw = activeProject?.conf?.password;

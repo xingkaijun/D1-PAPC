@@ -91,15 +91,28 @@ interface AppState {
   _deletedDrawingIds: Set<string>;
   _dirtyConf: boolean;
   _dirtyTracker: boolean;
+  _dirtyTrackerDrawingIds: Set<string>; // tracker 变更涉及的 drawing ID
 
   // 管理员在线状态
   adminPresence: { isOnline: boolean; lastSeen?: string };
   _heartbeatTimer: ReturnType<typeof setInterval> | null;
 }
 
-const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[]) => {
+const normalizeHolidaySet = (holidays: string[] = []) => new Set(
+  holidays
+    .filter(Boolean)
+    .map(h => {
+      // input[type=date] stores YYYY-MM-DD; persisted/imported data may contain ISO strings.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(h)) return h;
+      const parsed = new Date(h);
+      return isNaN(parsed.getTime()) ? h : format(parsed, 'yyyy-MM-dd');
+    })
+);
+
+const calculateDeadline = (startDate: Date, workingDays: number, holidays: string[] = []) => {
   let count = 0;
   let currentDate = startDate;
+  const holidaySet = normalizeHolidaySet(holidays);
 
   // Safety break
   let loops = 0;
@@ -109,12 +122,33 @@ const calculateDeadline = (startDate: Date, workingDays: number, holidays: strin
     if (!isWeekend(currentDate)) {
       // Check holiday string match (simplified YYYY-MM-DD)
       const dateStr = format(currentDate, 'yyyy-MM-dd');
-      if (!holidays.includes(dateStr)) {
+      if (!holidaySet.has(dateStr)) {
         count++;
       }
     }
   }
   return currentDate;
+};
+
+const getReviewStartDate = (drawing: Drawing) => {
+  const statusHistory = drawing.statusHistory || [];
+  const latestReviewingLog = [...statusHistory]
+    .reverse()
+    .find(log => log.content.includes('Status:') && log.content.includes('-> Reviewing'));
+  const parsed = latestReviewingLog?.createdAt ? new Date(latestReviewingLog.createdAt) : new Date();
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const recalculateReviewDeadline = (drawing: Drawing, conf: ProjectConfig): Drawing => {
+  if (drawing.status !== 'Reviewing') return drawing;
+  const round = drawing.currentRound || 'A';
+  const cycleDays = round.toUpperCase() === 'A'
+    ? (conf.roundACycle || 14)
+    : (conf.otherRoundsCycle || 7);
+  return {
+    ...drawing,
+    reviewDeadline: calculateDeadline(getReviewStartDate(drawing), cycleDays, conf.holidays || []).toISOString(),
+  };
 };
 
 const DEFAULT_DATA: AppData = {
@@ -148,6 +182,7 @@ export const useStore = create<AppState>()(
       _deletedDrawingIds: new Set<string>(),
       _dirtyConf: false,
       _dirtyTracker: false,
+      _dirtyTrackerDrawingIds: new Set<string>(),
       adminPresence: { isOnline: false },
       _heartbeatTimer: null,
 
@@ -290,8 +325,18 @@ export const useStore = create<AppState>()(
         const newDirty = new Set(state._dirtyDrawingIds);
         newDirty.add(id);
 
+        // 如果 assignees 发生变化，标记 tracker 为脏数据（需要清理移除的 assignee 的 tracker 行）
+        let newDirtyTracker = state._dirtyTracker;
+        const newDirtyTrackerIds = new Set(state._dirtyTrackerDrawingIds);
+        if (updates.assignees) {
+          newDirtyTracker = true;
+          newDirtyTrackerIds.add(id);
+        }
+
         return {
           _dirtyDrawingIds: newDirty,
+          _dirtyTracker: newDirtyTracker,
+          _dirtyTrackerDrawingIds: newDirtyTrackerIds,
           data: {
             ...state.data,
             projects: state.data.projects.map(p => {
@@ -320,12 +365,7 @@ export const useStore = create<AppState>()(
                       changeLogs.push(`Round: ${currentRound} -> ${nextRound}`);
 
                       // 用递增后的轮次计算 Deadline
-                      const isRoundA = nextRound.toUpperCase() === 'A';
-                      const cycleDays = isRoundA
-                        ? (p.conf?.roundACycle || 14)
-                        : (p.conf?.otherRoundsCycle || 7);
-                      const holidays = p.conf?.holidays || [];
-                      changedDrawing.reviewDeadline = calculateDeadline(new Date(), cycleDays, holidays).toISOString();
+                      changedDrawing.reviewDeadline = recalculateReviewDeadline(changedDrawing, p.conf || state.data.settings).reviewDeadline;
                     }
                     // 从 Pending 首次进入 Reviewing 时：仅计算 Deadline，不递增轮次
                     else if (updates.status === 'Reviewing' && d.status !== 'Reviewing') {
@@ -333,13 +373,7 @@ export const useStore = create<AppState>()(
                       if (!changedDrawing.currentRound) {
                         changedDrawing.currentRound = 'A';
                       }
-                      const round = changedDrawing.currentRound;
-                      const isRoundA = round.toUpperCase() === 'A';
-                      const cycleDays = isRoundA
-                        ? (p.conf?.roundACycle || 14)
-                        : (p.conf?.otherRoundsCycle || 7);
-                      const holidays = p.conf?.holidays || [];
-                      changedDrawing.reviewDeadline = calculateDeadline(new Date(), cycleDays, holidays).toISOString();
+                      changedDrawing.reviewDeadline = recalculateReviewDeadline(changedDrawing, p.conf || state.data.settings).reviewDeadline;
                     }
                     // 从 Reviewing 变为 Waiting Reply 或 Approved 时：仅清除 Deadline，不递增轮次
                     else if (d.status === 'Reviewing' && (updates.status === 'Waiting Reply' || updates.status === 'Approved')) {
@@ -579,13 +613,18 @@ export const useStore = create<AppState>()(
       },
 
       saveProject: async (projectId: string) => {
-        const { data, reviewTracker, _dirtyDrawingIds, _deletedDrawingIds, _dirtyConf, _dirtyTracker } = get();
+        const { data, reviewTracker, _dirtyDrawingIds, _deletedDrawingIds, _dirtyConf, _dirtyTracker, _dirtyTrackerDrawingIds } = get();
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return false;
 
-        const dirtyCount = _dirtyDrawingIds.size + _deletedDrawingIds.size;
+        const dirtyDrawingSnapshot = new Set(_dirtyDrawingIds);
+        const deletedDrawingSnapshot = new Set(_deletedDrawingIds);
+        const dirtyTrackerSnapshot = new Set(_dirtyTrackerDrawingIds);
+        const dirtyConfSnapshot = _dirtyConf;
+        const dirtyTrackerSnapshotFlag = _dirtyTracker;
+        const dirtyCount = dirtyDrawingSnapshot.size + deletedDrawingSnapshot.size;
         const totalDrawings = project.drawings.length;
-        const hasDirty = dirtyCount > 0 || _dirtyConf || _dirtyTracker;
+        const hasDirty = dirtyCount > 0 || dirtyConfSnapshot || dirtyTrackerSnapshotFlag;
 
         // 无任何变更时跳过
         if (!hasDirty) {
@@ -595,39 +634,61 @@ export const useStore = create<AppState>()(
 
         set({ isLoading: true, error: null });
         try {
-          // 增量保存条件：脏 drawing 数量 < 总量的 50%，且无删除操作时使用 PATCH
-          const useDelta = dirtyCount > 0 && dirtyCount < totalDrawings * 0.5 && _deletedDrawingIds.size === 0;
+          // 增量保存条件：无删除操作，且存在可增量表达的 drawing/conf/tracker 变更
+          const canPatchDrawings = dirtyDrawingSnapshot.size > 0 && dirtyDrawingSnapshot.size < totalDrawings * 0.5;
+          const canPatchMetadataOnly = totalDrawings > 0 && dirtyDrawingSnapshot.size === 0 && (dirtyConfSnapshot || dirtyTrackerSnapshotFlag);
+          const useDelta = deletedDrawingSnapshot.size === 0 && (canPatchDrawings || canPatchMetadataOnly);
 
           if (useDelta) {
             // 构建增量 payload
-            const updatedDrawings = project.drawings.filter(d => _dirtyDrawingIds.has(d.id));
+            const updatedDrawings = project.drawings.filter(d => dirtyDrawingSnapshot.has(d.id));
             const payload: DeltaPayload = {};
             if (updatedDrawings.length > 0) payload.updatedDrawings = updatedDrawings;
-            if (_dirtyConf) payload.conf = project.conf;
-            if (_dirtyTracker) {
-              // 只发送脏 drawing 相关的 tracker 数据
+            if (dirtyConfSnapshot) payload.conf = project.conf;
+            if (dirtyTrackerSnapshotFlag) {
+              // 每个 dirty tracker drawing 都发送完整 drawing 级 tracker；空对象表示清空远端残留
               const trackerSlice: ReviewTrackerData = {};
-              for (const id of _dirtyDrawingIds) {
-                if (reviewTracker[id]) trackerSlice[id] = reviewTracker[id];
+              for (const id of dirtyTrackerSnapshot) {
+                trackerSlice[id] = reviewTracker[id] || {};
               }
               if (Object.keys(trackerSlice).length > 0) payload.reviewTracker = trackerSlice;
             }
 
-            console.log(`[Save] Delta: ${updatedDrawings.length} drawings, conf=${_dirtyConf}, tracker=${_dirtyTracker}`);
+            console.log(`[Save] Delta: ${updatedDrawings.length} drawings, conf=${dirtyConfSnapshot}, tracker=${dirtyTrackerSnapshotFlag}, trackerIds=${dirtyTrackerSnapshot.size}`);
             await appRepository.saveDelta(data.settings, projectId, payload);
           } else {
-            // 全量回退（删除、大批量修改、或首次保存）
-            console.log(`[Save] Full: ${totalDrawings} drawings (dirty=${dirtyCount}, deleted=${_deletedDrawingIds.size})`);
+            // 全量回退（删除、大批量修改、首次保存、或空项目创建）
+            console.log(`[Save] Full: ${totalDrawings} drawings (dirty=${dirtyCount}, deleted=${deletedDrawingSnapshot.size})`);
             await appRepository.saveProject(data.settings, project, reviewTracker);
           }
 
-          // 清空脏标记
-          set({
-            isLoading: false,
-            _dirtyDrawingIds: new Set<string>(),
-            _deletedDrawingIds: new Set<string>(),
-            _dirtyConf: false,
-            _dirtyTracker: false,
+          // 保存期间可能发生新修改：只清理本次 payload 中已发送且未再次改变的脏标记
+          set(state => {
+            const currentProject = state.data.projects.find(p => p.id === projectId);
+            const nextDirtyDrawingIds = new Set(state._dirtyDrawingIds);
+            dirtyDrawingSnapshot.forEach(id => {
+              const previousDrawing = project.drawings.find(d => d.id === id);
+              const currentDrawing = currentProject?.drawings.find(d => d.id === id);
+              if (currentDrawing === previousDrawing) nextDirtyDrawingIds.delete(id);
+            });
+
+            const nextDeletedDrawingIds = new Set(state._deletedDrawingIds);
+            deletedDrawingSnapshot.forEach(id => nextDeletedDrawingIds.delete(id));
+
+            const nextDirtyTrackerDrawingIds = new Set(state._dirtyTrackerDrawingIds);
+            dirtyTrackerSnapshot.forEach(id => {
+              if (state.reviewTracker[id] === reviewTracker[id]) nextDirtyTrackerDrawingIds.delete(id);
+            });
+
+            const nextDirtyConf = dirtyConfSnapshot && currentProject?.conf === project.conf ? false : state._dirtyConf;
+            return {
+              isLoading: false,
+              _dirtyDrawingIds: nextDirtyDrawingIds,
+              _deletedDrawingIds: nextDeletedDrawingIds,
+              _dirtyConf: nextDirtyConf,
+              _dirtyTracker: nextDirtyTrackerDrawingIds.size > 0,
+              _dirtyTrackerDrawingIds: nextDirtyTrackerDrawingIds,
+            };
           });
           return true;
         } catch (err: any) {
@@ -667,9 +728,10 @@ export const useStore = create<AppState>()(
             const mergedProjects = [...currentProjects];
 
             remoteProjects.forEach(rp => {
-              const existingIndex = mergedProjects.findIndex(p => p.name === rp.name);
+              // 按 ID 合并，避免同名项目污染
+              const existingIndex = mergedProjects.findIndex(p => p.id === rp.id);
               if (existingIndex > -1) {
-                mergedProjects[existingIndex] = { ...mergedProjects[existingIndex], webdavPath: rp.webdavPath, id: rp.id };
+                mergedProjects[existingIndex] = { ...mergedProjects[existingIndex], webdavPath: rp.webdavPath };
               } else {
                 mergedProjects.push({
                   id: rp.id,
@@ -854,6 +916,7 @@ export const useStore = create<AppState>()(
             _deletedDrawingIds: new Set<string>(),
             _dirtyConf: false,
             _dirtyTracker: false,
+            _dirtyTrackerDrawingIds: new Set<string>(),
           }));
 
           // 读取管理员在线状态（非阻塞）
@@ -877,25 +940,63 @@ export const useStore = create<AppState>()(
         return appRepository.testConnection(data.settings, { url, user, pass, proxyUrl });
       },
 
-      updateProjectConfig: (projectId, updates) => set((state) => ({
-        _dirtyConf: true,
-        data: {
-          ...state.data,
-          projects: state.data.projects.map(p => p.id === projectId ? {
-            ...p,
-            conf: { ...(p.conf || state.data.settings), ...updates }
-          } : p)
-        }
-      })),
+      updateProjectConfig: (projectId, updates) => set((state) => {
+        const shouldRecalculateDeadlines =
+          updates.holidays !== undefined ||
+          updates.roundACycle !== undefined ||
+          updates.otherRoundsCycle !== undefined;
+        const newDirty = new Set(state._dirtyDrawingIds);
+
+        return {
+          _dirtyConf: true,
+          _dirtyDrawingIds: shouldRecalculateDeadlines ? newDirty : state._dirtyDrawingIds,
+          data: {
+            ...state.data,
+            projects: state.data.projects.map(p => {
+              if (p.id !== projectId) return p;
+              const nextConf = { ...(p.conf || state.data.settings), ...updates };
+              const nextDrawings = shouldRecalculateDeadlines
+                ? p.drawings.map(d => {
+                    if (d.status !== 'Reviewing') return d;
+                    newDirty.add(d.id);
+                    return recalculateReviewDeadline(d, nextConf);
+                  })
+                : p.drawings;
+
+              return {
+                ...p,
+                conf: nextConf,
+                drawings: nextDrawings,
+              };
+            })
+          }
+        };
+      }),
 
       clearError: () => set({ error: null }),
 
-      restoreProject: (project) => set((state) => ({
-        data: {
-          ...state.data,
-          projects: [...state.data.projects.filter(p => p.name !== project.name), project]
-        }
-      })),
+      restoreProject: (project) => set((state) => {
+        const restoredProject = { ...project };
+        // 恢复后标记所有 drawing 为脏，确保用户手动保存时同步到云端
+        const newDirty = new Set(state._dirtyDrawingIds);
+        const newDirtyTrackerIds = new Set(state._dirtyTrackerDrawingIds);
+        (restoredProject.drawings || []).forEach(d => {
+          if (d.id) {
+            newDirty.add(d.id);
+            newDirtyTrackerIds.add(d.id);
+          }
+        });
+        return {
+          _dirtyDrawingIds: newDirty,
+          _dirtyConf: true,
+          _dirtyTracker: true,
+          _dirtyTrackerDrawingIds: newDirtyTrackerIds,
+          data: {
+            ...state.data,
+            projects: [...state.data.projects.filter(p => p.name !== project.name), restoredProject]
+          }
+        };
+      }),
 
       toggleRemarkStatus: (drawingId, remarkId) => set((state) => {
         const { activeProjectId } = state;
@@ -925,16 +1026,17 @@ export const useStore = create<AppState>()(
 
       // === 审核追踪 ===
       loadReviewTracker: async (projectId: string) => {
-        const { data, reviewTracker: localTracker } = get();
+        const { data, reviewTracker: localTracker, _dirtyTrackerDrawingIds } = get();
         const project = data.projects.find(p => p.id === projectId);
         if (!project) return;
         try {
           const remote = await appRepository.loadReviewTracker(data.settings, project);
-          // 合并：本地优先，确保未同步的本地标记不被覆盖
-          const merged: ReviewTrackerData = {};
-          const allIds = new Set([...Object.keys(remote || {}), ...Object.keys(localTracker)]);
-          for (const id of allIds) {
-            merged[id] = { ...(remote?.[id] || {}), ...(localTracker[id] || {}) };
+          // 只有 dirty drawing 本地优先；非 dirty drawing 接受远端最新值
+          const merged: ReviewTrackerData = { ...(remote || {}) };
+          for (const id of _dirtyTrackerDrawingIds) {
+            if (localTracker[id]) {
+              merged[id] = { ...(remote?.[id] || {}), ...localTracker[id] };
+            }
           }
           set({ reviewTracker: merged });
         } catch (e) { console.warn('loadReviewTracker failed', e); }
@@ -945,8 +1047,13 @@ export const useStore = create<AppState>()(
         const newDone = !current?.done;
         const doneAt = newDone ? new Date().toISOString() : undefined;
 
-        // 1. 立即更新本地状态（不再需要标记 _dirtyTracker）
+        // 1. 立即更新本地状态，并标记 tracker 为脏数据
+        const newDirtyTrackerIds = new Set(get()._dirtyTrackerDrawingIds);
+        newDirtyTrackerIds.add(drawingId);
+
         set(state => ({
+          _dirtyTracker: true,
+          _dirtyTrackerDrawingIds: newDirtyTrackerIds,
           reviewTracker: {
             ...state.reviewTracker,
             [drawingId]: {
@@ -956,17 +1063,25 @@ export const useStore = create<AppState>()(
           }
         }));
 
-        // 2. 异步保存到服务端（fire-and-forget）
+        // 2. 异步保存到服务端（fire-and-forget，但失败时脏标记已保留可供手动重试）
         const { data, activeProjectId } = get();
         if (activeProjectId) {
           const project = data.projects.find(p => p.id === activeProjectId);
           if (project) {
             const singleUpdate = { [drawingId]: { [assignee]: { done: newDone, doneAt } } };
             appRepository.saveReviewTracker(data.settings, project, singleUpdate)
-              .then(() => console.log(`[Tracker] Saved: ${drawingId}/${assignee} = ${newDone}`))
+              .then(() => {
+                // 即时保存成功，清除该 drawing 的 tracker 脏标记
+                // 注意：仅在该 drawing 没有其他未保存的 tracker 变更时才清除
+                const currentState = get();
+                const trackerEntry = currentState.reviewTracker[drawingId] || {};
+                // 检查是否还有其他未同步的 assignee 状态（简单策略：移除已成功保存的）
+                // 由于 saveProject 也会整体清除，这里仅做即时保存成功的日志
+                console.log(`[Tracker] Saved: ${drawingId}/${assignee} = ${newDone}`);
+              })
               .catch(err => {
-                console.error('[Tracker] Save failed:', err);
-                // 可以在这里添加 Toast 提示，或者重新标记为 dirty，目前保持简单
+                console.error('[Tracker] Save failed (will retry on next manual/auto save):', err);
+                // 不恢复本地状态，脏标记已保留，下次手动/自动保存时会兜底
               });
           }
         }
@@ -979,19 +1094,43 @@ export const useStore = create<AppState>()(
           ...state.data,
           projects: state.data.projects.map(project => stripProjectPayload(project, project.id === state.activeProjectId)),
         },
-        activeProjectId: state.activeProjectId
+        activeProjectId: state.activeProjectId,
+        reviewTracker: state.reviewTracker,
+        _dirtyTracker: state._dirtyTracker,
+        _dirtyTrackerDrawingIds: Array.from(state._dirtyTrackerDrawingIds),
       }),
-      version: 1,
+      version: 2,
       migrate: (persistedState: any) => {
         if (!persistedState?.data?.projects) return persistedState;
+        const dirtyTrackerDrawingIds = persistedState._dirtyTrackerDrawingIds;
         return {
           ...persistedState,
           data: {
             ...persistedState.data,
             projects: persistedState.data.projects.map((p: Project) => normalizeProjectDrawingIds(p)),
           },
+          // 兼容历史持久化格式，确保运行态始终拿到 Set
+          _dirtyTrackerDrawingIds: dirtyTrackerDrawingIds instanceof Set
+            ? dirtyTrackerDrawingIds
+            : new Set(Array.isArray(dirtyTrackerDrawingIds) ? dirtyTrackerDrawingIds : []),
         };
       },
+      merge: (persistedState: any, currentState) => ({
+        ...currentState,
+        ...persistedState,
+        data: persistedState?.data
+          ? {
+              ...currentState.data,
+              ...persistedState.data,
+              projects: Array.isArray(persistedState.data.projects)
+                ? persistedState.data.projects.map((p: Project) => normalizeProjectDrawingIds(p))
+                : currentState.data.projects,
+            }
+          : currentState.data,
+        _dirtyTrackerDrawingIds: persistedState?._dirtyTrackerDrawingIds instanceof Set
+          ? persistedState._dirtyTrackerDrawingIds
+          : new Set(Array.isArray(persistedState?._dirtyTrackerDrawingIds) ? persistedState._dirtyTrackerDrawingIds : []),
+      }),
     }
   )
 );
