@@ -316,6 +316,9 @@ export const Settings: React.FC = () => {
               </div>
             </div>
           </section>
+
+          {/* Review Team */}
+          <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:border-teal-400 transition-colors">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
               <Users className="text-teal-600" size={16} />
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Team Roster</h2>
