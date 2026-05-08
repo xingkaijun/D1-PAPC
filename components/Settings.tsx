@@ -240,14 +240,82 @@ export const Settings: React.FC = () => {
                     className="hidden"
                   />
                 </div>
+
+                <div className="h-px bg-slate-100 my-1" />
+
+                {/* Fix Deadline Button */}
+                <button
+                  onClick={() => {
+                    if (!project) return;
+                    const confirmed = window.confirm(
+                      '🔧 修复 Deadline\n\n' +
+                      '这将为所有 Reviewing 状态的图纸重新计算 deadline，\n' +
+                      '基于最后一次进入 Reviewing 的时间。\n\n' +
+                      '⚠️ 注意：修复后需要点击 "Save to Cloud" 保存到云端。\n\n' +
+                      '确定继续吗？'
+                    );
+                    if (!confirmed) return;
+
+                    // 重新计算所有 Reviewing 图纸的 deadline
+                    const conf = project.conf || data.settings;
+                    let fixedCount = 0;
+
+                    project.drawings.forEach(drawing => {
+                      if (drawing.status === 'Reviewing') {
+                        // 从 statusHistory 找到最后一次进入 Reviewing 的时间
+                        const statusHistory = drawing.statusHistory || [];
+                        const latestReviewingLog = [...statusHistory]
+                          .reverse()
+                          .find(log => log.content.includes('Status:') && log.content.includes('-> Reviewing'));
+                        
+                        if (latestReviewingLog) {
+                          const startDate = new Date(latestReviewingLog.createdAt);
+                          const round = drawing.currentRound || 'A';
+                          const cycleDays = round.toUpperCase() === 'A'
+                            ? (conf.roundACycle || 14)
+                            : (conf.otherRoundsCycle || 7);
+
+                          // 计算工作日（排除周末和节假日）
+                          const calculateDeadline = (start: Date, workingDays: number, holidays: string[] = []) => {
+                            let count = 0;
+                            let currentDate = start;
+                            const holidaySet = new Set(holidays);
+
+                            while (count < workingDays) {
+                              currentDate = new Date(currentDate.getTime() + 24 * 60 * 60 * 1000);
+                              const dayOfWeek = currentDate.getDay();
+                              const dateStr = currentDate.toISOString().split('T')[0];
+                              
+                              // 跳过周末和节假日
+                              if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidaySet.has(dateStr)) {
+                                count++;
+                              }
+                            }
+                            return currentDate;
+                          };
+
+                          const newDeadline = calculateDeadline(startDate, cycleDays, conf.holidays || []);
+                          
+                          // 更新 drawing
+                          useStore.getState().updateDrawing(drawing.id, {
+                            reviewDeadline: newDeadline.toISOString()
+                          });
+                          
+                          fixedCount++;
+                        }
+                      }
+                    });
+
+                    alert(`✅ 修复完成！\n\n共修复 ${fixedCount} 张图纸的 deadline。\n\n请点击 "Save to Cloud" 保存到云端。`);
+                  }}
+                  disabled={!project}
+                  className="w-full p-3 bg-amber-500 text-white rounded-full text-[9px] font-black uppercase tracking-[0.18em] hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg"
+                >
+                  <RefreshCw size={12} /> Fix Deadline 修复期限
+                </button>
               </div>
             </div>
           </section>
-
-
-
-          {/* Review Team */}
-          <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col hover:border-teal-400 transition-colors">
             <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
               <Users className="text-teal-600" size={16} />
               <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-800">Team Roster</h2>

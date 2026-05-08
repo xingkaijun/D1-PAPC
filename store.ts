@@ -139,15 +139,19 @@ const getReviewStartDate = (drawing: Drawing) => {
   return isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
-const recalculateReviewDeadline = (drawing: Drawing, conf: ProjectConfig): Drawing => {
+const recalculateReviewDeadline = (drawing: Drawing, conf: ProjectConfig, startDate?: Date): Drawing => {
   if (drawing.status !== 'Reviewing') return drawing;
   const round = drawing.currentRound || 'A';
   const cycleDays = round.toUpperCase() === 'A'
     ? (conf.roundACycle || 14)
     : (conf.otherRoundsCycle || 7);
+  
+  // 如果提供了明确的起始日期，使用它；否则从 statusHistory 中查找
+  const effectiveStartDate = startDate || getReviewStartDate(drawing);
+  
   return {
     ...drawing,
-    reviewDeadline: calculateDeadline(getReviewStartDate(drawing), cycleDays, conf.holidays || []).toISOString(),
+    reviewDeadline: calculateDeadline(effectiveStartDate, cycleDays, conf.holidays || []).toISOString(),
   };
 };
 
@@ -364,8 +368,9 @@ export const useStore = create<AppState>()(
                       changedDrawing.currentRound = nextRound;
                       changeLogs.push(`Round: ${currentRound} -> ${nextRound}`);
 
-                      // 用递增后的轮次计算 Deadline
-                      changedDrawing.reviewDeadline = recalculateReviewDeadline(changedDrawing, p.conf || state.data.settings).reviewDeadline;
+                      // 用递增后的轮次计算 Deadline，使用当前时间作为起始日期
+                      const now = new Date();
+                      changedDrawing.reviewDeadline = recalculateReviewDeadline(changedDrawing, p.conf || state.data.settings, now).reviewDeadline;
                     }
                     // 从 Pending 首次进入 Reviewing 时：仅计算 Deadline，不递增轮次
                     else if (updates.status === 'Reviewing' && d.status !== 'Reviewing') {
@@ -373,7 +378,9 @@ export const useStore = create<AppState>()(
                       if (!changedDrawing.currentRound) {
                         changedDrawing.currentRound = 'A';
                       }
-                      changedDrawing.reviewDeadline = recalculateReviewDeadline(changedDrawing, p.conf || state.data.settings).reviewDeadline;
+                      // 使用当前时间作为起始日期
+                      const now = new Date();
+                      changedDrawing.reviewDeadline = recalculateReviewDeadline(changedDrawing, p.conf || state.data.settings, now).reviewDeadline;
                     }
                     // 从 Reviewing 变为 Waiting Reply 或 Approved 时：仅清除 Deadline，不递增轮次
                     else if (d.status === 'Reviewing' && (updates.status === 'Waiting Reply' || updates.status === 'Approved')) {

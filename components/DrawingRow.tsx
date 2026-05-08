@@ -201,6 +201,9 @@ export const DrawingRow = memo(({
                 </td>
                 <td className="px-2 py-2 text-center">
                     {(() => {
+                        // 已 Approved 的图纸不统计等待天数
+                        if (drawing.status === 'Approved') return EMPTY_MARK;
+                        
                         const statusChanges = (drawing.statusHistory || []).filter(h => h.content.includes('Status:'));
                         if (statusChanges.length === 0) return EMPTY_MARK;
                         const date = toValidDate(statusChanges[statusChanges.length - 1].createdAt);
@@ -214,7 +217,43 @@ export const DrawingRow = memo(({
                 </td>
                 <td className="px-3 py-2">
                     {reviewDeadline ? (
-                        <div className={`text-[9px] font-black flex items-center gap-1 ${isAfter(new Date(), reviewDeadline) ? 'text-red-600' : 'text-slate-500'}`}>
+                        <div 
+                            className={`text-[9px] font-black flex items-center gap-1 ${isAfter(new Date(), reviewDeadline) ? 'text-red-600' : 'text-slate-500'} cursor-help`}
+                            title="点击查看 deadline 计算详情"
+                            onClick={() => {
+                                // 调试：输出 deadline 计算信息
+                                const statusHistory = drawing.statusHistory || [];
+                                const latestReviewingLog = [...statusHistory]
+                                    .reverse()
+                                    .find(log => log.content.includes('Status:') && log.content.includes('-> Reviewing'));
+                                
+                                console.group(`🔍 Deadline Debug: ${drawing.customId} - ${drawing.drawingNo}`);
+                                console.log('📊 当前状态:', drawing.status);
+                                console.log('🔄 当前轮次:', drawing.currentRound);
+                                console.log('📅 Deadline:', drawing.reviewDeadline);
+                                console.log('\n📜 完整 Status History:');
+                                statusHistory.forEach((log, idx) => {
+                                    const isReviewing = log.content.includes('-> Reviewing');
+                                    console.log(`  ${idx + 1}. ${log.createdAt} ${isReviewing ? '🔍' : '  '} ${log.content}`);
+                                });
+                                if (latestReviewingLog) {
+                                    console.log('\n✅ 找到最后一次进入 Reviewing:');
+                                    console.log('   时间:', latestReviewingLog.createdAt);
+                                    console.log('   内容:', latestReviewingLog.content);
+                                    const startDate = new Date(latestReviewingLog.createdAt);
+                                    const deadline = new Date(drawing.reviewDeadline!);
+                                    const today = new Date();
+                                    const daysOverdue = Math.floor((today.getTime() - deadline.getTime()) / (1000 * 60 * 60 * 24));
+                                    console.log('   起始日期:', startDate.toISOString());
+                                    console.log('   计算的 deadline:', deadline.toISOString());
+                                    console.log('   今天:', today.toISOString());
+                                    console.log('   逾期天数:', daysOverdue, daysOverdue > 0 ? '⚠️' : '✅');
+                                } else {
+                                    console.log('\n❌ 未找到进入 Reviewing 的记录');
+                                }
+                                console.groupEnd();
+                            }}
+                        >
                             <Clock size={10} /> {safeFormatDate(reviewDeadline, 'MM-dd')}
                         </div>
                     ) : EMPTY_MARK}
