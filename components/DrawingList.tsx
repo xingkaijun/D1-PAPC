@@ -164,6 +164,7 @@ export const DrawingList: React.FC = () => {
   const [importText, setImportText] = useState('');
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [daysSortDirection, setDaysSortDirection] = useState<'none' | 'asc' | 'desc'>('none');
+  const [lastChangeSortDirection, setLastChangeSortDirection] = useState<'none' | 'asc' | 'desc'>('none');
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -270,6 +271,7 @@ export const DrawingList: React.FC = () => {
         return filters.every(filter => matchesStatusFilter(d, filter));
       });
 
+    // 按 Days 排序
     if (daysSortDirection !== 'none') {
       drawings = [...drawings].sort((a, b) => {
         const diff = getReviewDeadlineDays(a) - getReviewDeadlineDays(b);
@@ -278,8 +280,25 @@ export const DrawingList: React.FC = () => {
       });
     }
 
+    // 按 Last Change 排序
+    if (lastChangeSortDirection !== 'none') {
+      drawings = [...drawings].sort((a, b) => {
+        const getLastChangeDate = (d: Drawing) => {
+          const statusChanges = (d.statusHistory || []).filter(h => h.content.includes('Status:'));
+          if (statusChanges.length === 0) return new Date(0); // 没有记录的排最后
+          return new Date(statusChanges[statusChanges.length - 1].createdAt);
+        };
+        
+        const dateA = getLastChangeDate(a).getTime();
+        const dateB = getLastChangeDate(b).getTime();
+        const diff = dateA - dateB;
+        if (diff !== 0) return lastChangeSortDirection === 'asc' ? diff : -diff;
+        return a.customId.localeCompare(b.customId);
+      });
+    }
+
     return drawings;
-  }, [searchScopedDrawings, statusFilters, matchesStatusFilter, daysSortDirection]);
+  }, [searchScopedDrawings, statusFilters, matchesStatusFilter, daysSortDirection, lastChangeSortDirection]);
 
   const progressCount = useMemo(() => {
     return searchScopedDrawings.filter(d => d.status === 'Reviewing' || d.status === 'Waiting Reply' || d.status === 'Approved').length;
@@ -303,7 +322,7 @@ export const DrawingList: React.FC = () => {
   // Reset pagination when filter changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [filterQuery, statusFilters, daysSortDirection]);
+  }, [filterQuery, statusFilters, daysSortDirection, lastChangeSortDirection]);
 
   // Calculate Paginated Data
   const paginatedDrawings = useMemo(() => {
@@ -525,12 +544,29 @@ export const DrawingList: React.FC = () => {
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, rnd: w }))} width={columnWidths.rnd || 40}>Rd</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, disc: w }))} width={columnWidths.disc || 120}>Discipline</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, title: w }))} width={columnWidths.title || 250}>Drawing Title</ResizableHeader>
-                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, lchg: w }))} width={columnWidths.lchg || 80}>Last Change</ResizableHeader>
+                <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, lchg: w }))} width={columnWidths.lchg || 80}>
+                  <button
+                    onClick={() => {
+                      setLastChangeSortDirection(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? 'none' : 'asc');
+                      setDaysSortDirection('none'); // 清除其他列的排序
+                    }}
+                    className="inline-flex items-center gap-1 text-left hover:text-teal-700 transition-colors"
+                    title="Sort by last change date"
+                  >
+                    <span>Last Change</span>
+                    <span className="text-[7px] text-slate-400">
+                      {lastChangeSortDirection === 'asc' ? '↑' : lastChangeSortDirection === 'desc' ? '↓' : '↕'}
+                    </span>
+                  </button>
+                </ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, wait: w }))} width={columnWidths.wait || 50}>Wait</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, dead: w }))} width={columnWidths.dead || 90}>Deadline</ResizableHeader>
                 <ResizableHeader onResize={w => setColumnWidths(p => ({ ...p, days: w }))} width={columnWidths.days || 70}>
                   <button
-                    onClick={() => setDaysSortDirection(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? 'none' : 'asc')}
+                    onClick={() => {
+                      setDaysSortDirection(prev => prev === 'asc' ? 'desc' : prev === 'desc' ? 'none' : 'asc');
+                      setLastChangeSortDirection('none'); // 清除其他列的排序
+                    }}
                     className="inline-flex items-center gap-1 text-left hover:text-teal-700 transition-colors"
                     title="Sort by days to deadline"
                   >

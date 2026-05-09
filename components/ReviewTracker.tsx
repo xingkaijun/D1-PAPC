@@ -88,6 +88,31 @@ export const ReviewTracker: React.FC = () => {
                 else pending.push(d);
             }
         });
+        
+        // 对 ready 图纸按变成 ready 的时间排序（最后一个 assignee 完成的时间）
+        ready.sort((a, b) => {
+            const getReadyTime = (d: typeof a) => {
+                const trackerEntry = reviewTracker[d.id] || {};
+                const assignees = d.assignees || [];
+                if (assignees.length === 0) return new Date(0);
+                
+                // 找到所有 assignee 完成时间中最晚的一个（即变成 ready 的时间）
+                const doneTimes = assignees
+                    .map(assignee => trackerEntry[assignee]?.doneAt)
+                    .filter(Boolean)
+                    .map(dateStr => new Date(dateStr).getTime());
+                
+                if (doneTimes.length === 0) return new Date(0).getTime();
+                return Math.max(...doneTimes);
+            };
+            
+            const timeA = getReadyTime(a);
+            const timeB = getReadyTime(b);
+            
+            // 降序排列：最新变成 ready 的在前
+            return timeB - timeA;
+        });
+        
         return { readyDrawings: ready, pendingDrawings: pending };
     }, [filteredDrawings, reviewTracker, showUrgeOnly]);
 
