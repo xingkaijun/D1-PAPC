@@ -11,11 +11,17 @@ const ensureDrawingHasId = (drawing: Drawing): Drawing => {
   return { ...drawing, id: generateId() };
 };
 
+// statusHistory 必须按时间升序排列（旧→新）：全站多处逻辑（Wait days、Last Change 等）
+// 依赖 statusHistory[length - 1] 为最新记录，而后端视图返回顺序不保证有序
+const sortHistoryAsc = (history: Remark[] | undefined): Remark[] =>
+  [...(history || [])].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
 const normalizeProjectDrawingIds = (project: Project): Project => ({
   ...project,
   drawings: (project.drawings || []).map(d => ({
     ...ensureDrawingHasId(d),
-    currentRound: d.currentRound || 'A'
+    currentRound: d.currentRound || 'A',
+    statusHistory: sortHistoryAsc(d.statusHistory)
   })),
 });
 
