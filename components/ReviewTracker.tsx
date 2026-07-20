@@ -180,7 +180,10 @@ export const ReviewTracker: React.FC = () => {
             return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         };
 
-        const headers = ['No', 'Drawing No', 'Title', 'Discipline', 'Status', 'Overdue', 'Deadline', 'Assignees'];
+        // 每张图纸负责人数不同，取最大值作为独立列数
+        const maxAssignees = rows.reduce((max, d) => Math.max(max, (d.assignees || []).length), 0);
+        const assigneeHeaders = Array.from({ length: Math.max(maxAssignees, 1) }, (_, i) => `Assignee ${i + 1}`);
+        const headers = ['No', 'Drawing No', 'Title', 'Discipline', 'Status', 'Overdue', 'Deadline', ...assigneeHeaders];
 
         const dataRows = rows.map((d, i) => {
             const trackerEntry = reviewTracker[d.id] || {};
@@ -193,6 +196,9 @@ export const ReviewTracker: React.FC = () => {
             const overdueText = days === null ? '-' : (days < 0 ? `Overdue ${-days}d` : `${days}d left`);
             const deadline = d.reviewDeadline ? format(new Date(d.reviewDeadline), 'yyyy-MM-dd') : '-';
 
+            // 每个负责人占一列，不足的补空
+            const assigneeCells = Array.from({ length: assigneeHeaders.length }, (_, k) => assignees[k] ?? '');
+
             return [
                 i + 1,
                 d.customId,
@@ -201,7 +207,7 @@ export const ReviewTracker: React.FC = () => {
                 statusText,
                 overdueText,
                 deadline,
-                assignees.join(' / ') || '-',
+                ...assigneeCells,
             ].map(csvCell).join(',');
         });
 
