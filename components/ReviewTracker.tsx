@@ -166,82 +166,54 @@ export const ReviewTracker: React.FC = () => {
         }
     };
 
-    // 导出当前筛选结果为 Excel（.xls，带内联样式，零依赖，WPS/Excel 原生打开）
+    // 导出当前筛选结果为 CSV（全英文，带 UTF-8 BOM，Excel/WPS 双击直接打开，无格式警告）
     const handleExportExcel = () => {
         const rows = [...readyDrawings, ...pendingDrawings];
         if (rows.length === 0) {
-            alert('当前筛选结果为空，无可导出的图纸。');
+            alert('No drawings to export for the current filter.');
             return;
         }
 
-        const esc = (s: string) => String(s ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
+        // CSV 字段转义：含逗号/引号/换行时用双引号包裹，内部引号翻倍
+        const csvCell = (value: string | number): string => {
+            const s = String(value ?? '');
+            return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+        };
 
-        const bodyRows = rows.map((d, i) => {
+        const headers = ['No', 'Drawing No', 'Title', 'Discipline', 'Status', 'Overdue', 'Deadline', 'Assignees'];
+
+        const dataRows = rows.map((d, i) => {
             const trackerEntry = reviewTracker[d.id] || {};
             const assignees = d.assignees || [];
             const doneCount = assignees.filter(a => trackerEntry[a]?.done).length;
             const allDone = assignees.length > 0 && doneCount === assignees.length;
             const days = getDeadlineDays(d.reviewDeadline);
-            const overdue = days !== null && days < 0;
 
-            const statusText = allDone ? 'Ready' : `审查中 ${doneCount}/${assignees.length}`;
-            const statusColor = allDone ? '#047857' : '#0f766e';
-            const dueText = days === null ? '—' : (days < 0 ? `逾期 ${-days} 天` : `剩 ${days} 天`);
-            const dueColor = days === null ? '#94a3b8' : (overdue ? '#b91c1c' : (days <= 3 ? '#b45309' : '#334155'));
-            const dueDate = d.reviewDeadline ? format(new Date(d.reviewDeadline), 'yyyy-MM-dd') : '—';
-            const zebra = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+            const statusText = allDone ? 'Ready' : `Reviewing ${doneCount}/${assignees.length}`;
+            const overdueText = days === null ? '-' : (days < 0 ? `Overdue ${-days}d` : `${days}d left`);
+            const deadline = d.reviewDeadline ? format(new Date(d.reviewDeadline), 'yyyy-MM-dd') : '-';
 
-            const cell = (content: string, extra = '') =>
-                `<td style="border:1px solid #d9e2ec;padding:6px 10px;background:${zebra};${extra}">${content}</td>`;
+            return [
+                i + 1,
+                d.customId,
+                d.title || '',
+                d.discipline || '-',
+                statusText,
+                overdueText,
+                deadline,
+                assignees.join(' / ') || '-',
+            ].map(csvCell).join(',');
+        });
 
-            return `<tr>
-                ${cell(String(i + 1), 'text-align:center;color:#94a3b8;')}
-                ${cell(esc(d.customId), 'font-weight:bold;color:#0f766e;white-space:nowrap;')}
-                ${cell(esc(d.title))}
-                ${cell(esc(d.discipline || '—'), 'text-align:center;white-space:nowrap;')}
-                ${cell(statusText, `text-align:center;font-weight:bold;color:${statusColor};white-space:nowrap;`)}
-                ${cell(dueText, `text-align:center;font-weight:bold;color:${dueColor};white-space:nowrap;`)}
-                ${cell(dueDate, 'text-align:center;color:#64748b;white-space:nowrap;')}
-                ${cell(esc(assignees.join('、') || '—'))}
-            </tr>`;
-        }).join('');
+        const csv = [headers.map(csvCell).join(','), ...dataRows].join('\r\n');
 
+        // UTF-8 BOM 确保 Excel 正确识别编码（含中文负责人姓名）
+        const blob = new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8;' });
         const projectName = currentProject?.conf?.displayName || currentProject?.name || 'Project';
-        const exportedAt = format(new Date(), 'yyyy-MM-dd HH:mm');
-        const filterNote = filterText.trim() ? `筛选条件：${esc(filterText.trim())}` : '筛选条件：全部 Reviewing 图纸';
-
-        const th = (label: string, width = '') =>
-            `<th style="border:1px solid #0f766e;padding:8px 10px;background:#0f766e;color:#ffffff;font-weight:bold;text-align:center;${width}">${label}</th>`;
-
-        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Review List</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
-<body>
-<table style="border-collapse:collapse;font-family:'Microsoft YaHei',Arial,sans-serif;font-size:12px;">
-    <tr><td colspan="8" style="padding:6px 4px;font-size:16px;font-weight:bold;color:#0f766e;">${esc(projectName)} · 图纸审查清单</td></tr>
-    <tr><td colspan="4" style="padding:2px 4px 8px;font-size:11px;color:#64748b;">${filterNote}</td>
-        <td colspan="4" style="padding:2px 4px 8px;font-size:11px;color:#64748b;text-align:right;">导出时间：${exportedAt} · 共 ${rows.length} 张</td></tr>
-    <tr>
-        ${th('序号', 'width:40px;')}
-        ${th('图号', 'width:120px;')}
-        ${th('图名')}
-        ${th('专业', 'width:70px;')}
-        ${th('状态', 'width:90px;')}
-        ${th('逾期', 'width:80px;')}
-        ${th('截止日期', 'width:90px;')}
-        ${th('负责人', 'width:140px;')}
-    </tr>
-    ${bodyRows}
-</table>
-</body></html>`;
-
-        const blob = new Blob(['﻿', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const safeName = projectName.replace(/[\\/:*?"<>|]/g, '_');
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        const safeName = projectName.replace(/[\\/:*?"<>|]/g, '_');
-        link.download = `${safeName}_审查清单_${format(new Date(), 'yyyyMMdd_HHmm')}.xls`;
+        link.download = `${safeName}_Review_List_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`;
         link.click();
         URL.revokeObjectURL(link.href);
     };
@@ -527,23 +499,23 @@ export const ReviewTracker: React.FC = () => {
                     <button
                         onClick={handleExportExcel}
                         className={`${softActionClass} shrink-0 bg-white text-emerald-700 border-emerald-100 hover:bg-emerald-50 hover:border-emerald-200`}
-                        title="导出当前筛选结果为 Excel 表格"
+                        title="Export the current filtered result as CSV (opens directly in Excel)"
                     >
                         <FileSpreadsheet size={14} />
-                        Export Excel
+                        Export CSV
                     </button>
                 </div>
                 {/* 筛选语法说明（浅色常驻提示） */}
                 <div className="pl-4 flex items-center gap-1.5 flex-wrap text-[10px] font-medium text-slate-400/90 tracking-wide">
-                    <span>语法：</span>
+                    <span>Syntax:</span>
                     <code className="px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-500 font-mono">a+b</code>
-                    <span className="text-slate-400/80">同时满足（与）</span>
+                    <span className="text-slate-400/80">match all (AND)</span>
                     <span className="text-slate-300">·</span>
                     <code className="px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-500 font-mono">a/b</code>
-                    <span className="text-slate-400/80">任一满足（或）</span>
+                    <span className="text-slate-400/80">match any (OR)</span>
                     <span className="text-slate-300">·</span>
-                    <span className="text-slate-400/80">与优先于或，例</span>
-                    <code className="px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-500 font-mono">张三+shell</code>
+                    <span className="text-slate-400/80">AND binds first, e.g.</span>
+                    <code className="px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-500 font-mono">tom+shell</code>
                 </div>
             </div>
 
