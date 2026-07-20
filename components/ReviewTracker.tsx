@@ -1,10 +1,37 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { RefreshCw, CheckCircle2, Circle, ClipboardCheck, Search, ChevronDown, ChevronRight, Cloud, Lock, Unlock, Send, Award, Flame } from 'lucide-react';
+import { RefreshCw, CheckCircle2, Circle, ClipboardCheck, Search, ChevronDown, ChevronRight, Cloud, Lock, Unlock, Send, Award, Flame, FileSpreadsheet } from 'lucide-react';
 import { differenceInCalendarDays, format, isAfter } from 'date-fns';
+import type { Drawing } from '../types';
 
 const REVIEW_TRACKER_LAYOUT_STORAGE_KEY = 'review-tracker-layout-single-column';
+
+// 单个关键词对图纸各字段做子串匹配
+const matchTerm = (drawing: Drawing, term: string): boolean => {
+    const t = term.trim().toLowerCase();
+    if (!t) return true;
+    return (
+        drawing.customId.toLowerCase().includes(t) ||
+        drawing.title.toLowerCase().includes(t) ||
+        (!!drawing.discipline && drawing.discipline.toLowerCase().includes(t)) ||
+        drawing.assignees.some(a => a.toLowerCase().includes(t))
+    );
+};
+
+// 布尔筛选语法：'+' 为与(AND)，'/' 为或(OR)，AND 优先级高于 OR。
+// 例：owner+shell = 同时匹配；owner/shell = 匹配任一；a+b/c = (a 且 b) 或 c
+const matchFilter = (drawing: Drawing, filterText: string): boolean => {
+    const raw = filterText.trim();
+    if (!raw) return true;
+    const orGroups = raw.split('/').map(g => g.trim()).filter(Boolean);
+    if (orGroups.length === 0) return true;
+    return orGroups.some(group => {
+        const andTerms = group.split('+').map(t => t.trim()).filter(Boolean);
+        if (andTerms.length === 0) return true;
+        return andTerms.every(term => matchTerm(drawing, term));
+    });
+};
 
 export const ReviewTracker: React.FC = () => {
     const {
@@ -55,16 +82,10 @@ export const ReviewTracker: React.FC = () => {
         return currentProject.drawings.filter(d => d.status === 'Reviewing');
     }, [currentProject]);
 
-    // 筛选后的图纸
+    // 筛选后的图纸（支持布尔语法：+ 与、/ 或）
     const filteredDrawings = useMemo(() => {
         if (!filterText.trim()) return reviewingDrawings;
-        const q = filterText.toLowerCase();
-        return reviewingDrawings.filter(d =>
-            d.customId.toLowerCase().includes(q) ||
-            d.title.toLowerCase().includes(q) ||
-            (d.discipline && d.discipline.toLowerCase().includes(q)) ||
-            d.assignees.some(a => a.toLowerCase().includes(q))
-        );
+        return reviewingDrawings.filter(d => matchFilter(d, filterText));
     }, [reviewingDrawings, filterText]);
 
     // 按 ready / not ready 分组
@@ -94,8 +115,8 @@ export const ReviewTracker: React.FC = () => {
             const getReadyTime = (d: typeof a) => {
                 const trackerEntry = reviewTracker[d.id] || {};
                 const assignees = d.assignees || [];
-                if (assignees.length === 0) return new Date(0);
-                
+                if (assignees.length === 0) return new Date(0).getTime();
+
                 // 找到所有 assignee 完成时间中最晚的一个（即变成 ready 的时间）
                 const doneTimes = assignees
                     .map(assignee => trackerEntry[assignee]?.doneAt)
@@ -143,6 +164,86 @@ export const ReviewTracker: React.FC = () => {
         } finally {
             setIsSyncing(false);
         }
+    };
+
+    // 导出当前筛选结果为 Excel（.xls，带内联样式，零依赖，WPS/Excel 原生打开）
+    const handleExportExcel = () => {
+        const rows = [...readyDrawings, ...pendingDrawings];
+        if (rows.length === 0) {
+            alert('当前筛选结果为空，无可导出的图纸。');
+            return;
+        }
+
+        const esc = (s: string) => String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        const bodyRows = rows.map((d, i) => {
+            const trackerEntry = reviewTracker[d.id] || {};
+            const assignees = d.assignees || [];
+            const doneCount = assignees.filter(a => trackerEntry[a]?.done).length;
+            const allDone = assignees.length > 0 && doneCount === assignees.length;
+            const days = getDeadlineDays(d.reviewDeadline);
+            const overdue = days !== null && days < 0;
+
+            const statusText = allDone ? 'Ready' : `审查中 ${doneCount}/${assignees.length}`;
+            const statusColor = allDone ? '#047857' : '#0f766e';
+            const dueText = days === null ? '—' : (days < 0 ? `逾期 ${-days} 天` : `剩 ${days} 天`);
+            const dueColor = days === null ? '#94a3b8' : (overdue ? '#b91c1c' : (days <= 3 ? '#b45309' : '#334155'));
+            const dueDate = d.reviewDeadline ? format(new Date(d.reviewDeadline), 'yyyy-MM-dd') : '—';
+            const zebra = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+
+            const cell = (content: string, extra = '') =>
+                `<td style="border:1px solid #d9e2ec;padding:6px 10px;background:${zebra};${extra}">${content}</td>`;
+
+            return `<tr>
+                ${cell(String(i + 1), 'text-align:center;color:#94a3b8;')}
+                ${cell(esc(d.customId), 'font-weight:bold;color:#0f766e;white-space:nowrap;')}
+                ${cell(esc(d.title))}
+                ${cell(esc(d.discipline || '—'), 'text-align:center;white-space:nowrap;')}
+                ${cell(statusText, `text-align:center;font-weight:bold;color:${statusColor};white-space:nowrap;`)}
+                ${cell(dueText, `text-align:center;font-weight:bold;color:${dueColor};white-space:nowrap;`)}
+                ${cell(dueDate, 'text-align:center;color:#64748b;white-space:nowrap;')}
+                ${cell(esc(assignees.join('、') || '—'))}
+            </tr>`;
+        }).join('');
+
+        const projectName = currentProject?.conf?.displayName || currentProject?.name || 'Project';
+        const exportedAt = format(new Date(), 'yyyy-MM-dd HH:mm');
+        const filterNote = filterText.trim() ? `筛选条件：${esc(filterText.trim())}` : '筛选条件：全部 Reviewing 图纸';
+
+        const th = (label: string, width = '') =>
+            `<th style="border:1px solid #0f766e;padding:8px 10px;background:#0f766e;color:#ffffff;font-weight:bold;text-align:center;${width}">${label}</th>`;
+
+        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Review List</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
+<body>
+<table style="border-collapse:collapse;font-family:'Microsoft YaHei',Arial,sans-serif;font-size:12px;">
+    <tr><td colspan="8" style="padding:6px 4px;font-size:16px;font-weight:bold;color:#0f766e;">${esc(projectName)} · 图纸审查清单</td></tr>
+    <tr><td colspan="4" style="padding:2px 4px 8px;font-size:11px;color:#64748b;">${filterNote}</td>
+        <td colspan="4" style="padding:2px 4px 8px;font-size:11px;color:#64748b;text-align:right;">导出时间：${exportedAt} · 共 ${rows.length} 张</td></tr>
+    <tr>
+        ${th('序号', 'width:40px;')}
+        ${th('图号', 'width:120px;')}
+        ${th('图名')}
+        ${th('专业', 'width:70px;')}
+        ${th('状态', 'width:90px;')}
+        ${th('逾期', 'width:80px;')}
+        ${th('截止日期', 'width:90px;')}
+        ${th('负责人', 'width:140px;')}
+    </tr>
+    ${bodyRows}
+</table>
+</body></html>`;
+
+        const blob = new Blob(['﻿', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        const safeName = projectName.replace(/[\\/:*?"<>|]/g, '_');
+        link.download = `${safeName}_审查清单_${format(new Date(), 'yyyyMMdd_HHmm')}.xls`;
+        link.click();
+        URL.revokeObjectURL(link.href);
     };
 
     // 一键发送 Ready 图纸
@@ -390,38 +491,60 @@ export const ReviewTracker: React.FC = () => {
             </div>
 
             {/* 筛选输入框 */}
-            <div className="px-6 py-3 border-b border-slate-100 shrink-0 flex items-center gap-3 bg-white/60 backdrop-blur-sm">
-                <div className="relative flex-1">
-                    <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
-                    <input
-                        type="text"
-                        value={filterText}
-                        onChange={e => setFilterText(e.target.value)}
-                        placeholder="Filter by drawing no, title, discipline, or assignee..."
-                        className="w-full pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 bg-white/85 border border-slate-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300 transition-all placeholder:text-slate-300 placeholder:font-bold placeholder:uppercase placeholder:tracking-wider"
-                    />
+            <div className="px-6 py-3 border-b border-slate-100 shrink-0 flex flex-col gap-2 bg-white/60 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
+                        <input
+                            type="text"
+                            value={filterText}
+                            onChange={e => setFilterText(e.target.value)}
+                            placeholder="筛选 图号/图名/专业/负责人..."
+                            className="w-full pl-10 pr-4 py-2.5 text-xs font-bold text-slate-700 bg-white/85 border border-slate-200 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-300 transition-all placeholder:text-slate-300 placeholder:font-bold placeholder:uppercase placeholder:tracking-wider"
+                        />
+                    </div>
+                    <button
+                        onClick={() => setIsSingleColumn(prev => !prev)}
+                        className={`${softActionClass} shrink-0 ${isSingleColumn
+                            ? 'bg-[linear-gradient(135deg,#0f766e_0%,#115e59_100%)] text-white border-transparent shadow-[0_12px_24px_-18px_rgba(15,118,110,0.45)]'
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-teal-200 hover:text-teal-700'
+                            }`}
+                        title={isSingleColumn ? 'Switch to two-column layout' : 'Switch to single-column layout'}
+                    >
+                        {isSingleColumn ? 'To 2 Columns' : 'To 1 Column'}
+                    </button>
+                    <button
+                        onClick={() => setShowUrgeOnly(!showUrgeOnly)}
+                        className={`${softActionClass} shrink-0 ${showUrgeOnly
+                            ? 'bg-[linear-gradient(135deg,#dc2626_0%,#f97316_100%)] text-white border-transparent shadow-[0_12px_24px_-18px_rgba(239,68,68,0.45)]'
+                            : 'bg-white text-rose-600 border-rose-100 hover:bg-rose-50 hover:border-rose-200'
+                            }`}
+                        title="仅显示超期且仍有责任人未完成审查的图纸"
+                    >
+                        <Flame size={14} className={showUrgeOnly ? 'animate-pulse' : ''} />
+                        {showUrgeOnly ? 'Urge Active' : 'Urge List'}
+                    </button>
+                    <button
+                        onClick={handleExportExcel}
+                        className={`${softActionClass} shrink-0 bg-white text-emerald-700 border-emerald-100 hover:bg-emerald-50 hover:border-emerald-200`}
+                        title="导出当前筛选结果为 Excel 表格"
+                    >
+                        <FileSpreadsheet size={14} />
+                        Export Excel
+                    </button>
                 </div>
-                <button
-                    onClick={() => setIsSingleColumn(prev => !prev)}
-                    className={`${softActionClass} shrink-0 ${isSingleColumn
-                        ? 'bg-[linear-gradient(135deg,#0f766e_0%,#115e59_100%)] text-white border-transparent shadow-[0_12px_24px_-18px_rgba(15,118,110,0.45)]'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-teal-200 hover:text-teal-700'
-                        }`}
-                    title={isSingleColumn ? 'Switch to two-column layout' : 'Switch to single-column layout'}
-                >
-                    {isSingleColumn ? 'To 2 Columns' : 'To 1 Column'}
-                </button>
-                <button
-                    onClick={() => setShowUrgeOnly(!showUrgeOnly)}
-                    className={`${softActionClass} shrink-0 ${showUrgeOnly
-                        ? 'bg-[linear-gradient(135deg,#dc2626_0%,#f97316_100%)] text-white border-transparent shadow-[0_12px_24px_-18px_rgba(239,68,68,0.45)]'
-                        : 'bg-white text-rose-600 border-rose-100 hover:bg-rose-50 hover:border-rose-200'
-                        }`}
-                    title="仅显示超期且仍有责任人未完成审查的图纸"
-                >
-                    <Flame size={14} className={showUrgeOnly ? 'animate-pulse' : ''} />
-                    {showUrgeOnly ? 'Urge Active' : 'Urge List'}
-                </button>
+                {/* 筛选语法说明（浅色常驻提示） */}
+                <div className="pl-4 flex items-center gap-1.5 flex-wrap text-[10px] font-medium text-slate-400/90 tracking-wide">
+                    <span>语法：</span>
+                    <code className="px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-500 font-mono">a+b</code>
+                    <span className="text-slate-400/80">同时满足（与）</span>
+                    <span className="text-slate-300">·</span>
+                    <code className="px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-500 font-mono">a/b</code>
+                    <span className="text-slate-400/80">任一满足（或）</span>
+                    <span className="text-slate-300">·</span>
+                    <span className="text-slate-400/80">与优先于或，例</span>
+                    <code className="px-1.5 py-0.5 rounded bg-slate-100/80 text-slate-500 font-mono">张三+shell</code>
+                </div>
             </div>
 
             {/* 滚动区域 */}
