@@ -180,10 +180,11 @@ export const ReviewTracker: React.FC = () => {
             return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         };
 
-        // 每张图纸负责人数不同，取最大值作为独立列数
-        const maxAssignees = rows.reduce((max, d) => Math.max(max, (d.assignees || []).length), 0);
-        const assigneeHeaders = Array.from({ length: Math.max(maxAssignees, 1) }, (_, i) => `Assignee ${i + 1}`);
-        const headers = ['No', 'Drawing No', 'Title', 'Discipline', 'Status', 'Overdue', 'Deadline', ...assigneeHeaders];
+        // 收集导出范围内出现过的所有负责人，每人固定一列（列头=人名），方便按人筛选
+        const assigneeNames = Array.from(
+            new Set(rows.flatMap(d => d.assignees || []))
+        ).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+        const headers = ['No', 'Drawing No', 'Title', 'Discipline', 'Status', 'Overdue', 'Deadline', ...assigneeNames];
 
         const dataRows = rows.map((d, i) => {
             const trackerEntry = reviewTracker[d.id] || {};
@@ -196,8 +197,10 @@ export const ReviewTracker: React.FC = () => {
             const overdueText = days === null ? '-' : (days < 0 ? `Overdue ${-days}d` : `${days}d left`);
             const deadline = d.reviewDeadline ? format(new Date(d.reviewDeadline), 'yyyy-MM-dd') : '-';
 
-            // 每个负责人占一列，不足的补空
-            const assigneeCells = Array.from({ length: assigneeHeaders.length }, (_, k) => assignees[k] ?? '');
+            // 每个负责人固定一列：归他负责则填状态(Done/Pending)，否则留空
+            const assigneeCells = assigneeNames.map(name =>
+                assignees.includes(name) ? (trackerEntry[name]?.done ? 'Done' : 'Pending') : ''
+            );
 
             return [
                 i + 1,
