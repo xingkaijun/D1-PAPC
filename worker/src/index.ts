@@ -315,6 +315,57 @@ const getProjectDetail = async (db: D1Database, projectId: string) => {
   };
 };
 
+// 语句分组执行：同一组（例如一张图纸的 DELETE + 随后的 INSERT）永远落在同一个 db.batch 事务里。
+// 之前按固定 100 条切批，边界可能落在 DELETE 与 INSERT 之间，后一批失败会把关联数据清空后写不回来。
+class StatementGroups {
+  private groups: D1PreparedStatement[][] = [];
+  private current: D1PreparedStatement[] = [];
+
+  push(...stmts: D1PreparedStatement[]) {
+    this.current.push(...stmts);
+  }
+
+  // 关闭当前组：此前累积的语句构成一个不可拆分的整体
+  mark() {
+    if (this.current.length > 0) {
+      this.groups.push(this.current);
+      this.current = [];
+    }
+  }
+
+  get size() {
+    return this.groups.reduce((n, g) => n + g.length, 0) + this.current.length;
+  }
+
+  all() {
+    this.mark();
+    return this.groups;
+  }
+}
+
+// 按组打包执行，单批上限 chunkSize；单组超过上限时独立成批，保证组内原子性
+const runStatementGroups = async (db: D1Database, groups: D1PreparedStatement[][], chunkSize = 100) => {
+  let buffer: D1PreparedStatement[] = [];
+  const flush = async () => {
+    if (buffer.length > 0) {
+      await db.batch(buffer);
+      buffer = [];
+    }
+  };
+
+  for (const group of groups) {
+    if (group.length === 0) continue;
+    if (group.length >= chunkSize) {
+      await flush();
+      await db.batch(group);
+      continue;
+    }
+    if (buffer.length + group.length > chunkSize) await flush();
+    buffer.push(...group);
+  }
+  await flush();
+};
+
 const getReviewTracker = async (db: D1Database, projectId: string) => {
   const row = await queryFirst<ReviewTrackerRow>(
     db,
@@ -330,7 +381,7 @@ const getReviewTracker = async (db: D1Database, projectId: string) => {
 
 const saveProjectData = async (db: D1Database, projectId: string, project: any, reviewTracker: any) => {
   if (!project || !Array.isArray(project.drawings)) return;
-  const stmts: D1PreparedStatement[] = [];
+  const stmts = new StatementGroups();
 
   // Update/Insert projects table
   const projectName = toStringValue(project.name) || projectId;
@@ -341,6 +392,7 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
      ON CONFLICT(id) DO UPDATE SET 
        name=excluded.name, webdav_path=excluded.webdav_path, last_updated=excluded.last_updated`
   ).bind(projectId, projectName, webdavPath));
+  stmts.mark();
 
   // Extract valid drawing IDs to delete removed ones
   const validIds = project.drawings.map((d: any) => toStringValue(d.id)).filter(Boolean) as string[];
@@ -354,6 +406,7 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
     stmts.push(db.prepare(`DELETE FROM drawing_remarks WHERE drawing_id = ?`).bind(delId));
     stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ? AND drawing_id = ?`).bind(projectId, delId));
     stmts.push(db.prepare(`DELETE FROM drawings WHERE project_id = ? AND id = ?`).bind(projectId, delId));
+    stmts.mark(); // 一张图纸的删除是一个整体
   }
 
   // Upsert drawings and their relations
@@ -415,6 +468,8 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
         ));
       }
     }
+
+    stmts.mark(); // 一张图纸的 upsert + 关联表重建是一个整体
   }
 
   // Persist Project Configuration (conf)
@@ -441,6 +496,7 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
         ).bind(projectId, key, String(val)));
       }
     }
+    stmts.mark();
 
     // 2. discipline_defaults
     if (conf.disciplineDefaults && typeof conf.disciplineDefaults === 'object') {
@@ -453,6 +509,7 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
           ).bind(projectId, discipline, String(reviewerId)));
         }
       }
+      stmts.mark(); // 整表重建，不可拆
     }
 
     // 3. discipline_default_assignees
@@ -468,6 +525,7 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
           }
         }
       }
+      stmts.mark(); // 整表重建，不可拆
     }
 
     // 4. Update global reviewers if provided (since they are shared)
@@ -482,25 +540,34 @@ const saveProjectData = async (db: D1Database, projectId: string, project: any, 
           ).bind(rev.id, rev.name || rev.id));
         }
       }
+      stmts.mark();
     }
   }
 
-  // Full save owns the entire tracker state for this project.
-  // Clear existing rows first so removed assignees / empty tracker entries cannot remain stale.
-  stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ?`).bind(projectId));
+  // Full save owns the entire tracker state for this project：按图纸逐张重建，
+  // 每张的 DELETE + INSERT 同批提交。不再用一条项目级 DELETE + 全部 INSERT，
+  // 否则那一大组要么超批次上限、要么被拆开后失败时整个项目的 check 全丢。
   const sanitizedTracker = sanitizeProjectReviewTracker(project, reviewTracker);
-  if (Object.keys(sanitizedTracker).length > 0) {
-    stmts.push(...buildReviewTrackerStatements(db, projectId, sanitizedTracker));
+
+  // 先清掉已不属于任何现存图纸的残留行（子查询避免绑定参数随图纸数量膨胀）
+  stmts.push(db.prepare(
+    `DELETE FROM review_tracker
+     WHERE project_id = ? AND drawing_id NOT IN (SELECT id FROM drawings WHERE project_id = ?)`
+  ).bind(projectId, projectId));
+  stmts.mark();
+
+  for (const drawing of project.drawings) {
+    const id = toStringValue(drawing.id);
+    if (!id) continue;
+    stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ? AND drawing_id = ?`).bind(projectId, id));
+    const entry = sanitizedTracker[id];
+    if (entry && Object.keys(entry).length > 0) {
+      stmts.push(...buildReviewTrackerStatements(db, projectId, { [id]: entry }));
+    }
+    stmts.mark();
   }
 
-  // Execute in batch
-  if (stmts.length > 0) {
-    const chunkSize = 100;
-    for (let i = 0; i < stmts.length; i += chunkSize) {
-      const chunk = stmts.slice(i, i + chunkSize);
-      await db.batch(chunk);
-    }
-  }
+  await runStatementGroups(db, stmts.all());
 };
 
 const buildReviewTrackerStatements = (db: D1Database, projectId: string, data: any): D1PreparedStatement[] => {
@@ -548,14 +615,11 @@ const sanitizeProjectReviewTracker = (project: any, reviewTracker: any) => {
 };
 
 const saveReviewTrackerData = async (db: D1Database, projectId: string, data: any) => {
-  const stmts = buildReviewTrackerStatements(db, projectId, data);
-  if (stmts.length > 0) {
-    const chunkSize = 100;
-    for (let i = 0; i < stmts.length; i += chunkSize) {
-      const chunk = stmts.slice(i, i + chunkSize);
-      await db.batch(chunk);
-    }
-  }
+  // 纯 upsert，没有 DELETE，按图纸分组只是为了让同一张图纸的多个负责人一起提交
+  const groups = Object.entries(data || {})
+    .map(([drawingId, assignees]) => buildReviewTrackerStatements(db, projectId, { [drawingId]: assignees }))
+    .filter(g => g.length > 0);
+  await runStatementGroups(db, groups);
 };
 
 const handleHealth = async (env: Env) => {
@@ -907,7 +971,7 @@ export default {
 
         if (segments.length === 2 && request.method === 'PATCH') {
           const body = await request.json() as any;
-          const stmts: D1PreparedStatement[] = [];
+          const stmts = new StatementGroups();
 
           // 1. Upsert only the changed drawings
           if (Array.isArray(body.updatedDrawings)) {
@@ -969,6 +1033,8 @@ export default {
                   ));
                 }
               }
+
+              stmts.mark(); // 一张图纸的 upsert + 关联表重建是一个整体
             }
           }
 
@@ -980,6 +1046,7 @@ export default {
               stmts.push(db.prepare(`DELETE FROM drawing_remarks WHERE drawing_id = ?`).bind(delId));
               stmts.push(db.prepare(`DELETE FROM review_tracker WHERE project_id = ? AND drawing_id = ?`).bind(projectId, delId));
               stmts.push(db.prepare(`DELETE FROM drawings WHERE project_id = ? AND id = ?`).bind(projectId, delId));
+              stmts.mark();
             }
           }
 
@@ -1004,6 +1071,7 @@ export default {
                 ).bind(projectId, key, String(val)));
               }
             }
+            stmts.mark();
             if (conf.disciplineDefaults && typeof conf.disciplineDefaults === 'object') {
               stmts.push(db.prepare(`DELETE FROM discipline_defaults WHERE project_id = ?`).bind(projectId));
               for (const [discipline, reviewerId] of Object.entries(conf.disciplineDefaults)) {
@@ -1013,6 +1081,7 @@ export default {
                   ).bind(projectId, discipline, String(reviewerId)));
                 }
               }
+              stmts.mark(); // 整表重建，不可拆
             }
             if (conf.defaultAssignees && typeof conf.defaultAssignees === 'object') {
               stmts.push(db.prepare(`DELETE FROM discipline_default_assignees WHERE project_id = ?`).bind(projectId));
@@ -1034,6 +1103,7 @@ export default {
                   ).bind(rev.id, rev.name || rev.id));
                 }
               }
+              stmts.mark();
             }
           }
 
@@ -1054,21 +1124,17 @@ export default {
                   toBooleanValue(info.done) ? 1 : 0, toStringValue(info.doneAt) || null
                 ));
               }
+              stmts.mark(); // 同一张图纸的 DELETE + INSERT 不可拆
             }
           }
 
           // Update last_updated timestamp
           stmts.push(db.prepare(`UPDATE projects SET last_updated = datetime('now') WHERE id = ?`).bind(projectId));
 
-          // Execute batch
-          if (stmts.length > 0) {
-            const chunkSize = 100;
-            for (let i = 0; i < stmts.length; i += chunkSize) {
-              await db.batch(stmts.slice(i, i + chunkSize));
-            }
-          }
+          const statementCount = stmts.size;
+          await runStatementGroups(db, stmts.all());
 
-          return json(env, 200, { success: true, mode: 'delta', statements: stmts.length });
+          return json(env, 200, { success: true, mode: 'delta', statements: statementCount });
         }
 
         if (segments.length === 3 && segments[2] === 'review-tracker') {

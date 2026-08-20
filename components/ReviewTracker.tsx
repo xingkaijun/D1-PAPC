@@ -1,6 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
+import type { SentDrawingExpectation } from '../store';
 import { RefreshCw, CheckCircle2, Circle, ClipboardCheck, Search, ChevronDown, ChevronRight, Cloud, Lock, Unlock, Send, Award, Flame, FileSpreadsheet } from 'lucide-react';
 import { differenceInCalendarDays, format, isAfter } from 'date-fns';
 import type { Drawing } from '../types';
@@ -40,6 +41,8 @@ export const ReviewTracker: React.FC = () => {
         reviewTracker,
         loadReviewTracker,
         toggleAssigneeDone,
+        clearTrackerForDrawings,
+        verifySentDrawings,
         saveProject,
         updateDrawing,
         isEditMode,
@@ -55,6 +58,8 @@ export const ReviewTracker: React.FC = () => {
     const [showReady, setShowReady] = useState(true);
     const [showUrgeOnly, setShowUrgeOnly] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [sendPhase, setSendPhase] = useState<'saving' | 'verifying' | null>(null);
+    const isSending = sendPhase !== null;
     const [isSingleColumn, setIsSingleColumn] = useState(() => {
         if (typeof window === 'undefined') return false;
         return window.localStorage.getItem(REVIEW_TRACKER_LAYOUT_STORAGE_KEY) === 'true';
@@ -227,13 +232,20 @@ export const ReviewTracker: React.FC = () => {
         URL.revokeObjectURL(link.href);
     };
 
-    // 一键发送 Ready 图纸
-    const handleSendReady = () => {
-        if (!isEditMode) return;
+    // 一键发送 Ready 图纸：本地更新状态 + 清空 check 后立即整体保存，再回读服务器确认落库。
+    // 避免 check 已推送服务端而 status 只留在本地（刷新后状态被远端覆盖回 Reviewing）
+    const handleSendReady = async () => {
+        if (!isEditMode || sendPhase || !activeProjectId) return;
         const count = readyDrawings.length;
         if (count === 0) return;
 
-        const approvedCount = readyDrawings.filter(d => isApprovedMark(d.id)).length;
+        // 发送前先固化每张图纸的目标状态，保存后用它回读比对
+        const expected: SentDrawingExpectation[] = readyDrawings.map(d => ({
+            id: d.id,
+            customId: d.customId,
+            status: isApprovedMark(d.id) ? 'Approved' : 'Waiting Reply',
+        }));
+        const approvedCount = expected.filter(e => e.status === 'Approved').length;
         const waitingCount = count - approvedCount;
 
         const msg = `将 ${count} 张 Ready 图纸状态更新：\n` +
@@ -243,21 +255,33 @@ export const ReviewTracker: React.FC = () => {
 
         if (!window.confirm(msg)) return;
 
-        readyDrawings.forEach(d => {
-            const newStatus = isApprovedMark(d.id) ? 'Approved' : 'Waiting Reply';
-            updateDrawing(d.id, { status: newStatus });
-            // 清理 approved 标记（如有）
-            if (isApprovedMark(d.id)) {
-                toggleAssigneeDone(d.id, '__approved__');
+        setSendPhase('saving');
+        try {
+            expected.forEach(e => updateDrawing(e.id, { status: e.status }));
+            // 清空所有 assignee 的 done 状态与 approved 标记（本地，随下面的保存一起推送）
+            clearTrackerForDrawings(expected.map(e => e.id));
+
+            const saved = await saveProject(activeProjectId);
+            if (!saved) {
+                alert('状态已在本地更新，但保存到服务器失败。请点击 Sync to Cloud 重试。');
+                return;
             }
-            // 清空所有 assignee 的 done 状态
-            const trackerEntry = reviewTracker[d.id] || {};
-            d.assignees.forEach(assignee => {
-                if (trackerEntry[assignee]?.done) {
-                    toggleAssigneeDone(d.id, assignee);
-                }
-            });
-        });
+
+            // 回读校验：确认服务器上状态已更新、check 已清空
+            setSendPhase('verifying');
+            const result = await verifySentDrawings(activeProjectId, expected);
+            if (result.error) {
+                alert(`已保存，但无法回读确认服务器结果（${result.error}）。\n请点击 Refresh 后核对状态。`);
+            } else if (!result.ok) {
+                const parts = [
+                    result.mismatchedDrawings.length > 0 ? `状态未更新：${result.mismatchedDrawings.join(', ')}` : '',
+                    result.mismatchedTracker.length > 0 ? `Check 未清空：${result.mismatchedTracker.join(', ')}` : '',
+                ].filter(Boolean).join('\n');
+                alert(`服务器写入校验未通过：\n${parts}\n\n这些图纸已重新标记为待保存，请点击 Sync to Cloud 重试。`);
+            }
+        } finally {
+            setSendPhase(null);
+        }
     };
 
     const toggleApproved = (drawingId: string) => {
@@ -555,11 +579,12 @@ export const ReviewTracker: React.FC = () => {
                                     {isEditMode && (
                                         <button
                                             onClick={handleSendReady}
-                                            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[linear-gradient(135deg,#059669_0%,#10b981_100%)] text-white text-[10px] font-[1000] uppercase tracking-[0.18em] border border-transparent hover:brightness-105 shadow-[0_12px_24px_-18px_rgba(16,185,129,0.45)] transition-all active:scale-95"
-                                            title="将 Ready 图纸状态更新为 Waiting Reply（或 Approved，如标记了 APR）"
+                                            disabled={isSending}
+                                            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[linear-gradient(135deg,#059669_0%,#10b981_100%)] text-white text-[10px] font-[1000] uppercase tracking-[0.18em] border border-transparent hover:brightness-105 shadow-[0_12px_24px_-18px_rgba(16,185,129,0.45)] transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                            title="将 Ready 图纸状态更新为 Waiting Reply（或 Approved，如标记了 APR），并立即保存到服务器"
                                         >
-                                            <Send size={12} />
-                                            Send All
+                                            <Send size={12} className={isSending ? 'animate-pulse' : ''} />
+                                            {sendPhase === 'saving' ? 'Sending...' : sendPhase === 'verifying' ? 'Verifying...' : 'Send All'}
                                         </button>
                                     )}
                                 </div>

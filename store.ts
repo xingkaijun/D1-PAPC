@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData, DeltaPayload } from './types';
+import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData, ReviewTrackerEntry, DeltaPayload } from './types';
 // Fix: Removed missing isWeekend from date-fns imports
 import { addDays, format, isSameDay } from 'date-fns';
 import { appRepository } from './services/data/AppRepository';
@@ -39,6 +39,20 @@ const isWeekend = (date: Date) => {
   const day = date.getDay();
   return day === 0 || day === 6;
 };
+
+// Send All 回读校验：发送前记录期望结果，保存后与服务器实际数据比对
+export interface SentDrawingExpectation {
+  id: string;
+  customId?: string;
+  status: DrawingStatus;
+}
+
+export interface SendVerification {
+  ok: boolean;
+  mismatchedDrawings: string[]; // 服务器上状态仍不对的图纸
+  mismatchedTracker: string[];  // 服务器上 check 仍未清空的图纸
+  error?: string;               // 回读本身失败（无法确认，不代表写入失败）
+}
 
 interface AppState {
   data: AppData;
@@ -91,6 +105,8 @@ interface AppState {
   reviewTracker: ReviewTrackerData;
   loadReviewTracker: (projectId: string) => Promise<void>;
   toggleAssigneeDone: (drawingId: string, assignee: string) => void;
+  clearTrackerForDrawings: (drawingIds: string[]) => void;
+  verifySentDrawings: (projectId: string, expected: SentDrawingExpectation[]) => Promise<SendVerification>;
 
   // 脏数据追踪（增量保存）
   _dirtyDrawingIds: Set<string>;
@@ -1098,6 +1114,105 @@ export const useStore = create<AppState>()(
               });
           }
         }
+      },
+
+      // 批量清空指定图纸下所有 assignee 的完成状态（含 __approved__ 标记）
+      // 只改本地并标脏，由调用方随 drawing 变更一起保存，避免出现
+      // “check 已推送到服务端、status 仍留在本地”的半持久化状态
+      clearTrackerForDrawings: (drawingIds: string[]) => {
+        if (!drawingIds || drawingIds.length === 0) return;
+        set(state => {
+          const nextTracker: ReviewTrackerData = { ...state.reviewTracker };
+          const nextDirtyIds = new Set(state._dirtyTrackerDrawingIds);
+          let changed = false;
+
+          drawingIds.forEach(id => {
+            const entry = state.reviewTracker[id];
+            if (!entry) return;
+            const keys = Object.keys(entry);
+            if (keys.length === 0 || keys.every(key => !entry[key]?.done)) return;
+
+            const cleared: Record<string, ReviewTrackerEntry> = {};
+            keys.forEach(key => { cleared[key] = { done: false }; });
+            nextTracker[id] = cleared;
+            nextDirtyIds.add(id);
+            changed = true;
+          });
+
+          if (!changed) return state;
+          return {
+            reviewTracker: nextTracker,
+            _dirtyTracker: true,
+            _dirtyTrackerDrawingIds: nextDirtyIds,
+          };
+        });
+      },
+
+      // 保存后回读服务器，端到端确认状态与 check 真的落库。
+      // 不改动本地业务数据；发现未落库的图纸会重新标脏，交给下次保存/自动保存重试。
+      verifySentDrawings: async (projectId: string, expected: SentDrawingExpectation[]) => {
+        const empty: SendVerification = { ok: true, mismatchedDrawings: [], mismatchedTracker: [] };
+        if (!expected || expected.length === 0) return empty;
+
+        const { data } = get();
+        const project = data.projects.find(p => p.id === projectId);
+        if (!project) return { ...empty, ok: false, error: 'Project not found locally' };
+
+        let remoteProject: Project;
+        let remoteTracker: ReviewTrackerData;
+        try {
+          [remoteProject, remoteTracker] = await Promise.all([
+            appRepository.loadProject(data.settings, project, project.conf?.password),
+            appRepository.loadReviewTracker(data.settings, project),
+          ]);
+        } catch (err: any) {
+          // 回读失败只说明"无法确认"，写入本身可能是成功的
+          return { ...empty, ok: false, error: err?.message || 'Read-back request failed' };
+        }
+
+        // loadProject 在服务器 404 时会原样返回传入的本地项目，比对将失去意义
+        if (remoteProject === project) {
+          return { ...empty, ok: false, error: 'Project missing on server' };
+        }
+
+        const remoteById = new Map(
+          (remoteProject.drawings || []).map(d => [String(d.id), d])
+        );
+        const mismatchedDrawings: string[] = [];
+        const mismatchedTracker: string[] = [];
+        const failedIds: string[] = [];
+
+        expected.forEach(({ id, customId, status }) => {
+          const label = customId || id;
+          const remote = remoteById.get(String(id));
+          let failed = false;
+
+          if (!remote || remote.status !== status) {
+            mismatchedDrawings.push(label);
+            failed = true;
+          }
+          const entry = remoteTracker?.[id] || {};
+          if (Object.values(entry).some(v => v?.done)) {
+            mismatchedTracker.push(label);
+            failed = true;
+          }
+          if (failed) failedIds.push(id);
+        });
+
+        if (failedIds.length > 0) {
+          set(state => {
+            const nextDirty = new Set(state._dirtyDrawingIds);
+            const nextDirtyTracker = new Set(state._dirtyTrackerDrawingIds);
+            failedIds.forEach(id => { nextDirty.add(id); nextDirtyTracker.add(id); });
+            return {
+              _dirtyDrawingIds: nextDirty,
+              _dirtyTracker: true,
+              _dirtyTrackerDrawingIds: nextDirtyTracker,
+            };
+          });
+        }
+
+        return { ok: failedIds.length === 0, mismatchedDrawings, mismatchedTracker };
       },
     }),
     {
