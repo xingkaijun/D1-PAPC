@@ -1,6 +1,6 @@
-import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData, DeltaPayload } from '../../types';
+import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData, DeltaPayload, SaveResult } from '../../types';
 import { CloudflareApiRepository } from './CloudflareApiRepository';
-import { ProjectListItem } from './types';
+import { AuditLogPage, ProjectListItem } from './types';
 
 const apiBaseUrl = import.meta.env.VITE_DATA_API_BASE_URL?.trim() || '';
 const apiToken = import.meta.env.VITE_DATA_API_TOKEN?.trim() || '';
@@ -24,11 +24,11 @@ export const appRepository = {
     return apiRepository.loadProject(settings, project, passwordInput);
   },
 
-  saveProject(settings: AppSettings, project: Project, reviewTracker: ReviewTrackerData): Promise<boolean> {
+  saveProject(settings: AppSettings, project: Project, reviewTracker: ReviewTrackerData): Promise<SaveResult> {
     return apiRepository.saveProject(settings, project, reviewTracker);
   },
 
-  saveDelta(settings: AppSettings, projectId: string, payload: DeltaPayload): Promise<boolean> {
+  saveDelta(settings: AppSettings, projectId: string, payload: DeltaPayload): Promise<SaveResult> {
     return apiRepository.saveDelta(settings, projectId, payload);
   },
 
@@ -52,8 +52,12 @@ export const appRepository = {
     return apiRepository.loadReviewTracker(settings, project);
   },
 
-  saveReviewTracker(settings: AppSettings, project: Project, data: ReviewTrackerData): Promise<boolean> {
+  saveReviewTracker(settings: AppSettings, project: Project, data: ReviewTrackerData): Promise<SaveResult> {
     return apiRepository.saveReviewTracker(settings, project, data);
+  },
+
+  loadAuditLog(settings: AppSettings, project: Project, fromISO: string, toISO: string): Promise<AuditLogPage> {
+    return apiRepository.loadAuditLog(settings, project, fromISO, toISO);
   },
 
   testConnection(settings: AppSettings, options?: { url?: string; user?: string; pass?: string; proxyUrl?: string }): Promise<{ success: boolean; message: string }> {

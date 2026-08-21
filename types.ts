@@ -141,3 +141,33 @@ export interface DeltaPayload {
   conf?: ProjectConfig;
   reviewTracker?: ReviewTrackerData;
 }
+
+// 服务端回读校验结果：写入之后同请求内再读一次，比对实际落库结果
+export interface WriteVerification {
+  ok: boolean;
+  checked: number;
+  mismatched: Array<{ id: string; customId?: string; fields: string[] }>;
+  error?: string; // 校验查询本身失败 =「无法确认」，不代表写入失败
+}
+
+export interface SaveResult {
+  success: boolean;
+  verification?: WriteVerification;
+}
+
+// 服务端写入日志条目（audit_log 里 action 为 STATUS / COMMENTS 的行）
+export interface AuditEntry {
+  id: string;
+  drawingId: string;
+  action: 'STATUS' | 'COMMENTS';
+  createdAt: string; // ISO-8601 UTC
+  customId: string;
+  drawingNo: string;
+  source: string; // 'app' | 'admin'
+  detail: {
+    from?: unknown;
+    to?: unknown;
+    round?: { from: string; to: string };
+    [key: string]: unknown;
+  };
+}

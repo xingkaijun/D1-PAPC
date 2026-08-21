@@ -1,5 +1,5 @@
-import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData, DeltaPayload } from '../../types';
-import { DataRepository, ProjectListItem } from './types';
+import { AppSettings, Project, ProjectSnapshot, ReviewTrackerData, DeltaPayload, SaveResult } from '../../types';
+import { AuditLogPage, DataRepository, ProjectListItem } from './types';
 
 interface RequestOptions {
   method?: string;
@@ -58,20 +58,18 @@ export class CloudflareApiRepository implements DataRepository {
     }
   }
 
-  async saveProject(_settings: AppSettings, project: Project, reviewTracker: ReviewTrackerData): Promise<boolean> {
-    await this.request(`projects/${encodeURIComponent(project.id)}`, {
+  async saveProject(_settings: AppSettings, project: Project, reviewTracker: ReviewTrackerData): Promise<SaveResult> {
+    return this.request<SaveResult>(`projects/${encodeURIComponent(project.id)}`, {
       method: 'PUT',
       body: { project, reviewTracker },
     });
-    return true;
   }
 
-  async saveDelta(_settings: AppSettings, projectId: string, payload: DeltaPayload): Promise<boolean> {
-    await this.request(`projects/${encodeURIComponent(projectId)}`, {
+  async saveDelta(_settings: AppSettings, projectId: string, payload: DeltaPayload): Promise<SaveResult> {
+    return this.request<SaveResult>(`projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
       body: payload,
     });
-    return true;
   }
 
   loadSnapshots(_settings: AppSettings, project: Project, includeAll = false): Promise<ProjectSnapshot[]> {
@@ -105,12 +103,18 @@ export class CloudflareApiRepository implements DataRepository {
     return this.request<ReviewTrackerData>(`projects/${encodeURIComponent(project.id)}/review-tracker`);
   }
 
-  async saveReviewTracker(_settings: AppSettings, project: Project, data: ReviewTrackerData): Promise<boolean> {
-    await this.request(`projects/${encodeURIComponent(project.id)}/review-tracker`, {
+  async saveReviewTracker(_settings: AppSettings, project: Project, data: ReviewTrackerData): Promise<SaveResult> {
+    return this.request<SaveResult>(`projects/${encodeURIComponent(project.id)}/review-tracker`, {
       method: 'PUT',
       body: data,
     });
-    return true;
+  }
+
+  // from / to 为完整 ISO 时刻：调用方把「本地日」边界折算成 UTC 后传入，
+  // 否则 +08:00 的一天会被 UTC 日边界从早上 8 点切开
+  loadAuditLog(_settings: AppSettings, project: Project, fromISO: string, toISO: string): Promise<AuditLogPage> {
+    const query = `?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`;
+    return this.request<AuditLogPage>(`projects/${encodeURIComponent(project.id)}/audit${query}`);
   }
 
   async sendHeartbeat(projectId: string): Promise<void> {
