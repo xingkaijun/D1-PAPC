@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData, ReviewTrackerEntry, DeltaPayload } from './types';
+import { AppData, Project, Drawing, DrawingStatus, Remark, AppSettings, ProjectSnapshot, DisciplineSnapshot, ProjectConfig, ReviewTrackerData, ReviewTrackerEntry, DeltaPayload, AuditEntry, SaveResult, WriteVerification } from './types';
 // Fix: Removed missing isWeekend from date-fns imports
 import { addDays, format, isSameDay } from 'date-fns';
 import { appRepository } from './services/data/AppRepository';
@@ -53,6 +53,25 @@ export interface SendVerification {
   mismatchedTracker: string[];  // 服务器上 check 仍未清空的图纸
   error?: string;               // 回读本身失败（无法确认，不代表写入失败）
 }
+
+export interface AuditLogResult {
+  entries: AuditEntry[];
+  truncated: boolean;
+  error?: string;
+}
+
+// 保存后应用服务端回读校验的结论。三种情形分开处理：
+//   ok            → 按正常流程清脏标记
+//   mismatched    → 只把没落库的图纸重新标脏，交给下次保存重试
+//   error（无法确认）→ 按成功处理。校验查询若永久性损坏，重新标脏会和 3 分钟
+//                     自动保存形成无限重试循环，代价远大于漏报
+const describeVerification = (verification: WriteVerification | undefined): string | null => {
+  if (!verification || verification.ok) return null;
+  if (verification.error) return null;
+  const labels = verification.mismatched.slice(0, 5).map(m => m.customId || m.id);
+  const suffix = verification.mismatched.length > labels.length ? ` 等 ${verification.mismatched.length} 张` : '';
+  return `服务器写入校验未通过：${labels.join(', ')}${suffix}。已重新标记为待保存。`;
+};
 
 interface AppState {
   data: AppData;
@@ -107,6 +126,9 @@ interface AppState {
   toggleAssigneeDone: (drawingId: string, assignee: string) => void;
   clearTrackerForDrawings: (drawingIds: string[]) => void;
   verifySentDrawings: (projectId: string, expected: SentDrawingExpectation[]) => Promise<SendVerification>;
+
+  // 服务端写入日志（audit_log）。报表查询，结果不进 state
+  loadAuditLog: (projectId: string, fromISO: string, toISO: string) => Promise<AuditLogResult>;
 
   // 脏数据追踪（增量保存）
   _dirtyDrawingIds: Set<string>;
@@ -667,6 +689,7 @@ export const useStore = create<AppState>()(
           const canPatchDrawings = dirtyDrawingSnapshot.size > 0 && dirtyDrawingSnapshot.size < totalDrawings * 0.5;
           const canPatchMetadataOnly = totalDrawings > 0 && dirtyDrawingSnapshot.size === 0 && (dirtyConfSnapshot || dirtyTrackerSnapshotFlag);
           const useDelta = deletedDrawingSnapshot.size === 0 && (canPatchDrawings || canPatchMetadataOnly);
+          let saveResult: SaveResult | undefined;
 
           if (useDelta) {
             // 构建增量 payload
@@ -684,18 +707,32 @@ export const useStore = create<AppState>()(
             }
 
             console.log(`[Save] Delta: ${updatedDrawings.length} drawings, conf=${dirtyConfSnapshot}, tracker=${dirtyTrackerSnapshotFlag}, trackerIds=${dirtyTrackerSnapshot.size}`);
-            await appRepository.saveDelta(data.settings, projectId, payload);
+            saveResult = await appRepository.saveDelta(data.settings, projectId, payload);
           } else {
             // 全量回退（删除、大批量修改、首次保存、或空项目创建）
             console.log(`[Save] Full: ${totalDrawings} drawings (dirty=${dirtyCount}, deleted=${deletedDrawingSnapshot.size})`);
-            await appRepository.saveProject(data.settings, project, reviewTracker);
+            saveResult = await appRepository.saveProject(data.settings, project, reviewTracker);
           }
+
+          // 服务端回读校验：没落库的图纸不清脏标记，交给下次保存重试
+          const verification = saveResult?.verification;
+          const unverifiedIds = new Set(
+            verification && !verification.ok && !verification.error
+              ? verification.mismatched.map(m => m.id)
+              : []
+          );
+          if (verification?.error) {
+            console.warn(`[Save] Write verification unavailable: ${verification.error}`);
+          }
+          const verificationMessage = describeVerification(verification);
+          if (verificationMessage) console.error(`[Save] ${verificationMessage}`);
 
           // 保存期间可能发生新修改：只清理本次 payload 中已发送且未再次改变的脏标记
           set(state => {
             const currentProject = state.data.projects.find(p => p.id === projectId);
             const nextDirtyDrawingIds = new Set(state._dirtyDrawingIds);
             dirtyDrawingSnapshot.forEach(id => {
+              if (unverifiedIds.has(id)) return;
               const previousDrawing = project.drawings.find(d => d.id === id);
               const currentDrawing = currentProject?.drawings.find(d => d.id === id);
               if (currentDrawing === previousDrawing) nextDirtyDrawingIds.delete(id);
@@ -706,12 +743,14 @@ export const useStore = create<AppState>()(
 
             const nextDirtyTrackerDrawingIds = new Set(state._dirtyTrackerDrawingIds);
             dirtyTrackerSnapshot.forEach(id => {
+              if (unverifiedIds.has(id)) return;
               if (state.reviewTracker[id] === reviewTracker[id]) nextDirtyTrackerDrawingIds.delete(id);
             });
 
             const nextDirtyConf = dirtyConfSnapshot && currentProject?.conf === project.conf ? false : state._dirtyConf;
             return {
               isLoading: false,
+              error: verificationMessage ?? state.error,
               _dirtyDrawingIds: nextDirtyDrawingIds,
               _deletedDrawingIds: nextDeletedDrawingIds,
               _dirtyConf: nextDirtyConf,
@@ -719,7 +758,7 @@ export const useStore = create<AppState>()(
               _dirtyTrackerDrawingIds: nextDirtyTrackerDrawingIds,
             };
           });
-          return true;
+          return unverifiedIds.size === 0;
         } catch (err: any) {
           console.error("Push failed", err);
           set({ isLoading: false, error: err.message });
@@ -1099,13 +1138,17 @@ export const useStore = create<AppState>()(
           if (project) {
             const singleUpdate = { [drawingId]: { [assignee]: { done: newDone, doneAt } } };
             appRepository.saveReviewTracker(data.settings, project, singleUpdate)
-              .then(() => {
-                // 即时保存成功，清除该 drawing 的 tracker 脏标记
-                // 注意：仅在该 drawing 没有其他未保存的 tracker 变更时才清除
-                const currentState = get();
-                const trackerEntry = currentState.reviewTracker[drawingId] || {};
-                // 检查是否还有其他未同步的 assignee 状态（简单策略：移除已成功保存的）
-                // 由于 saveProject 也会整体清除，这里仅做即时保存成功的日志
+              .then(result => {
+                // 回读校验说没落库时保留脏标记，下次手动/自动保存兜底重试。
+                // 校验查询自身失败（result.verification.error）只说明无法确认，按成功处理
+                const verification = result?.verification;
+                if (verification && !verification.ok && !verification.error) {
+                  console.error(`[Tracker] Not persisted: ${drawingId}/${assignee}, staying dirty for retry`);
+                  return;
+                }
+                if (verification?.error) {
+                  console.warn(`[Tracker] Verification unavailable: ${verification.error}`);
+                }
                 console.log(`[Tracker] Saved: ${drawingId}/${assignee} = ${newDone}`);
               })
               .catch(err => {
@@ -1213,6 +1256,21 @@ export const useStore = create<AppState>()(
         }
 
         return { ok: failedIds.length === 0, mismatchedDrawings, mismatchedTracker };
+      },
+
+      // 服务端写入日志。报表查询，结果直接返回不进 state——进了 state 会被
+      // partialize 持久化到 localStorage，那不是它该待的地方
+      loadAuditLog: async (projectId: string, fromISO: string, toISO: string): Promise<AuditLogResult> => {
+        const { data } = get();
+        const project = data.projects.find(p => p.id === projectId);
+        if (!project) return { entries: [], truncated: false, error: 'Project not found locally' };
+
+        try {
+          const page = await appRepository.loadAuditLog(data.settings, project, fromISO, toISO);
+          return { entries: page?.entries || [], truncated: Boolean(page?.truncated) };
+        } catch (err: any) {
+          return { entries: [], truncated: false, error: err?.message || 'Audit log request failed' };
+        }
       },
     }),
     {

@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store';
-import { Calendar, Download, Copy, FileText, Printer, Check, Table2, ClipboardCheck, Filter } from 'lucide-react';
-import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
+import { AuditEntry } from '../types';
+import { Calendar, Download, Copy, FileText, Printer, Check, Table2, ClipboardCheck, Filter, Database, HardDrive, Layers } from 'lucide-react';
+import { format, isWithinInterval, startOfDay, endOfDay, parseISO, addDays } from 'date-fns';
 
 // 状态转换筛选定义
 const TRANSITION_FILTERS = [
@@ -11,8 +12,73 @@ const TRANSITION_FILTERS = [
     { key: 'approved', label: 'Approved', match: (detail: string) => /Status:.*->.*Approved/i.test(detail) }
 ] as const;
 
+// 本地日志与服务端写入日志统一成同一行形状，表格 / CSV / Copy / PDF 全部复用
+interface ChangeRow {
+    date: string;
+    time: string;
+    occurredAt: number;
+    drawingId: string;
+    drawingNo: string;
+    drawingTitle: string;
+    customId: string;
+    eventType: string;
+    detail: string;
+    note: string;
+}
+
+const asCount = (value: unknown): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+// detail 拼成与本地 statusHistory 完全一致的字符串，
+// TRANSITION_FILTERS 的正则筛选因此对服务端数据直接生效
+const describeAuditEntry = (entry: AuditEntry): string => {
+    if (entry.action === 'STATUS') {
+        const parts = [`Status: ${entry.detail.from ?? '?'} -> ${entry.detail.to ?? '?'}`];
+        if (entry.detail.round) parts.push(`Round: ${entry.detail.round.from} -> ${entry.detail.round.to}`);
+        return parts.join(' | ');
+    }
+    const from = (entry.detail.from || {}) as Record<string, unknown>;
+    const to = (entry.detail.to || {}) as Record<string, unknown>;
+    return `Comments: ${asCount(from.total)}/${asCount(from.open)} -> ${asCount(to.total)}/${asCount(to.open)}`;
+};
+
+// 按「本地日 + 图纸」合并意见变化为净变化：自动保存每 3 分钟一次，
+// 边填边存会产生 0→2、2→8、8→15… 一串中间行，不合并很难读
+const mergeCommentsByDay = (rows: ChangeRow[]): ChangeRow[] => {
+    const merged: ChangeRow[] = [];
+    const seen = new Map<string, ChangeRow>();
+
+    rows.forEach(row => {
+        if (row.eventType !== 'Comments') {
+            merged.push(row);
+            return;
+        }
+
+        const key = `${row.date}|${row.drawingId}`;
+        const existing = seen.get(key);
+        if (!existing) {
+            const copy = { ...row };
+            seen.set(key, copy);
+            merged.push(copy);
+            return;
+        }
+
+        // 保留最早的起点与最晚的终点
+        const start = existing.detail.match(/Comments:\s*([\d/]+)\s*->/)?.[1];
+        const end = row.detail.match(/->\s*([\d/]+)\s*$/)?.[1];
+        if (start && end) existing.detail = `Comments: ${start} -> ${end}`;
+        existing.time = row.time;
+        existing.occurredAt = row.occurredAt;
+        existing.note = row.note;
+    });
+
+    return merged;
+};
+
 export const DailyLogReport: React.FC = () => {
-    const { data, activeProjectId } = useStore();
+    const { data, activeProjectId, loadAuditLog } = useStore();
     const activeProject = data.projects.find(p => p.id === activeProjectId);
 
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -24,24 +90,74 @@ export const DailyLogReport: React.FC = () => {
     // 状态转换筛选：空集 = 全部显示
     const [selectedTransitions, setSelectedTransitions] = useState<Set<string>>(new Set());
 
+    // 数据源：local = 客户端 statusHistory 快照，server = 真正落库的写入日志
+    const [logSource, setLogSource] = useState<'local' | 'server'>('local');
+    const [serverEntries, setServerEntries] = useState<AuditEntry[]>([]);
+    const [serverLoading, setServerLoading] = useState(false);
+    const [serverError, setServerError] = useState<string | null>(null);
+    const [serverTruncated, setServerTruncated] = useState(false);
+    const [expandRaw, setExpandRaw] = useState(false);
+
+    // 把「本地日」边界折算成 UTC 时刻再请求：直接按 UTC 日分组会把 +08:00 的一天从早上 8 点切开
+    useEffect(() => {
+        if (logSource !== 'server' || !activeProjectId) return;
+
+        let cancelled = false;
+        const fromISO = startOfDay(parseISO(startDate)).toISOString();
+        const toISO = addDays(startOfDay(parseISO(endDate)), 1).toISOString();
+
+        setServerLoading(true);
+        setServerError(null);
+        loadAuditLog(activeProjectId, fromISO, toISO).then(result => {
+            if (cancelled) return;
+            setServerEntries(result.entries);
+            setServerTruncated(result.truncated);
+            setServerError(result.error || null);
+            setServerLoading(false);
+        });
+
+        return () => { cancelled = true; };
+    }, [logSource, activeProjectId, startDate, endDate, loadAuditLog]);
+
     // 数据聚合引擎
     const dailyChanges = useMemo(() => {
-        if (!activeProject) return [];
+        if (!activeProject) return [] as ChangeRow[];
+
+        if (logSource === 'server') {
+            const drawingById = new Map(activeProject.drawings.map(d => [d.id, d]));
+            const rows: ChangeRow[] = serverEntries.map(entry => {
+                const at = parseISO(entry.createdAt);
+                const drawing = drawingById.get(entry.drawingId);
+                return {
+                    date: format(at, 'yyyy-MM-dd'),
+                    time: format(at, 'HH:mm:ss'),
+                    occurredAt: at.getTime(),
+                    drawingId: entry.drawingId,
+                    // 图纸已删除时回落到日志里冗余的快照值
+                    drawingNo: drawing?.drawingNo || entry.drawingNo,
+                    drawingTitle: drawing?.title || '',
+                    customId: drawing?.customId || entry.customId,
+                    eventType: entry.action === 'STATUS' ? 'Status' : 'Comments',
+                    detail: describeAuditEntry(entry),
+                    note: entry.source,
+                };
+            });
+
+            // 合并需要从旧到新扫描，展示再倒序
+            const ascending = [...rows].sort((a, b) => a.occurredAt - b.occurredAt);
+            const shaped = expandRaw ? ascending : mergeCommentsByDay(ascending);
+            const sorted = shaped.sort((a, b) => b.occurredAt - a.occurredAt);
+
+            if (selectedTransitions.size === 0) return sorted;
+            return sorted.filter(change =>
+                TRANSITION_FILTERS.some(f => selectedTransitions.has(f.key) && f.match(change.detail))
+            );
+        }
 
         const dateStart = startOfDay(parseISO(startDate));
         const dateEnd = endOfDay(parseISO(endDate));
 
-        const changes: Array<{
-            date: string;
-            time: string;
-            occurredAt: number;
-            drawingNo: string;
-            drawingTitle: string;
-            customId: string;
-            eventType: string;
-            detail: string;
-            note: string;
-        }> = [];
+        const changes: ChangeRow[] = [];
 
         // 遍历所有图纸
         activeProject.drawings.forEach(drawing => {
@@ -53,6 +169,7 @@ export const DailyLogReport: React.FC = () => {
                         date: format(historyDate, 'yyyy-MM-dd'),
                         time: format(historyDate, 'HH:mm:ss'),
                         occurredAt: historyDate.getTime(),
+                        drawingId: drawing.id,
                         drawingNo: drawing.drawingNo,
                         drawingTitle: drawing.title || '',
                         customId: drawing.customId,
@@ -73,6 +190,7 @@ export const DailyLogReport: React.FC = () => {
                             date: format(receivedDate, 'yyyy-MM-dd'),
                             time: format(receivedDate, 'HH:mm:ss'),
                             occurredAt: receivedDate.getTime(),
+                            drawingId: drawing.id,
                             drawingNo: drawing.drawingNo,
                             drawingTitle: drawing.title || '',
                             customId: drawing.customId,
@@ -91,6 +209,7 @@ export const DailyLogReport: React.FC = () => {
                             date: format(sentDate, 'yyyy-MM-dd'),
                             time: format(sentDate, 'HH:mm:ss'),
                             occurredAt: sentDate.getTime(),
+                            drawingId: drawing.id,
                             drawingNo: drawing.drawingNo,
                             drawingTitle: drawing.title || '',
                             customId: drawing.customId,
@@ -107,8 +226,8 @@ export const DailyLogReport: React.FC = () => {
         const sortedChanges = changes.sort((a, b) => a.occurredAt - b.occurredAt);
 
         // 合并同一分钟内相同图纸的 Comments 变更
-        const mergedChanges: typeof changes = [];
-        const mergeMap = new Map<string, typeof changes[0]>();
+        const mergedChanges: ChangeRow[] = [];
+        const mergeMap = new Map<string, ChangeRow>();
 
         sortedChanges.forEach((change) => {
             // 只合并 Change 类型且包含 Comments 的记录
@@ -148,7 +267,7 @@ export const DailyLogReport: React.FC = () => {
                 selectedTransitions.has(f.key) && f.match(change.detail)
             );
         });
-    }, [activeProject, startDate, endDate, selectedTransitions]);
+    }, [activeProject, startDate, endDate, selectedTransitions, logSource, serverEntries, expandRaw]);
 
     // 筛选出当天状态变为 Waiting Reply 或 Approved 的图纸（用于打印流转单）
     const transmittalDrawings = useMemo(() => {
@@ -292,6 +411,7 @@ export const DailyLogReport: React.FC = () => {
         const text = [
             `Change Log - ${startDate} ~ ${endDate}`,
             `Project: ${activeProject?.name || 'N/A'}`,
+            `Source: ${logSource === 'server' ? 'Database writes' : 'Local snapshot'}`,
             `Filters: ${getFilterText()}`,
             `Total Events: ${dailyChanges.length}`,
             '',
@@ -310,6 +430,7 @@ export const DailyLogReport: React.FC = () => {
         const csv = [
             `"Change Log:","${startDate} ~ ${endDate}"`,
             `"Project:","${activeProject?.name || 'N/A'}"`,
+            `"Source:","${logSource === 'server' ? 'Database writes' : 'Local snapshot'}"`,
             `"Filters:","${getFilterText()}"`,
             `"Total Events:","${dailyChanges.length}"`,
             '',
@@ -371,7 +492,11 @@ export const DailyLogReport: React.FC = () => {
                 {/* Header */}
                 <div className="p-6 pb-3 shrink-0">
                     <h2 className="text-2xl font-black text-slate-800 mb-2">Daily Logs</h2>
-                    <p className="text-sm text-slate-500">Track changes based on Log Stream</p>
+                    <p className="text-sm text-slate-500">
+                        {logSource === 'server'
+                            ? 'Status and comment changes that actually landed in the database'
+                            : 'Track changes based on Log Stream'}
+                    </p>
                 </div>
 
                 {/* Controls */}
@@ -435,7 +560,62 @@ export const DailyLogReport: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* 第二行：状态转换筛选 toggle */}
+                        {/* 第二行：数据源切换 */}
+                        <div className="flex items-center gap-2 border-t border-slate-100 pt-3 flex-wrap">
+                            <Database size={14} className="text-slate-400 shrink-0" />
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wider shrink-0">Source:</span>
+                            {([
+                                { key: 'local' as const, label: 'Local', icon: HardDrive, title: '客户端记录的变更快照，含未保存的本地改动' },
+                                { key: 'server' as const, label: 'Server', icon: Database, title: '数据库实际写入记录：状态变更与意见增减' },
+                            ]).map(({ key, label, icon: Icon, title }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setLogSource(key)}
+                                    title={title}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                        logSource === key
+                                            ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                                    }`}
+                                >
+                                    <Icon size={12} strokeWidth={2.5} />
+                                    {label}
+                                </button>
+                            ))}
+
+                            {logSource === 'server' && (
+                                <>
+                                    <button
+                                        onClick={() => setExpandRaw(!expandRaw)}
+                                        title="展开后不再按天合并意见变化，逐条显示每次落库"
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ml-2 ${
+                                            expandRaw
+                                                ? 'bg-slate-700 text-white border-slate-700 shadow-sm'
+                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        <Layers size={12} strokeWidth={2.5} />
+                                        {expandRaw ? 'Raw entries' : 'Merged by day'}
+                                    </button>
+
+                                    {serverLoading && (
+                                        <span className="text-xs font-bold text-slate-400 ml-1">Loading…</span>
+                                    )}
+                                    {!serverLoading && serverError && (
+                                        <span className="text-xs font-bold text-rose-600 ml-1" title={serverError}>
+                                            ✕ Failed to load server log: {serverError}
+                                        </span>
+                                    )}
+                                    {!serverLoading && !serverError && serverTruncated && (
+                                        <span className="text-xs font-bold text-amber-600 ml-1">
+                                            ⚠ Truncated at 2000 entries — narrow the date range
+                                        </span>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        {/* 第三行：状态转换筛选 toggle */}
                         <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
                             <Filter size={14} className="text-slate-400 shrink-0" />
                             <span className="text-xs font-black text-slate-400 uppercase tracking-wider shrink-0">Filter:</span>
@@ -482,6 +662,7 @@ export const DailyLogReport: React.FC = () => {
                             <div className="text-right">
                                 <p className="text-xs font-bold text-slate-500">Project: {activeProject.name}</p>
                                 <p className="text-xs font-bold text-slate-500">Date: {startDate === endDate ? startDate : `${startDate} ~ ${endDate}`}</p>
+                                <p className="text-xs font-bold text-slate-500">Source: {logSource === 'server' ? 'Database writes' : 'Local snapshot'}</p>
                                 {selectedTransitions.size > 0 && (
                                     <p className="text-xs font-bold text-slate-500 mt-1">Filters: {getFilterText()}</p>
                                 )}
@@ -512,8 +693,18 @@ export const DailyLogReport: React.FC = () => {
                                         <td colSpan={8} className="px-4 py-12 text-center">
                                             <div className="text-slate-300">
                                                 <FileText size={48} className="mx-auto mb-3 opacity-20" />
-                                                <p className="text-sm font-bold">No changes recorded for this date</p>
-                                                <p className="text-xs mt-1">Try selecting another date or check data</p>
+                                                <p className="text-sm font-bold">
+                                                    {logSource === 'server' && serverLoading
+                                                        ? 'Loading server log…'
+                                                        : logSource === 'server' && serverError
+                                                            ? 'Server log unavailable'
+                                                            : 'No changes recorded for this date'}
+                                                </p>
+                                                <p className="text-xs mt-1">
+                                                    {logSource === 'server' && serverError
+                                                        ? serverError
+                                                        : 'Try selecting another date or check data'}
+                                                </p>
                                             </div>
                                         </td>
                                     </tr>
@@ -526,9 +717,10 @@ export const DailyLogReport: React.FC = () => {
                                             <td className="px-4 py-3 text-sm font-mono text-teal-600">{change.drawingNo}</td>
                                             <td className="px-4 py-3 text-sm font-bold text-slate-700">{change.drawingTitle}</td>
                                             <td className="px-4 py-3">
-                                                <span className={`px-2 py-1 rounded-md text-xs font-black uppercase ${change.eventType === 'Change' ? 'bg-blue-50 text-blue-700' :
-                                                    change.eventType === 'Received' ? 'bg-green-50 text-green-700' :
-                                                        'bg-purple-50 text-purple-700'
+                                                <span className={`px-2 py-1 rounded-md text-xs font-black uppercase ${change.eventType === 'Change' || change.eventType === 'Status' ? 'bg-blue-50 text-blue-700' :
+                                                    change.eventType === 'Comments' ? 'bg-amber-50 text-amber-700' :
+                                                        change.eventType === 'Received' ? 'bg-green-50 text-green-700' :
+                                                            'bg-purple-50 text-purple-700'
                                                     }`}>
                                                     {change.eventType}
                                                 </span>
